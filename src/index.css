@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* --- BRANDING --- */
+    --primary-color: #84cc16 !important;
+    --primary-color-text: #0f172a !important;
+    --focus-ring: #84cc16 !important;
+
+    /* --- SEMÁNTICOS --- */
+    /* Success */
+    --green-500: #10b981 !important; /* Tu success.DEFAULT */
+    --green-100: #d1fae5 !important; /* Tu success.light */
+    
+    /* Info */
+    --blue-500: #0ea5e9 !important;  /* Tu info.DEFAULT */
+    --blue-100: #e0f2fe !important;  /* Tu info.light */
+    
+    /* Warning */
+    --orange-500: #f59e0b !important; /* Tu warning.DEFAULT */
+    --orange-100: #fef3c7 !important; /* Tu warning.light */
+    
+    /* Danger */
+    --red-500: #ef4444 !important;    /* Tu danger.DEFAULT */
+    --red-100: #fee2e2 !important;    /* Tu danger.light */
+}
+
+/* Ajuste para que los pasos inactivos del Stepper se vean mejor */
+.p-steps .p-steps-item .p-menuitem-link .p-steps-number {
+    color: #6b7280; /* Gris */
+    background-color: #ffffff;
+    border-color: #d1d5db;
+}
+/* --- FIN TEMA PERSONALIZADO --- */
+
+body {
+    background-color: #f3f4f6;
+}
+
+/* Ajuste: Forzamos negrita en los botones para que se vea más industrial */
+.p-button {
+    font-weight: 700 !important;
+}
+
+/* Estilo para botones deshabilitados (Estándar Global) */
+.p-button:disabled {
+    background-color: #cbd5e1 !important; /* Slate-300 */
+    border-color: #cbd5e1 !important;
+    color: #64748b !important;
+}
+
