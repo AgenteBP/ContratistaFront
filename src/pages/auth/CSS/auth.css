@@ -1,0 +1,45 @@
+/* Asegura que el botón pueda posicionar elementos internamente */
+.p-button.p-button-loading {
+  position: relative;            /* contenedor relativo para posicion absolute del spinner */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;      /* mantiene el contenido centrado */
+}
+
+/* Centra exactamente el icono de carga dentro del botón */
+.p-button.p-button-loading .p-button-icon,
+.p-button.p-button-loading .p-button-loading-icon {
+  position: absolute;
+  left: 25%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Ajuste opcional para que el label no se solape visualmente:
+   agrega un little padding para que se vea el texto a la derecha (modificá según gusto) */
+.p-button.p-button-loading .p-button-label {
+  padding-left: 0.75rem; /* o 0 para que el spinner quede encima del texto */
+}
+
+/*password*/
+
+/* Asegura que el wrapper p-input-icon-left se comporte como bloque y ocupe todo 
+.p-input-icon-left.w-full {
+  display: block;
+  width: 100%;
+}*/
+
+/* Forzamos que el componente Password y su input interno ocupen 100% del ancho */
+.p-password {
+  width: 100%;
+  display: block;
+}
+
+.p-password .p-inputtext {
+  width: 100%;
+  box-sizing: border-box; /* importantísimo para que padding no reduzca el ancho visible */
+}
+
+/* Si aún no coincide por especificidad (raro), descomenta la línea siguiente */
+/* .p-password .p-inputtext { width: 100% !important; } */
