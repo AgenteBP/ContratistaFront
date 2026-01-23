@@ -10,28 +10,38 @@
 
     /* --- SEMÁNTICOS --- */
     /* Success */
-    --green-500: #10b981 !important; /* Tu success.DEFAULT */
-    --green-100: #d1fae5 !important; /* Tu success.light */
-    
+    --green-500: #10b981 !important;
+    /* Tu success.DEFAULT */
+    --green-100: #d1fae5 !important;
+    /* Tu success.light */
+
     /* Info */
-    --blue-500: #0ea5e9 !important;  /* Tu info.DEFAULT */
-    --blue-100: #e0f2fe !important;  /* Tu info.light */
-    
+    --blue-500: #0ea5e9 !important;
+    /* Tu info.DEFAULT */
+    --blue-100: #e0f2fe !important;
+    /* Tu info.light */
+
     /* Warning */
-    --orange-500: #f59e0b !important; /* Tu warning.DEFAULT */
-    --orange-100: #fef3c7 !important; /* Tu warning.light */
-    
+    --orange-500: #f59e0b !important;
+    /* Tu warning.DEFAULT */
+    --orange-100: #fef3c7 !important;
+    /* Tu warning.light */
+
     /* Danger */
-    --red-500: #ef4444 !important;    /* Tu danger.DEFAULT */
-    --red-100: #fee2e2 !important;    /* Tu danger.light */
+    --red-500: #ef4444 !important;
+    /* Tu danger.DEFAULT */
+    --red-100: #fee2e2 !important;
+    /* Tu danger.light */
 }
 
 /* Ajuste para que los pasos inactivos del Stepper se vean mejor */
 .p-steps .p-steps-item .p-menuitem-link .p-steps-number {
-    color: #6b7280; /* Gris */
+    color: #6b7280;
+    /* Gris */
     background-color: #ffffff;
     border-color: #d1d5db;
 }
+
 /* --- FIN TEMA PERSONALIZADO --- */
 
 body {
@@ -45,8 +55,25 @@ body {
 
 /* Estilo para botones deshabilitados (Estándar Global) */
 .p-button:disabled {
-    background-color: #cbd5e1 !important; /* Slate-300 */
+    background-color: #cbd5e1 !important;
+    /* Slate-300 */
     border-color: #cbd5e1 !important;
     color: #64748b !important;
 }
 
+/* --- ANIMACIONES PERSONALIZADAS --- */
+@keyframes wiggle {
+
+    0%,
+    100% {
+        transform: rotate(-4deg);
+    }
+
+    50% {
+        transform: rotate(4deg);
+    }
+}
+
+.animate-wiggle:hover {
+    animation: wiggle 0.3s ease-in-out infinite;
+}

@@ -54,45 +54,45 @@ import DashboardHome from './pages/dashboard/DashboardHome';
 import ProvidersList from './pages/providers/ProvidersList';
 import NewProvider from './pages/providers/NewProvider';
 import ProviderDetail from './pages/providers/ProviderDetail';
+import UsersList from './pages/users/UsersList';
+import UserDetail from './pages/users/UserDetail';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* --- ZONA PÚBLICA (Sin MainLayout) --- */}
-        
+
         {/* 1. Redirección inicial: Al entrar a la raíz, mandar al login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        
+
         {/* 2. Pantallas de acceso */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/select-role" element={<RoleSelectionPage />} />
 
 
         {/* --- ZONA PRIVADA (Con MainLayout) --- */}
-        
-        {/* 3. Usamos un comodín "/*" para atrapar cualquier otra ruta 
-            y renderizar el Layout con sus rutas internas.
-        */}
-        <Route path="/*" element={
-          <MainLayout>
-            <Routes>
-              {/* Aquí definimos qué Dashboard mostrar. 
-                  A futuro, puedes hacer una lógica condicional aquí según el rol.
-                  Ej: element={ role === 'AUDITOR' ? <AuditorDashboard /> : <ProviderDashboard /> } 
-              */}
-              <Route path="/dashboard" element={<DashboardHome />} />
+        {/* Usamos Layout Route: MainLayout se renderiza una vez y sus hijas cambian en el <Outlet /> */}
+        <Route element={<MainLayout />}>
 
-              {/* Rutas de Proveedores */}
-              <Route path="/proveedores" element={<ProvidersList />} />
-              <Route path="/proveedores/nuevo" element={<NewProvider />} />
-              <Route path="/proveedores/:id" element={<ProviderDetail />} />
+          {/* Aquí definimos qué Dashboard mostrar. */}
+          <Route path="/dashboard" element={<DashboardHome />} />
 
-              {/* Si ponen una ruta cualquiera interna, mandar al dashboard */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </MainLayout>
-        } />
+          {/* Rutas de Proveedores */}
+          <Route path="/proveedores" element={<ProvidersList />} />
+          <Route path="/proveedores/nuevo" element={<NewProvider />} />
+          <Route path="/proveedores/:id" element={<ProviderDetail />} />
+
+          {/* Rutas de Usuarios */}
+          <Route path="/usuarios" element={<UsersList />} />
+          <Route path="/usuarios/nuevo" element={<NewProvider />} />
+          <Route path="/usuarios/:id/nuevo-rol" element={<NewProvider />} />
+          <Route path="/usuarios/:id" element={<UserDetail />} />
+
+          {/* Si ponen una ruta cualquiera interna, mandar al dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+        </Route>
 
       </Routes>
     </BrowserRouter>

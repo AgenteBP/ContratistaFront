@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Hook para navegar entre páginas
+import { useNavigate } from 'react-router-dom';
+import { providerService } from '../../services/providerService';
 
 // --- IMPORTACIONES DE PRIME REACT ---
-import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { FilterMatchMode } from 'primereact/api';
 import { InputText } from 'primereact/inputtext';
@@ -10,15 +10,15 @@ import { Dropdown } from 'primereact/dropdown';
 import { Menu } from 'primereact/menu';
 
 // --- IMPORTACIONES DE TUS COMPONENTES UI (Atomic Design) ---
-// Asegúrate de haber creado estos archivos en src/components/ui/
-// Si no creaste Badges.jsx, puedes definir los componentes pequeños al final de este archivo temporalmente.
 import { RiskBadge, BooleanBadge, StatusBadge } from '../../components/ui/Badges';
+import PageHeader from '../../components/ui/PageHeader';
+import AppTable from '../../components/ui/AppTable';
 
 // --- DATOS MOCK ---
 import { MOCK_PROVEEDORES } from '../../data/mockProviders';
 
 const ProvidersList = () => {
-    const navigate = useNavigate(); // Hook de navegación
+    const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [expandedRows, setExpandedRows] = useState(null);
@@ -52,7 +52,6 @@ const ProvidersList = () => {
             label: 'Ver Detalles',
             icon: 'pi pi-eye',
             command: () => {
-                // Aquí usamos el ID de la fila seleccionada para navegar
                 if (selectedRow) {
                     navigate(`/proveedores/${selectedRow.id}`);
                 }
@@ -62,17 +61,15 @@ const ProvidersList = () => {
             label: 'Editar',
             icon: 'pi pi-pencil',
             command: () => {
-                // Lógica futura para editar
                 console.log("Editando a:", selectedRow?.razonSocial);
             }
         },
-        { separator: true }, // Una línea separadora bonita
+        { separator: true },
         {
             label: 'Borrar',
             icon: 'pi pi-trash',
-            className: 'text-red-500', // Puedes ponerle clases de Tailwind
+            className: 'text-red-500',
             command: () => {
-                // Lógica futura de borrado
             }
         }
     ];
@@ -174,82 +171,51 @@ const ProvidersList = () => {
 
     return (
         <div className="animate-fade-in w-full">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 md:mb-6 gap-4">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-extrabold text-secondary-dark tracking-tight">Proveedores</h1>
-                    <p className="text-secondary mt-1 text-xs">Base de datos de contratistas.</p>
-                </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    {/* Botón Navegación: Usamos navigate() en lugar de cambiar estado local */}
+            <PageHeader
+                title="Proveedores"
+                subtitle="Base de datos de contratistas."
+                actionButton={
                     <button
-                        onClick={() => navigate('/proveedores/nuevo')}
+                        onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
                         className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-4 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 w-full md:w-auto"
                     >
                         <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Proveedor</span><span className="md:hidden">Nuevo</span>
                     </button>
-                </div>
-            </div>
+                }
+            />
+
             <Menu model={menuItems} popup ref={menuRef} id="popup_menu" />
-            <div className="bg-white border border-secondary/20 rounded-xl shadow-sm overflow-hidden w-full">
-                <DataTable
-                    value={proveedores}
-                    paginator
-                    rows={5}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                    header={header}
-                    filters={filters}
-                    filterDisplay="row"
-                    globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
-                    emptyMessage="No se encontraron datos."
-                    sortMode="multiple" removableSort
-                    expandedRows={expandedRows}
-                    onRowToggle={(e) => setExpandedRows(e.data)}
-                    rowExpansionTemplate={rowExpansionTemplate}
-                    dataKey="id"
-                    sortIcon={customSortIcon}
-                    size="small"
-                    stripedRows
-                    tableClassName="w-full text-sm text-left text-secondary"
 
-                    pt={{
-                        thead: { className: 'text-xs text-secondary-dark uppercase bg-secondary-light border-b border-secondary/20' },
-                        headerCell: { className: 'px-3 py-2.5 font-bold hover:bg-white transition-colors cursor-pointer focus:shadow-none align-top group' },
-                        bodyRow: ({ context }) => ({ className: `border-b border-secondary/10 transition-colors` }),
-                        bodyCell: { className: 'px-3 py-2.5 align-middle text-secondary-dark' },
+            <AppTable
+                value={proveedores}
+                header={header}
+                filters={filters}
+                globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
+                emptyMessage="No se encontraron datos."
+                sortMode="multiple"
+                removableSort
+                expandedRows={expandedRows}
+                onRowToggle={(e) => setExpandedRows(e.data)}
+                rowExpansionTemplate={rowExpansionTemplate}
+                dataKey="id"
+                sortIcon={customSortIcon}
+            >
+                <Column expander={true} style={{ width: '2rem' }} className="2xl:hidden" headerClassName="2xl:hidden" />
 
-                        // Paginador
-                        paginator: {
-                            root: { className: 'flex justify-between items-center p-2 border-t border-secondary/20 text-xs text-secondary' },
-                            current: { className: 'h-8 leading-8' },
-                            RPPDropdown: {
-                                root: { className: 'h-7 text-xs flex items-center bg-white border border-secondary/30 rounded ml-2 focus:ring-2 focus:ring-primary/50' },
-                                input: { className: 'p-1 text-xs font-medium text-secondary-dark' },
-                                trigger: { className: 'w-6 flex items-center justify-center text-secondary' },
-                                panel: { className: 'text-xs bg-white border border-secondary/20 shadow-lg rounded-md p-0' },
-                                item: { className: 'p-1.5 hover:bg-secondary-light cursor-pointer text-xs text-secondary-dark' },
-                                wrapper: { className: 'max-h-[200px]' }
-                            }
-                        }
-                    }}
-                >
-                    <Column expander={true} style={{ width: '2rem' }} className="2xl:hidden" headerClassName="2xl:hidden" />
+                <Column field="id" header="#" sortable className="font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="pl-6"></Column>
+                <Column field="razonSocial" header="Razón Social" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-bold text-secondary-dark"></Column>
+                <Column field="cuit" header="CUIT" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
+                <Column field="servicio" header="Servicio" sortable filter filterElement={(opts) => createDropdownFilter(opts, servicios)} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
+                <Column field="grupo" header="Grupo" sortable filter filterElement={(opts) => createDropdownFilter(opts, grupos)} showFilterMenu={false} className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
+                <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false} filterMenuStyle={{ width: '10rem' }}></Column>
+                <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
+            </AppTable>
 
-                    <Column field="id" header="#" sortable className="font-mono text-sm text-secondary/50 w-10"></Column>
-                    <Column field="razonSocial" header="Razón Social" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-bold text-secondary-dark"></Column>
-                    <Column field="cuit" header="CUIT" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
-                    <Column field="servicio" header="Servicio" sortable filter filterElement={(opts) => createDropdownFilter(opts, servicios)} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
-                    <Column field="grupo" header="Grupo" sortable filter filterElement={(opts) => createDropdownFilter(opts, grupos)} showFilterMenu={false} className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
-                    <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false} filterMenuStyle={{ width: '10rem' }}></Column>
-                    <Column header="Acciones" body={actionTemplate} style={{ width: '50px', textAlign: 'center' }}></Column>
-                </DataTable>
-            </div>
             <p className="mt-4 text-[10px] text-secondary/50 text-center 2xl:hidden pb-4">
                 Toque la flecha para ver detalles.
             </p>
         </div>
     );
-
-
 };
 
 export default ProvidersList;

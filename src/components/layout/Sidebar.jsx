@@ -5,13 +5,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 // Lo definimos aquí mismo porque solo lo usa el Sidebar, no hace falta exportarlo.
 const SidebarItem = ({ icon, label, active, badge, onClick }) => (
   <li>
-    <button 
-      onClick={onClick} 
+    <button
+      onClick={onClick}
       className={`w-full flex items-center p-3 rounded-lg group transition-all duration-200 
-      ${active 
-        ? 'bg-primary text-white shadow-md shadow-primary/30' // Estilo Activo
-        : 'text-secondary-dark hover:bg-secondary-light'      // Estilo Inactivo
-      }`}
+      ${active
+          ? 'bg-primary text-white shadow-md shadow-primary/30' // Estilo Activo
+          : 'text-secondary-dark hover:bg-secondary-light'      // Estilo Inactivo
+        }`}
     >
       <i className={`pi ${icon} w-5 h-5 transition duration-75 ${active ? 'text-white' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
       <span className="ms-3 font-medium">{label}</span>
@@ -31,7 +31,7 @@ const Sidebar = () => {
   return (
     <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white border-r border-secondary/20 hidden md:block transition-transform">
       <div className="h-full px-4 py-6 overflow-y-auto">
-        
+
         {/* Logo / Header del Sidebar */}
         <div className="flex items-center gap-3 mb-8 px-2 cursor-pointer" onClick={() => navigate('/proveedores')}>
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/30">
@@ -44,34 +44,42 @@ const Sidebar = () => {
 
         {/* Lista de Menú */}
         <ul className="space-y-2">
-          
+
           {/* Item: Inicio (Por ahora redirige a proveedores, luego puedes crear un Dashboard real) */}
-          <SidebarItem 
-            icon="pi-home" 
-            label="Inicio" 
+          <SidebarItem
+            icon="pi-home"
+            label="Inicio"
             active={location.pathname === '/dashboard'}
             onClick={() => navigate('/dashboard')}
           />
 
           {/* Item: Nuevo Proveedor */}
-          <SidebarItem 
-            icon="pi-user-plus" 
-            label="Nuevo" 
-            active={isActive('/proveedores/nuevo')} 
-            onClick={() => navigate('/proveedores/nuevo')} 
-          />
+          {/* <SidebarItem
+            icon="pi-user-plus"
+            label="Nuevo"
+            active={isActive('/proveedores/nuevo')}
+            onClick={() => navigate('/proveedores/nuevo')}
+          /> */}
 
           {/* Item: Lista de Proveedores */}
-          <SidebarItem 
-            icon="pi-users" 
-            label="Proveedores" 
-            active={isActive('/proveedores')} 
-            onClick={() => navigate('/proveedores')} 
+          <SidebarItem
+            icon="pi-briefcase"
+            label="Proveedores"
+            active={isActive('/proveedores')}
+            onClick={() => navigate('/proveedores')}
+          />
+
+          {/* Item: Lista de Usuarios */}
+          <SidebarItem
+            icon="pi-users"
+            label="Usuarios"
+            active={isActive('/usuarios')}
+            onClick={() => navigate('/usuarios')}
           />
 
           {/* Items futuros (sin funcionalidad aún) */}
-          <SidebarItem icon="pi-file" label="Documentos" badge="3" onClick={() => {}} />
-          <SidebarItem icon="pi-chart-bar" label="Reportes" onClick={() => {}} />
+          <SidebarItem icon="pi-file" label="Documentos" badge="3" onClick={() => { }} />
+          <SidebarItem icon="pi-chart-bar" label="Reportes" onClick={() => { }} />
 
         </ul>
       </div>

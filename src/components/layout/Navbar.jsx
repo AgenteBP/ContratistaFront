@@ -3,7 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 
 const Navbar = () => {
     const location = useLocation();
-    
+
     // 1. DICCIONARIO DE NOMBRES
     const breadcrumbNameMap = {
         'dashboard': 'Inicio', // Agregamos esto para que se traduzca solo
@@ -17,7 +17,7 @@ const Navbar = () => {
     // 2. FUNCIÓN GENERADORA
     const renderBreadcrumbs = () => {
         // Obtenemos la ruta y la limpiamos
-        const path = location.pathname; 
+        const path = location.pathname;
         const pathnames = path.split('/').filter((x) => x);
 
         // Estilos reutilizables
@@ -29,7 +29,7 @@ const Navbar = () => {
         if (path === '/dashboard') {
             return (
                 <div className="flex items-center text-sm">
-                   <span className={activeClass}>Inicio</span>
+                    <span className={activeClass}>Inicio</span>
                 </div>
             );
         }
@@ -38,7 +38,9 @@ const Navbar = () => {
         return (
             <div className="flex items-center text-sm">
                 {/* Eslabón Fijo: Home */}
-                <Link to="/" className={linkClass}>Inicio</Link>
+                <Link to="/dashboard" className={linkClass}>
+                    <i className="pi pi-home mr-1"></i>Inicio
+                </Link>
 
                 {pathnames.map((value, index) => {
                     // Si el path es 'dashboard', lo saltamos en la lista para no tener "Home > Inicio"
@@ -47,7 +49,7 @@ const Navbar = () => {
                     const to = `/${pathnames.slice(0, index + 1).join('/')}`;
                     const isLast = index === pathnames.length - 1;
                     const isId = !isNaN(value);
-                    
+
                     // Nombre a mostrar
                     let displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || value);
 
@@ -70,7 +72,7 @@ const Navbar = () => {
         <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg px-4 py-3 w-full border-b border-secondary/20 shadow-sm ring-1 ring-secondary/5 md:border-b-0 md:rounded-xl md:shadow-md md:m-4 md:w-auto md:mx-6 transition-all">
             <div className="flex justify-between items-center">
                 {renderBreadcrumbs()}
-                
+
                 {/* Perfil de Usuario */}
                 <div className="flex items-center gap-4">
                     <div className="hidden md:flex text-right flex-col leading-tight">
