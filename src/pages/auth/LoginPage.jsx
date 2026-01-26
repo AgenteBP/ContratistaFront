@@ -16,7 +16,6 @@ const LoginPage = () => {
 
         setTimeout(() => {
             setLoading(false);
-            // Simulación de roles
             const userRoles = [
                                 {
                                     id: 1,
@@ -48,6 +47,9 @@ const LoginPage = () => {
             }
         }, 1500);
     };
+
+    // Estilos comunes para los inputs para asegurar consistencia
+    const inputClasses = "w-full p-3 pl-10 text-secondary-dark border border-secondary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-lg shadow-sm transition-all";
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFFBF2] relative overflow-hidden font-sans p-4">
@@ -84,7 +86,7 @@ const LoginPage = () => {
             {/* --- 2. CONTENIDO CENTRADO --- */}
             <div className="z-10 w-full max-w-md flex flex-col items-center">
                 
-                {/* LOGO (Arriba, fuera de la tarjeta) */}
+                {/* LOGO */}
                 <div className="flex items-center gap-2 mb-8">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary-hover flex items-center justify-center text-white shadow-lg">
                         <i className="pi pi-bolt text-sm"></i>
@@ -92,17 +94,17 @@ const LoginPage = () => {
                     <span className="text-xl font-bold text-secondary-dark tracking-tight">ProCer</span>
                 </div>
 
-                {/* TÍTULO (Fuera de la tarjeta, estilo "Good to see you again") */}
+                {/* TÍTULO */}
                 <h2 className="text-3xl md:text-4xl font-extrabold text-secondary-dark mb-8 text-center tracking-tight">
                     ¡Qué bueno verte de nuevo!
                 </h2>
 
-                {/* --- 3. TARJETA BLANCA (Formulario) --- */}
+                {/* --- TARJETA BLANCA --- */}
                 <div className="bg-white p-8 md:p-10 rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] w-full border border-secondary/5 relative">
                     
                     <form onSubmit={handleLogin} className="space-y-5">
                         
-                        {/* Email */}
+                        {/* Email Input */}
                         <div className="space-y-1.5">
                             <label className="block text-sm font-bold text-secondary ml-1">Tu email</label>
                             <span className="p-input-icon-left w-full">
@@ -113,21 +115,28 @@ const LoginPage = () => {
                                     placeholder="ej: elon@tesla.com" 
                                     className="w-full p-3 pl-10 text-secondary-dark border border-secondary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-lg shadow-sm transition-all"
                                 />
-                            </span>
+                            </div>
                         </div>
 
                         {/* Password */}
                         {/*<div className="space-y-1.5">
                             <label className="block text-sm font-bold text-secondary ml-1">Tu contraseña</label>
-                            <div className="relative">
+                            
+                            <div className="relative w-full">
+                                {/* Icono Candado posicionado absolutamente */}
+                                <i className="pi pi-lock absolute left-3 top-1/2 -translate-y-1/2 text-secondary/50 z-10 pointer-events-none" style={{ fontSize: '1rem' }} />
+                                
                                 <Password 
                                     value={formData.password}
                                     onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     placeholder="ej: ilovemanagement123" 
                                     feedback={false}
                                     toggleMask
-                                    inputClassName="w-full p-3 pl-10 text-secondary-dark border border-secondary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-lg shadow-sm transition-all"
+                                    // className para el contenedor del componente (el div wrapper)
                                     className="w-full"
+                                    // inputClassName para el input HTML real dentro del componente
+                                    inputClassName={inputClasses}
+                                    // pt (PassThrough) para asegurar que el icono de "ojo" no rompa el diseño
                                     pt={{
                                         iconField: { className: 'w-full' }, // Fix PrimeReact styling
                                         root: { className: 'w-full' },           // Estira el contenedor principal
@@ -173,7 +182,7 @@ const LoginPage = () => {
                             </div>
                         </div>
 
-                        {/* BOTÓN "Sign in" (Estilo Pill Verde/Lime como la referencia) */}
+                        {/* BOTÓN "Sign in" */}
                         <Button 
                             label={loading ? "Procesando..." : "Iniciar Sesión"} 
                             className="w-full bg-success hover:bg-success-hover border-none text-white font-bold text-lg py-3.5 rounded-full shadow-lg shadow-success/30 hover:shadow-success/40 transform active:scale-95 transition-all duration-200 mt-4"

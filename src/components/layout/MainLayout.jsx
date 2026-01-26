@@ -1,9 +1,9 @@
 import React from 'react';
-import Sidebar from './Sidebar'; 
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
-// Fíjate que recibimos "children" como parámetro aquí
-const MainLayout = ({ children }) => {
+const MainLayout = () => {
   return (
     <div className="flex min-h-screen bg-secondary-light">
       {/* 1. El Sidebar fijo a la izquierda */}
@@ -14,7 +14,7 @@ const MainLayout = ({ children }) => {
         <Navbar />
 
         <div className="p-6">
-           {children} 
+          <Outlet />
         </div>
 
       </main>
