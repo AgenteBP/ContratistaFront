@@ -1,32 +1,35 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 // 1. Componente auxiliar SidebarItem
-// Lo definimos aquí mismo porque solo lo usa el Sidebar, no hace falta exportarlo.
-const SidebarItem = ({ icon, label, active, badge, onClick }) => (
+// Reemplazamos button + onClick por NavLink para mejor accesibilidad y manejo automático de estado activo
+const SidebarItem = ({ icon, label, to, badge, end = false }) => (
   <li>
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center p-3 rounded-lg group transition-all duration-200 
-      ${active
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => `
+        w-full flex items-center p-3 rounded-lg group transition-all duration-200 
+        ${isActive
           ? 'bg-primary text-white shadow-md shadow-primary/30' // Estilo Activo
           : 'text-secondary-dark hover:bg-secondary-light'      // Estilo Inactivo
-        }`}
+        }
+      `}
     >
-      <i className={`pi ${icon} w-5 h-5 transition duration-75 ${active ? 'text-white' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
-      <span className="ms-3 font-medium">{label}</span>
-      {badge && <span className={`inline-flex items-center justify-center px-2 ms-3 text-xs font-medium rounded-full ${active ? 'bg-white/20 text-white' : 'bg-secondary-light text-secondary-dark'}`}>{badge}</span>}
-    </button>
+      {({ isActive }) => (
+        <>
+          <i className={`pi ${icon} w-5 h-5 transition duration-75 ${isActive ? 'text-white' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
+          <span className="ms-3 font-medium">{label}</span>
+          {badge && <span className={`inline-flex items-center justify-center px-2 ms-3 text-xs font-medium rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-secondary-light text-secondary-dark'}`}>{badge}</span>}
+        </>
+      )}
+    </NavLink>
   </li>
 );
 
 // 2. Componente Principal Sidebar
 const Sidebar = () => {
-  const navigate = useNavigate(); // Hook para cambiar de ruta
-  const location = useLocation(); // Hook para leer la ruta actual (URL)
-
-  // Función simple para verificar si la ruta actual coincide con el botón
-  const isActive = (path) => location.pathname === path;
+  const navigate = useNavigate();
 
   return (
     <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white border-r border-secondary/20 hidden md:block transition-transform">
@@ -45,41 +48,42 @@ const Sidebar = () => {
         {/* Lista de Menú */}
         <ul className="space-y-2">
 
-          {/* Item: Inicio (Por ahora redirige a proveedores, luego puedes crear un Dashboard real) */}
+          {/* Item: Inicio */}
           <SidebarItem
             icon="pi-home"
             label="Inicio"
-            active={location.pathname === '/dashboard'}
-            onClick={() => navigate('/dashboard')}
+            to="/dashboard"
+            end={true} // Match exacto para /dashboard
           />
-
-          {/* Item: Nuevo Proveedor */}
-          {/* <SidebarItem
-            icon="pi-user-plus"
-            label="Nuevo"
-            active={isActive('/proveedores/nuevo')}
-            onClick={() => navigate('/proveedores/nuevo')}
-          /> */}
 
           {/* Item: Lista de Proveedores */}
           <SidebarItem
             icon="pi-briefcase"
             label="Proveedores"
-            active={isActive('/proveedores')}
-            onClick={() => navigate('/proveedores')}
+            to="/proveedores"
           />
 
           {/* Item: Lista de Usuarios */}
           <SidebarItem
             icon="pi-users"
             label="Usuarios"
-            active={isActive('/usuarios')}
-            onClick={() => navigate('/usuarios')}
+            to="/usuarios"
           />
 
-          {/* Items futuros (sin funcionalidad aún) */}
-          <SidebarItem icon="pi-file" label="Documentos" badge="3" onClick={() => { }} />
-          <SidebarItem icon="pi-chart-bar" label="Reportes" onClick={() => { }} />
+          {/* Items futuros (sin funcionalidad aún - mantenemos botones por ahora o links a #) */}
+          <li>
+            <button className="w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200">
+              <i className="pi pi-file w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark"></i>
+              <span className="ms-3 font-medium">Documentos</span>
+              <span className="inline-flex items-center justify-center px-2 ms-3 text-xs font-medium rounded-full bg-secondary-light text-secondary-dark">3</span>
+            </button>
+          </li>
+          <li>
+            <button className="w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200">
+              <i className="pi pi-chart-bar w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark"></i>
+              <span className="ms-3 font-medium">Reportes</span>
+            </button>
+          </li>
 
         </ul>
       </div>
