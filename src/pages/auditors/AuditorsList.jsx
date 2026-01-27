@@ -1,35 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { providerService } from '../../services/providerService';
-
-// --- IMPORTACIONES DE PRIME REACT ---
 import { Column } from 'primereact/column';
 import { FilterMatchMode } from 'primereact/api';
 import { InputText } from 'primereact/inputtext';
 import { Dropdown } from 'primereact/dropdown';
 import { Menu } from 'primereact/menu';
-
-// --- IMPORTACIONES DE TUS COMPONENTES UI (Atomic Design) ---
 import { RiskBadge, BooleanBadge, StatusBadge } from '../../components/ui/Badges';
 import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
+import { MOCK_AUDITORES } from '../../data/mockAuditors';
 
-// --- DATOS MOCK ---
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
-
-const ProvidersList = () => {
+const AuditorsList = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [expandedRows, setExpandedRows] = useState(null);
-
-    // Cargamos los datos desde el mock importado
-    const [proveedores] = useState(MOCK_PROVEEDORES);
+    const [auditores] = useState(MOCK_AUDITORES);
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
 
-    const servicios = ['ALQUILER DE VEHICULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
-    const estatusOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
+    const servicios = ['AUDITOR LEGAL', 'AUDITOR TECNICO'];
+    const grupos = ['EXTERNO', 'TECNICO', 'UNIPERSONAL'];
+    const estatusOptions = ['ACTIVO', 'DADO DE BAJA', 'SUSPENDIDO'];
 
     useEffect(() => { initFilters(); }, []);
 
@@ -39,7 +31,7 @@ const ProvidersList = () => {
             razonSocial: { value: null, matchMode: FilterMatchMode.CONTAINS },
             cuit: { value: null, matchMode: FilterMatchMode.CONTAINS },
             servicio: { value: null, matchMode: FilterMatchMode.EQUALS },
-            tipoPersona: { value: null, matchMode: FilterMatchMode.EQUALS },
+            grupo: { value: null, matchMode: FilterMatchMode.EQUALS },
             estatus: { value: null, matchMode: FilterMatchMode.EQUALS },
             accesoHabilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
@@ -52,7 +44,7 @@ const ProvidersList = () => {
             icon: 'pi pi-eye',
             command: () => {
                 if (selectedRow) {
-                    navigate(`/proveedores/${selectedRow.id}`);
+                    navigate(`/auditores/${selectedRow.id}`);
                 }
             }
         },
@@ -69,6 +61,7 @@ const ProvidersList = () => {
             icon: 'pi pi-trash',
             className: 'text-red-500',
             command: () => {
+                // Implementar borrado
             }
         }
     ];
@@ -81,14 +74,11 @@ const ProvidersList = () => {
         setGlobalFilterValue(value);
     };
 
-    // --- TEMPLATES VISUALES ---
-
-    // Template para la fila expandida (La Ficha Detallada)
     const rowExpansionTemplate = (data) => (
         <div className="bg-secondary-light border-t border-secondary/20 p-4 shadow-inner animate-fade-in text-sm">
             <div className="flex items-center gap-2 mb-3">
-                <i className="pi pi-id-card text-primary text-lg"></i>
-                <h5 className="font-bold text-secondary-dark">Ficha del Proveedor #{data.id}</h5>
+                <i className="pi pi-briefcase text-primary text-lg"></i>
+                <h5 className="font-bold text-secondary-dark">Ficha del Auditor #{data.id}</h5>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
@@ -100,8 +90,6 @@ const ProvidersList = () => {
                 <div className="space-y-2">
                     <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado</h6>
                     <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">Acceso</span><div className="mt-0.5"><BooleanBadge value={data.accesoHabilitado} isAccess={true} /></div></div>
-                    <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">Temporal</span><div className="mt-0.5"><BooleanBadge value={data.esTemporal} /></div></div>
-                    <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">APOC</span><div className="mt-0.5"><BooleanBadge value={data.facturasAPOC} /></div></div>
                 </div>
                 <div className="space-y-2">
                     <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Historial</h6>
@@ -117,7 +105,6 @@ const ProvidersList = () => {
         </div>
     );
 
-    // Header de la tabla (Buscador y botón limpiar)
     const renderHeader = () => (
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-3 border-b border-secondary/20 gap-3">
             <div className="flex gap-2">
@@ -130,7 +117,6 @@ const ProvidersList = () => {
         </div>
     );
 
-    // Inputs Filtros (Para las columnas)
     const createTextFilter = (options) => <InputText value={options.value || ''} onChange={(e) => options.filterApplyCallback(e.target.value)} placeholder="Filtrar..." unstyled className="bg-white border border-secondary/30 text-secondary-dark text-sm rounded focus:ring-primary focus:border-primary block w-full px-2 h-8 outline-none font-normal" />;
 
     const createDropdownFilter = (options, list, placeholder = "Todos") => (
@@ -155,8 +141,8 @@ const ProvidersList = () => {
             <div className="flex justify-center">
                 <button
                     onClick={(event) => {
-                        setSelectedRow(rowData); // 1. Guardamos QUÉ proveedor es
-                        menuRef.current.toggle(event); // 2. Abrimos el menú ahí mismo
+                        setSelectedRow(rowData);
+                        menuRef.current.toggle(event);
                     }}
                     className="text-secondary hover:bg-secondary-light hover:text-primary rounded-full p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 w-8 h-8 flex items-center justify-center"
                     aria-label="Opciones"
@@ -171,14 +157,14 @@ const ProvidersList = () => {
     return (
         <div className="animate-fade-in w-full">
             <PageHeader
-                title="Proveedores"
-                subtitle="Base de datos de contratistas."
+                title="Auditores"
+                subtitle="Gestión de auditores legales y técnicos."
                 actionButton={
                     <button
-                        onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
+                        onClick={() => navigate('/usuarios/nuevo?role=AUDITOR')}
                         className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-4 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 w-full md:w-auto"
                     >
-                        <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Proveedor</span><span className="md:hidden">Nuevo</span>
+                        <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Auditor</span><span className="md:hidden">Nuevo</span>
                     </button>
                 }
             />
@@ -186,7 +172,7 @@ const ProvidersList = () => {
             <Menu model={menuItems} popup ref={menuRef} id="popup_menu" />
 
             <AppTable
-                value={proveedores}
+                value={auditores}
                 header={header}
                 filters={filters}
                 globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
@@ -204,17 +190,13 @@ const ProvidersList = () => {
                 <Column field="id" header="#" sortable className="font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="pl-6"></Column>
                 <Column field="razonSocial" header="Razón Social" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-bold text-secondary-dark"></Column>
                 <Column field="cuit" header="CUIT" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
-                <Column field="tipoPersona" header="Tipo" sortable filter filterElement={(opts) => createDropdownFilter(opts, ['JURIDICA', 'FISICA'])} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
-                <Column field="servicio" header="Servicio" sortable filter filterElement={(opts) => createDropdownFilter(opts, servicios)} showFilterMenu={false} className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
+                <Column field="servicio" header="Servicio" sortable filter filterElement={(opts) => createDropdownFilter(opts, servicios)} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
+                <Column field="grupo" header="Grupo" sortable filter filterElement={(opts) => createDropdownFilter(opts, grupos)} showFilterMenu={false} className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
                 <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false} filterMenuStyle={{ width: '10rem' }}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
-
-            <p className="mt-4 text-[10px] text-secondary/50 text-center 2xl:hidden pb-4">
-                Toque la flecha para ver detalles.
-            </p>
         </div>
     );
 };
 
-export default ProvidersList;
+export default AuditorsList;

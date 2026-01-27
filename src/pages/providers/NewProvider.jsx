@@ -4,6 +4,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import UserForm from '../../components/ui/UserForm';
 import RoleSelection from '../../components/ui/RoleSelection';
 import ProviderForm from './ProviderForm';
+import AuditorForm from '../auditors/AuditorForm';
 import SelectionToggle from '../../components/ui/SelectionToggle';
 import { userService } from '../../services/userService';
 import { providerService } from '../../services/providerService';
@@ -58,8 +59,9 @@ const NewProvider = () => {
   // Paso 1: Usuario completado
   const handleUserSubmit = (data) => {
     setUserData(data);
-    // Si ya tenemos rol pre-seleccionado (ej: vinimos de "Nuevo Proveedor"), saltamos al paso 3
-    if (selectedRole) {
+    // Solo saltamos al paso 3 si el rol fue PRE-SELECCIONADO desde la URL (ej: botón Nuevo Proveedor)
+    // De lo contrario, dejar que el usuario elija/confirme el rol en el paso 2
+    if (preSelectedRole) {
       setCurrentStep(3);
     } else {
       setCurrentStep(2);
@@ -106,6 +108,13 @@ const NewProvider = () => {
 
   // Handler para Volver
   const handleBack = () => {
+    // Si el rol fue pre-seleccionado (no modificable), y estamos en el paso 3 (formulario),
+    // volver directamente al paso 1 (usuario), saltando la selección de rol.
+    if (preSelectedRole && currentStep === 3) {
+      setCurrentStep(1);
+      return;
+    }
+
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -129,17 +138,21 @@ const NewProvider = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className="bg-white p-6 rounded-xl border border-secondary/20 shadow-sm animate-fade-in">
-            <SelectionToggle
-              options={[
-                { label: 'Crear Nuevo Usuario', value: 'NEW' },
-                { label: 'Buscar Existente', value: 'EXISTING' }
-              ]}
-              value={userMode}
-              onChange={setUserMode}
-            />
+          <div className={`bg-white rounded-xl border border-secondary/20 shadow-sm animate-fade-in ${searchParams.get('mode') === 'NEW' ? 'p-0 border-none shadow-none bg-transparent' : 'p-6'}`}>
 
-            <div className="mt-6">
+            {/* Si NO venimos forzados a modo NEW, mostramos el toggle */}
+            {searchParams.get('mode') !== 'NEW' && (
+              <SelectionToggle
+                options={[
+                  { label: 'Crear Nuevo Usuario', value: 'NEW' },
+                  { label: 'Buscar Existente', value: 'EXISTING' }
+                ]}
+                value={userMode}
+                onChange={setUserMode}
+              />
+            )}
+
+            <div className={searchParams.get('mode') === 'NEW' ? 'mt-0' : 'mt-6'}>
               {userMode === 'NEW' ? (
                 <UserForm
                   initialData={userData || {}}
@@ -203,6 +216,7 @@ const NewProvider = () => {
               </div>
             )}
             <RoleSelection
+              selectedRole={selectedRole}
               onSelect={handleRoleSelect}
               onBack={showBack ? handleBack : undefined}
             />
@@ -285,6 +299,16 @@ const NewProvider = () => {
             </div>
           );
         }
+        if (selectedRole === 'AUDITOR') {
+          return (
+            <AuditorForm
+              initialData={{ nombre: userData?.firstName, apellido: userData?.lastName }}
+              onSubmit={handleProviderSubmit}
+              onBack={handleBack}
+            />
+          );
+        }
+
         return (
           <div className="bg-white p-8 rounded-xl border border-secondary/20 text-center">
             <i className="pi pi-info-circle text-4xl text-primary mb-4"></i>
@@ -307,8 +331,8 @@ const NewProvider = () => {
         const isExistingRoleFinal = selectedRole && userHasRole(selectedRole);
         return (
           <div className="bg-white p-12 rounded-xl border border-secondary/20 text-center animate-fade-in">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="pi pi-check text-4xl text-green-600"></i>
+            <div className="w-20 h-20 bg-success-light rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="pi pi-check text-4xl text-success"></i>
             </div>
             <h2 className="text-3xl font-extrabold text-secondary-dark mb-2">¡Operación Exitosa!</h2>
             <p className="text-secondary mb-8 text-lg">
@@ -347,11 +371,32 @@ const NewProvider = () => {
       <div className="mb-8 text-center">
         <p className="text-primary font-bold tracking-wider uppercase text-xs mb-2">Gestión de Usuarios</p>
         <h1 className="text-3xl md:text-4xl font-extrabold text-secondary-dark">
-          {id ? 'Agregar Nuevo Rol' : (preSelectedRole === 'PROVEEDOR' ? 'Nuevo Proveedor' : 'Nuevo Usuario')}
+          {id
+            ? 'Agregar Nuevo Rol'
+            : (preSelectedRole === 'PROVEEDOR'
+              ? 'Nuevo Proveedor'
+              : (preSelectedRole === 'AUDITOR' ? 'Nuevo Auditor' : 'Nuevo Usuario')
+            )
+          }
         </h1>
       </div>
 
-      <WizardSteps currentStep={currentStep} steps={[1, 2, 3]} id={id} />
+      {/* Pasos dinámicos del Wizard */}
+      {(() => {
+        // Definir los labels dinámicamente
+        const stepsItems = [
+          { label: 'Datos Usuario' },
+          {
+            label: 'Asignación Rol',
+            context: (currentStep > 2 || selectedRole) ? selectedRole : null
+          },
+          {
+            label: selectedRole === 'AUDITOR' ? 'Datos Auditor' : (selectedRole === 'PROVEEDOR' ? 'Datos Proveedor' : 'Datos Entidad')
+          }
+        ];
+
+        return <WizardSteps currentStep={currentStep} steps={stepsItems} id={id} />;
+      })()}
 
       {/* Contexto del Usuario Activo (Solo pasos 2 y 3) */}
       {userData && (currentStep === 2 || currentStep === 3) && (

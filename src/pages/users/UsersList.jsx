@@ -140,7 +140,7 @@ const UsersList = () => {
                 subtitle="Gestión de usuarios y roles del sistema."
                 actionButton={
                     <button
-                        onClick={() => navigate('/usuarios/nuevo')}
+                        onClick={() => navigate('/usuarios/nuevo?mode=NEW')}
                         className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-4 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 w-full md:w-auto"
                     >
                         <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Usuario</span><span className="md:hidden">Nuevo</span>

@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import SectionTitle from './SectionTitle';
 import { userService } from '../../services/userService';
 
-const RoleSelection = ({ onSelect, onBack, readOnly = false }) => {
+const RoleSelection = ({ onSelect, onBack, readOnly = false, selectedRole: initialSelectedRole = null }) => {
     const [roles, setRoles] = useState([]);
-    const [selectedRole, setSelectedRole] = useState(null);
+    const [selectedRole, setSelectedRole] = useState(initialSelectedRole);
+
+    useEffect(() => {
+        if (initialSelectedRole) {
+            setSelectedRole(initialSelectedRole);
+        }
+    }, [initialSelectedRole]);
 
     useEffect(() => {
         const fetchRoles = async () => {
