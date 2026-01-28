@@ -16,7 +16,7 @@
 //           light: '#ecfccb',   // lime-100 (Fondos suaves)
 //           text: '#0f172a',    // Texto negro/oscuro para contraste
 //         },
-        
+
 //         // --- ESTRUCTURA (GRIS AZULADO) ---
 //         secondary: {
 //           DEFAULT: '#64748b', // slate-500
@@ -26,7 +26,7 @@
 //         },
 
 //         // --- SEMÁNTICOS (CON ESTADOS) ---
-        
+
 //         // ÉXITO (Emerald)
 //         success: {
 //           DEFAULT: '#10b981', // emerald-500
@@ -78,7 +78,7 @@
 //           light: '#e0e7ff',   // indigo-100 (Fondos de selección/Badges)
 //           text: '#ffffff',    // Texto sobre fondo primary (Blanco para Indigo)
 //         },
-        
+
 //         /* --- 2. ESTRUCTURA Y NEUTROS (SLATE) --- */
 //         secondary: {
 //           DEFAULT: '#64748b', // slate-500 (Iconos inactivos, bordes suaves)
@@ -198,35 +198,34 @@ export default {
         },
 
         // --- 3. SEMÁNTICOS (Aquí está tu LIME) ---
-        
-        // SUCCESS: LIME ELÉCTRICO 
-        // Usamos lime-500 como default para que el texto se lea bien.
-        // El fondo (light) usa lime-100 para ese brillo suave.
-        success: { 
-          DEFAULT: '#84cc16', // lime-500 (El mejor balance brillo/lectura)
+
+        // SUCCESS: LIME ELÉCTRICO (Original)
+        // Volvemos al original que se ve bien en los badges.
+        success: {
+          DEFAULT: '#84cc16', // lime-500
           hover: '#65a30d',   // lime-600 
           light: '#ecfccb',   // lime-100 (Fondo del badge)
         },
 
         // DANGER: RED (Standard)
-        danger: { 
-          DEFAULT: '#ef4444', 
-          hover: '#dc2626', 
-          light: '#fee2e2' 
+        danger: {
+          DEFAULT: '#ef4444',
+          hover: '#dc2626',
+          light: '#fee2e2'
         },
 
         // WARNING: AMBER (Standard)
-        warning: { 
-          DEFAULT: '#f59e0b', 
-          hover: '#d97706', 
-          light: '#fef3c7' 
+        warning: {
+          DEFAULT: '#f59e0b',
+          hover: '#d97706',
+          light: '#fef3c7'
         },
 
         // INFO: SKY (Standard)
-        info: { 
-          DEFAULT: '#0ea5e9', 
-          hover: '#0284c7', 
-          light: '#e0f2fe' 
+        info: {
+          DEFAULT: '#0ea5e9',
+          hover: '#0284c7',
+          light: '#e0f2fe'
         }
       }
     },

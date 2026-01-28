@@ -8,6 +8,7 @@ const Navbar = () => {
     const breadcrumbNameMap = {
         'dashboard': 'Inicio', // Agregamos esto para que se traduzca solo
         'proveedores': 'Proveedores',
+        'auditores': 'Auditores',
         'nuevo': 'Nuevo Registro',
         'auditorias': 'Auditorías',
         'usuarios': 'Usuarios',
