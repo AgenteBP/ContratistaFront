@@ -22,7 +22,7 @@ const Input = ({ label, icon, size = 'md', ...props }) => {
           focus:ring-2 focus:ring-primary/20 focus:border-primary
           ${sizeClasses[size] || sizeClasses.md}
           ${icon ? (size === 'sm' ? 'ps-8' : 'ps-10') : ''} 
-          ${props.disabled ? 'bg-secondary-light cursor-not-allowed text-secondary border-secondary/10' : ''}
+          ${props.disabled ? 'bg-gray-50 opacity-90 cursor-not-allowed text-secondary-dark/70 border-secondary/20' : ''}
           ${props.className || ''}`}
         />
       </div>

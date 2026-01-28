@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useBlocker, useBeforeUnload } from 'react-router-dom';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import Toggle from '../../components/ui/Toggle';
 import SectionTitle from '../../components/ui/SectionTitle';
 import Label from '../../components/ui/Label';
+import UnsavedChangesModal from '../../components/ui/UnsavedChangesModal'; // IMPORT MODAL
 import { Country, State, City } from 'country-state-city';
 import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
+import { StatusBadge } from '../../components/ui/Badges';
 
-const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle }) => {
+const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
     // State único para todo el formulario
     const [formData, setFormData] = useState({
         // Paso 1: General
@@ -56,6 +59,47 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     // State para el modo de edición por paso (para partialEdit)
     const [isEditingStep, setIsEditingStep] = useState(false);
 
+    // --- NAVIGATION GUARD ---
+    // 1. Browser Refresh/Close Protection
+    useBeforeUnload(
+        React.useCallback((e) => {
+            if (dirtySteps.size > 0 && !readOnly) {
+                e.preventDefault();
+                return ''; // Legacy for some browsers
+            }
+        }, [dirtySteps, readOnly])
+    );
+
+    // State for Custom Modal
+    const [showLeaveModal, setShowLeaveModal] = useState(false);
+
+    // 2. In-App Navigation Protection
+    const blocker = useBlocker(
+        ({ currentLocation, nextLocation }) =>
+            dirtySteps.size > 0 && !readOnly && currentLocation.pathname !== nextLocation.pathname
+    );
+
+    useEffect(() => {
+        if (blocker.state === "blocked") {
+            setShowLeaveModal(true);
+        }
+    }, [blocker]);
+
+    const handleLeaveConfirm = () => {
+        if (blocker.state === "blocked") {
+            blocker.proceed();
+        }
+        setShowLeaveModal(false);
+    };
+
+    const handleLeaveCancel = () => {
+        if (blocker.state === "blocked") {
+            blocker.reset();
+        }
+        setShowLeaveModal(false);
+    };
+
+
     // Reset edit mode when changing steps
     useEffect(() => {
         setIsEditingStep(false);
@@ -63,7 +107,8 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const handleStartEdit = () => setIsEditingStep(true);
     const handleStopEdit = () => {
-        // Aquí se podría guardar, por ahora solo cerramos edición
+        // Guardar cambios al salir del modo edición
+        handleSubmit(currentStep);
         setIsEditingStep(false);
     };
 
@@ -147,9 +192,66 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     };
     const handleRemoveContact = removeContact;
 
-    const handleSubmit = () => {
-        onSubmit(formData);
-        setDirtySteps(new Set()); // Limpiar dirty state al guardar
+    // Campos por paso para guardado parcial
+    const STEP_FIELDS = {
+        1: ['razonSocial', 'cuit', 'nombreFantasia', 'tipoPersona', 'clasificacionAFIP', 'servicio', 'email', 'telefono', 'empleadorAFIP', 'esTemporal'],
+        2: ['pais', 'paisCode', 'provincia', 'provinciaCode', 'localidad', 'codigoPostal', 'direccionFiscal', 'direccionReal'],
+        3: ['contactos'],
+        4: ['documentacion']
+    };
+
+    const handleSubmit = (stepScope = null) => {
+        // If stepScope is an event (object), treat as null (Global)
+        const scope = (typeof stepScope === 'number') ? stepScope : null;
+
+        console.log(`HANDLING SUBMIT (Scope: ${scope || 'Global'}) - Current Docs:`, formData.documentacion);
+
+        // Finalize document statuses before saving (Only if Global or Step 4)
+        let updatedDocs = formData.documentacion;
+
+        if (!scope || scope === 4) {
+            updatedDocs = formData.documentacion?.map(doc => {
+                // Only update status if the document was MODIFIED (file uploaded or date changed)
+                if (doc.modified && doc.archivo && !['VIGENTE', 'PRESENTADO', 'EN REVISIÓN', 'APROBADO'].includes(doc.estado)) {
+                    console.log(`[Submit] Updating ${doc.tipo} to EN REVISIÓN`);
+                    return { ...doc, estado: 'EN REVISIÓN' };
+                }
+                return doc;
+            });
+        }
+
+        // Clean up 'modified' flags
+        const cleanDocs = updatedDocs?.map(({ modified, ...rest }) => rest);
+
+        // Update local state first (always full sync for UI consistency)
+        const finalData = { ...formData, documentacion: cleanDocs };
+        setFormData(finalData);
+
+        if (scope) {
+            // PARTIAL SAVE: Only submit fields for this step
+            const fieldsToSave = STEP_FIELDS[scope] || [];
+            const partialPayload = {};
+            fieldsToSave.forEach(field => {
+                partialPayload[field] = finalData[field];
+            });
+            // Preserve ID if needed
+            if (finalData.id) partialPayload.id = finalData.id;
+
+            console.log(`FINAL DATA TO SUBMIT (PARTIAL STEP ${scope}):`, partialPayload);
+            onSubmit(partialPayload);
+
+            // Clear dirty flag ONLY for this step
+            setDirtySteps(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(scope);
+                return newSet;
+            });
+        } else {
+            // GLOBAL SAVE: Submit everything
+            console.log("FINAL DATA TO SUBMIT (GLOBAL):", finalData);
+            onSubmit(finalData);
+            setDirtySteps(new Set());
+        }
     };
 
     // --- LOGICA DE UBICACION (Country-State-City) ---
@@ -164,8 +266,36 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
         return { label: label, value: c.isoCode };
     }).sort((a, b) => a.label.localeCompare(b.label)); // Re-ordenar alfabéticamente en ES
+
     const [states, setStates] = useState([]);
     const [cities, setCities] = useState([]);
+
+    // INITIALIZATION: Si vienen datos con NOMBRE pero sin CODIGO (legacy/mock), intentamos matchear
+    useEffect(() => {
+        if (initialData) {
+            let updates = {};
+            // 1. Match Pais Code
+            if (initialData.pais && !initialData.paisCode) {
+                const foundCountry = countries.find(c => c.label === initialData.pais);
+                if (foundCountry) {
+                    updates.paisCode = foundCountry.value;
+
+                    // 2. Match Provincia Code (Solo si encontramos país)
+                    if (initialData.provincia && !initialData.provinciaCode) {
+                        const countryStates = State.getStatesOfCountry(foundCountry.value);
+                        const foundState = countryStates.find(s => s.name === initialData.provincia);
+                        if (foundState) {
+                            updates.provinciaCode = foundState.isoCode;
+                        }
+                    }
+                }
+            }
+
+            if (Object.keys(updates).length > 0) {
+                setFormData(prev => ({ ...prev, ...updates }));
+            }
+        }
+    }, [initialData]); // Run once on mount/initialData change
 
     // Efecto para cargar provincias cuando cambia el país
     useEffect(() => {
@@ -444,7 +574,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     className="w-full"
                                     disabled={isStep2Disabled}
                                     pt={{
-                                        root: { className: 'w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center bg-white' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${isStep2Disabled ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
                                         input: { className: 'w-full text-sm p-3' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
@@ -465,7 +595,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     disabled={!formData.paisCode || isStep2Disabled}
                                     emptyMessage="Seleccione un país primero"
                                     pt={{
-                                        root: { className: 'w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center bg-white' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${(!formData.paisCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
                                         input: { className: 'w-full text-sm p-3' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
@@ -485,7 +615,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     disabled={!formData.provinciaCode || isStep2Disabled}
                                     emptyMessage="Seleccione una provincia primero"
                                     pt={{
-                                        root: { className: 'w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center bg-white' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${(!formData.provinciaCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
                                         input: { className: 'w-full text-sm p-3' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
@@ -604,7 +734,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         {/* 2. Lista de Contactos (Cards) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {formData.contactos.map((contacto, index) => (
-                                <div key={contacto.id || index} className="bg-white border border-secondary/20 rounded-xl p-6 shadow-sm hover:shadow-md transition-all relative group animate-fade-in">
+                                <div key={contacto.id || index} className="bg-white border border-secondary/20 border-l-4 border-l-primary rounded-xl p-6 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all relative group animate-fade-in">
                                     {isStep3Editing && (
                                         <button
                                             onClick={() => handleRemoveContact(contacto.id)}
@@ -615,11 +745,11 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         </button>
                                     )}
                                     <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shadow-inner shrink-0">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-sm shadow-sm ring-2 ring-offset-2 ring-primary/10 shrink-0">
                                             {contacto.nombre ? contacto.nombre.charAt(0).toUpperCase() : '?'}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h5 className="font-bold text-secondary-dark text-sm truncate" title={contacto.nombre}>{contacto.nombre || 'Sin nombre'}</h5>
+                                            <h5 className="font-bold text-secondary-dark text-base truncate" title={contacto.nombre}>{contacto.nombre || 'Sin nombre'}</h5>
                                             <span className="text-[9px] text-primary font-bold uppercase tracking-wider bg-primary/5 px-2 py-0.5 rounded border border-primary/10 inline-block">
                                                 {contacto.tipo || 'General'}
                                             </span>
@@ -689,7 +819,6 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             {requiredDocs.map(doc => {
                                 const docData = formData.documentacion ? formData.documentacion.find(d => d.tipo === doc.id) : null;
                                 const status = docData ? docData.estado : 'PENDIENTE';
-
                                 const getStatusColor = (s) => {
                                     if (!isStep4ActionsEnabled && !docData?.archivo) return 'border-secondary/20 bg-white';
                                     switch (s) {
@@ -697,7 +826,78 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         case 'PRESENTADO': return 'border-success/50 bg-success-light/10';
                                         case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
                                         case 'PENDIENTE': return 'border-warning/50 bg-warning-light/10';
+                                        case 'EN REVISIÓN': return 'border-info/50 bg-info-light/10';
                                         default: return 'border-secondary/20 bg-secondary-light/10';
+                                    }
+                                };
+
+
+                                const handleFileUpload = (e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        setDirtySteps(prev => new Set(prev).add(4));
+
+                                        setFormData(prev => {
+                                            const currentDocs = prev.documentacion || [];
+                                            const docIndex = currentDocs.findIndex(d => d.tipo === doc.id);
+
+                                            let newDocs;
+                                            if (docIndex >= 0) {
+                                                // Update existing - PRESERVE STATUS until save
+                                                // If status is PENDING/EXPIRED, it remains so until user saves.
+                                                newDocs = [...currentDocs];
+                                                newDocs[docIndex] = {
+                                                    ...newDocs[docIndex],
+                                                    archivo: file.name,
+                                                    // Mark as modified so we know to update status on save
+                                                    modified: true,
+                                                    fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
+                                                };
+                                            } else {
+                                                // Add new - Status PENDING until save
+                                                newDocs = [...currentDocs, {
+                                                    id: Date.now(),
+                                                    tipo: doc.id,
+                                                    estado: 'PENDIENTE',
+                                                    archivo: file.name,
+                                                    modified: true, // New docs are modified by definition
+                                                    fechaVencimiento: null
+                                                }];
+                                            }
+                                            return { ...prev, documentacion: newDocs };
+                                        });
+                                    }
+                                };
+
+                                const handleDateChange = (docId, date) => {
+                                    if (date) {
+                                        setDirtySteps(prev => new Set(prev).add(4));
+                                        setFormData(prev => {
+                                            const currentDocs = prev.documentacion || [];
+                                            const docIndex = currentDocs.findIndex(d => d.tipo === docId);
+                                            let newDocs;
+
+                                            // Format YYYY-MM-DD for consistency
+                                            const year = date.getFullYear();
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            const formattedDate = `${year}-${month}-${day}`;
+
+                                            if (docIndex >= 0) {
+                                                newDocs = [...currentDocs];
+                                                newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
+                                            } else {
+                                                newDocs = [...currentDocs, {
+                                                    id: Date.now(),
+                                                    tipo: docId,
+                                                    estado: 'PENDIENTE',
+                                                    archivo: null,
+                                                    modified: true,
+                                                    fechaVencimiento: formattedDate
+                                                }];
+                                            }
+                                            return { ...prev, documentacion: newDocs };
+                                        });
                                     }
                                 };
 
@@ -717,9 +917,10 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         <div>
                                             <div className="flex justify-between items-start mb-2">
                                                 <h4 className="font-bold text-secondary-dark text-sm pr-4">{doc.label}</h4>
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${status === 'VIGENTE' || status === 'PRESENTADO' ? 'bg-success-light text-success border-success/20' :
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${(status === 'VIGENTE' || status === 'PRESENTADO') ? 'bg-success-light text-success border-success/20' :
                                                     status === 'VENCIDO' ? 'bg-danger-light text-danger border-danger/20' :
-                                                        'bg-warning-light text-warning-hover border-warning/20'
+                                                        (status === 'EN REVISIÓN' || status === 'EN REVISION') ? 'bg-info-light text-info border-info/20' :
+                                                            'bg-warning-light text-warning-hover border-warning/20'
                                                     }`}>
                                                     {status}
                                                 </span>
@@ -738,8 +939,9 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         {isStep4ActionsEnabled ? (
                                                             <Calendar
                                                                 value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
-                                                                onChange={(e) => {/* Handle date change logic */ }}
+                                                                onChange={(e) => handleDateChange(doc.id, e.value)}
                                                                 placeholder="Vencimiento"
+                                                                minDate={new Date()} // Prevent past dates
                                                                 className="compact-calendar-input"
                                                                 panelClassName="compact-calendar-panel"
                                                                 dateFormat="dd/mm/yy"
@@ -756,12 +958,13 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         <div className="space-y-2">
                                                             <input
                                                                 type="file"
+                                                                onChange={handleFileUpload}
                                                                 className="block w-full text-xs text-secondary
                                                                 file:mr-2 file:py-1 file:px-2
                                                                 file:rounded-full file:border-0
                                                                 file:text-xs file:font-semibold
-                                                                file:bg-primary/10 file:text-primary
-                                                                hover:file:bg-primary/20"
+                                                                file:bg-secondary/10 file:text-secondary
+                                                                hover:file:bg-secondary/20"
                                                             />
                                                             {docData?.archivo && <span className="text-[10px] text-success block"><i className="pi pi-check"></i> {docData.archivo}</span>}
                                                         </div>
@@ -830,51 +1033,93 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             {/* --- 1. ENCABEZADO UNIFICADO --- */}
             {(title || !readOnly) && (
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                    <div>
-                        {title && <h1 className="text-2xl md:text-3xl font-extrabold text-secondary-dark tracking-tight">{title}</h1>}
-                        {subtitle && <p className="text-secondary mt-1 text-xs">{subtitle}</p>}
-                    </div>
+                    {headerInfo ? (
+                        <div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <h1 className="text-3xl font-extrabold text-secondary-dark tracking-tight">{headerInfo.name}</h1>
+                                {headerInfo.status && <StatusBadge status={headerInfo.status} />}
+                                {headerInfo.docStatus && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-secondary/50 text-xs font-bold uppercase hidden md:inline-block">Documentación:</span>
+                                        <StatusBadge status={headerInfo.docStatus} />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-secondary mt-1 text-sm">CUIT: {headerInfo.cuit} — {initialData?.servicio}</p>
+                        </div>
+                    ) : (
+                        <div>
+                            {title && <h1 className="text-2xl md:text-3xl font-extrabold text-secondary-dark tracking-tight">{title}</h1>}
+                            {subtitle && <p className="text-secondary mt-1 text-xs">{subtitle}</p>}
+                        </div>
+                    )}
 
                     {/* Botón Global de Guardar (Solo en partialEdit) */}
-                    {partialEdit && (
-                        <button
-                            onClick={handleSubmit}
-                            disabled={dirtySteps.size === 0}
-                            className={`
-                                flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all transform hover:-translate-y-0.5
-                                ${dirtySteps.size > 0
-                                    ? 'bg-primary text-white hover:shadow-primary/30'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'}
-                            `}
-                        >
-                            <i className={`pi ${dirtySteps.size > 0 ? 'pi-save' : 'pi-check-circle'}`}></i>
-                            {dirtySteps.size > 0 ? 'Guardar Cambios' : 'Todo Guardado'}
-                        </button>
-                    )}
+                    {/* Botón Global de Guardar - ELIMINADO PARA SIMPLIFICAR UI (Guardado por pasos) */}
                 </div>
             )}
 
             {/* --- 2. STEPPER --- */}
-            <ol className="flex items-center w-full mb-10 text-sm font-medium text-center text-secondary bg-white p-4 rounded-xl border border-secondary/20 shadow-sm overflow-x-auto">
+            <ol className="flex items-center w-full mb-10 text-sm font-medium text-center text-secondary bg-white p-6 rounded-xl border border-secondary/20 shadow-sm">
                 {steps.map((step, index) => {
                     const stepNum = index + 1;
                     const isActive = stepNum === currentStep;
                     const isCompleted = stepNum < currentStep;
                     const isDirty = dirtySteps.has(stepNum);
 
+                    // VALIDATION LOGIC
+                    let isInvalid = false;
+                    let missingMsg = '';
+
+                    if (stepNum === 1) {
+                        if (!formData.razonSocial || !formData.cuit || !formData.email) {
+                            isInvalid = true;
+                            missingMsg = 'Datos faltantes';
+                        }
+                    } else if (stepNum === 2) {
+                        if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) {
+                            isInvalid = true;
+                            missingMsg = 'Ubicación incompleta';
+                        }
+                    } else if (stepNum === 3) {
+                        if (formData.contactos.length === 0) {
+                            isInvalid = true;
+                            missingMsg = 'Sin contactos';
+                        }
+                    } else if (stepNum === 4) {
+                        // Check if ANY required doc is missing or expired
+                        const missingDocs = requiredDocs.some(req => {
+                            const doc = formData.documentacion?.find(d => d.tipo === req.id);
+                            return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                        });
+                        if (missingDocs) {
+                            isInvalid = true;
+                            missingMsg = 'Doc. pendiente';
+                        }
+                    }
+
                     return (
-                        <li key={index} className={`flex md:w-full items-center ${index < steps.length - 1 ? "after:content-[''] after:w-full after:h-1 after:border-b after:border-secondary/20 after:border-1 after:hidden sm:after:inline-block after:mx-4 xl:after:mx-8" : ""} ${isActive ? 'text-primary font-bold' : ''}`}>
-                            <span className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-secondary/30 whitespace-nowrap">
+                        <li
+                            key={index}
+                            onClick={() => setCurrentStep(stepNum)}
+                            className={`flex md:w-full items-center cursor-pointer select-none transition-all
+                                ${index < steps.length - 1 ? "after:content-[''] after:w-full after:h-1 after:border-b after:border-secondary/20 after:border-1 after:hidden sm:after:inline-block after:mx-4 xl:after:mx-8" : ""} 
+                                ${isActive ? 'text-primary font-bold' : (isInvalid ? 'text-danger font-medium hover:text-danger-dark' : 'hover:text-primary')}
+                            `}
+                        >
+                            <span className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-secondary/30 whitespace-nowrap relative group">
                                 <span className={`mr-2 w-6 h-6 rounded-full flex items-center justify-center border transition-colors 
-                                    ${isActive ? 'border-primary bg-primary text-white' :
-                                        isDirty ? 'border-warning bg-warning text-white' :
-                                            isCompleted ? 'border-success bg-success text-white' :
-                                                'border-secondary/30 text-secondary'
+                                    ${isActive ? 'border-primary bg-primary text-white scale-110' :
+                                        isInvalid ? 'border-danger bg-danger text-white' :
+                                            isDirty ? 'border-warning bg-warning text-white' :
+                                                isCompleted ? 'border-success bg-success text-white' :
+                                                    'border-secondary/30 text-secondary group-hover:border-primary group-hover:text-primary'
                                     } font-bold text-xs`}>
-                                    {isActive ? stepNum : (isDirty ? <i className="pi pi-pencil text-[10px]"></i> : (isCompleted ? <i className="pi pi-check text-[10px]"></i> : stepNum))}
+                                    {isActive ? stepNum : (isInvalid ? stepNum : (isDirty ? <i className="pi pi-pencil text-[10px]"></i> : (isCompleted ? <i className="pi pi-check text-[10px]"></i> : stepNum)))}
                                 </span>
                                 {step}
-                                {isDirty && <span className="ml-2 text-[10px] text-warning font-bold bg-warning/10 px-1.5 rounded uppercase tracking-wider">Sin Guardar</span>}
+                                {isInvalid && <span className="absolute -bottom-5 left-8 text-[9px] text-danger font-bold whitespace-nowrap animate-fade-in">{missingMsg}</span>}
+                                {isDirty && !isInvalid && <span className="ml-2 text-[10px] text-warning font-bold bg-warning/10 px-1.5 rounded uppercase tracking-wider">Sin Guardar</span>}
                             </span>
                         </li>
                     );
@@ -906,26 +1151,23 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         )}
                     </div>
                     <div className="flex gap-3">
-                        {currentStep < 4 ? (
+                        {currentStep < 4 && (
                             <button
                                 onClick={nextStep}
                                 className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center gap-2 shadow-md transition-all"
                             >
                                 Siguiente <i className="pi pi-arrow-right"></i>
                             </button>
-                        ) : (
-                            !readOnly && (
-                                <button
-                                    onClick={handleSubmit}
-                                    className="text-white bg-secondary-dark hover:bg-black font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center gap-2 shadow-md transition-all"
-                                >
-                                    Guardar y Finalizar <i className="pi pi-check"></i>
-                                </button>
-                            )
                         )}
                     </div>
                 </div>
             </div>
+            {/* MODAL DE CONFIGURACIÓN DE SALIDA */}
+            <UnsavedChangesModal
+                visible={showLeaveModal}
+                onConfirm={handleLeaveConfirm}
+                onCancel={handleLeaveCancel}
+            />
         </div>
     );
 };

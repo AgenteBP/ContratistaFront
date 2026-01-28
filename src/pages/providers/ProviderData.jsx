@@ -28,6 +28,26 @@ const ProviderData = () => {
                 onSubmit={handleUpdate}
                 title="Mis Datos"
                 subtitle="Complete su legajo y mantenga sus datos actualizados."
+                headerInfo={{
+                    name: providerData.razonSocial,
+                    cuit: providerData.cuit,
+                    status: providerData.estatus, // 'ACTIVO', 'PENDIENTE', etc.
+                    docStatus: (() => {
+                        const docs = providerData.documentacion || [];
+                        if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';
+
+                        // Validar campos de ubicación obligatorios
+                        const locationComplete = providerData.pais &&
+                            providerData.provincia &&
+                            providerData.localidad &&
+                            providerData.codigoPostal &&
+                            providerData.direccionFiscal;
+
+                        const allDocsValid = docs.every(d => d.estado === 'VIGENTE' || d.estado === 'PRESENTADO');
+
+                        return (allDocsValid && locationComplete) ? 'COMPLETO' : 'PENDIENTE';
+                    })()
+                }}
             />
         </div>
     );

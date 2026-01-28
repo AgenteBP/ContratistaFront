@@ -30,7 +30,6 @@ export const StatusBadge = ({ status }) => {
                 return 'bg-danger-light text-danger-hover border-danger/30';
 
             case 'PENDIENTE':
-            case 'EN REVISIÓN':
             case 'EN PROCESO':
                 // Warning: Amber
                 return 'bg-warning-light text-warning-hover border-warning/30';
@@ -39,6 +38,8 @@ export const StatusBadge = ({ status }) => {
                 // Warning: Amber (Explicit)
                 return 'bg-warning-light text-warning-hover border-warning/30';
 
+            case 'EN REVISIÓN':
+            case 'EN REVISION':
             default:
                 // Info: Sky
                 return 'bg-info-light text-info-hover border-info/30';
