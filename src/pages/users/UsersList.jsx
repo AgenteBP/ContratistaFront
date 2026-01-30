@@ -160,9 +160,9 @@ const UsersList = () => {
                 sortIcon={customSortIcon}
                 emptyMessage="No se encontraron usuarios."
             >
-                <Column field="id" header="#" sortable className="font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="pl-6"></Column>
-                <Column field="username" header="Usuario" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-secondary-dark"></Column>
-                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" filter filterPlaceholder="Buscar nombre..." filterElement={createTextFilter} showFilterMenu={false}></Column>
+                <Column field="id" header="#" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
+                <Column field="username" header="Usuario" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="hidden md:table-cell font-mono text-secondary-dark" headerClassName="hidden md:table-cell"></Column>
+                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" filter filterPlaceholder="Buscar nombre..." filterElement={createTextFilter} showFilterMenu={false} className="pl-4" headerClassName="pl-4"></Column>
                 <Column field="status" header="Estatus" sortable body={(d) => <StatusBadge status={d.status} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>

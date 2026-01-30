@@ -199,9 +199,10 @@ const ProvidersList = () => {
                 dataKey="id"
                 sortIcon={customSortIcon}
             >
-                <Column expander={true} style={{ width: '2rem' }} className="2xl:hidden" headerClassName="2xl:hidden" />
+                {/* Expander Column: Visible (Spacer on Mobile due to global CSS hiding arrow) */}
+                <Column expander={true} style={{ width: '2rem' }} />
 
-                <Column field="id" header="#" sortable className="font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="pl-6"></Column>
+                <Column field="id" header="#" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
                 <Column field="razonSocial" header="Razón Social" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-bold text-secondary-dark"></Column>
                 <Column field="cuit" header="CUIT" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable filter filterElement={(opts) => createDropdownFilter(opts, ['JURIDICA', 'FISICA'])} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
@@ -210,8 +211,8 @@ const ProvidersList = () => {
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
 
-            <p className="mt-4 text-[10px] text-secondary/50 text-center 2xl:hidden pb-4">
-                Toque la flecha para ver detalles.
+            <p className="mt-4 text-[10px] text-secondary/50 text-center md:hidden pb-4">
+                Toque la fila para ver detalles.
             </p>
         </div>
     );

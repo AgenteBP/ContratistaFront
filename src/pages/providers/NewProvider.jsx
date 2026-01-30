@@ -138,7 +138,7 @@ const NewProvider = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className={`bg-white rounded-xl border border-secondary/20 shadow-sm animate-fade-in ${searchParams.get('mode') === 'NEW' ? 'p-0 border-none shadow-none bg-transparent' : 'p-6'}`}>
+          <div className="bg-white rounded-xl border border-secondary/20 shadow-sm animate-fade-in p-4 md:p-6">
 
             {/* Si NO venimos forzados a modo NEW, mostramos el toggle */}
             {searchParams.get('mode') !== 'NEW' && (

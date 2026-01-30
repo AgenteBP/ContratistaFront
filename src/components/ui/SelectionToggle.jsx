@@ -2,7 +2,7 @@ import React from 'react';
 
 const SelectionToggle = ({ options, value, onChange, className = '' }) => {
     return (
-        <div className={`flex p-1 bg-gray-100 rounded-lg mb-6 ${className}`}>
+        <div className={`flex flex-col md:flex-row p-1 bg-gray-100 rounded-lg mb-6 ${className}`}>
             {options.map((option) => {
                 const isSelected = value === option.value;
                 return (

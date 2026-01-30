@@ -24,7 +24,7 @@ export const MOCK_PROVEEDORES = [
             { id: 101, nombre: 'Braian Paez', tipo: 'OPERATIVO - LEGAJO', email: 'braian@email.com', movil: '11 5555 6666' }
         ],
         documentacion: [
-            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2025-12-01', archivo: 'constancia_afip.pdf' },
+            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2026-12-01', archivo: 'constancia_afip.pdf' },
             { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf' },
             // Simulamos documentos pendientes (faltan id 3 y 4 por ejemplo)
         ]

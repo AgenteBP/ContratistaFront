@@ -49,7 +49,7 @@ export const StatusBadge = ({ status }) => {
     if (!status) return null;
 
     return (
-        <span className={`px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-bold border ${getStatusStyles(status)} inline-flex items-center justify-center uppercase tracking-wide`}>
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-bold border ${getStatusStyles(status)} inline-flex items-center justify-center uppercase tracking-wide whitespace-nowrap`}>
             {status}
         </span>
     );
