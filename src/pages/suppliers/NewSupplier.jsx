@@ -3,16 +3,16 @@ import WizardSteps from '../../components/ui/WizardSteps';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import UserForm from '../../components/ui/UserForm';
 import RoleSelection from '../../components/ui/RoleSelection';
-import ProviderForm from './ProviderForm';
+import SupplierForm from './SupplierForm';
 import AuditorForm from '../auditors/AuditorForm';
 import SelectionToggle from '../../components/ui/SelectionToggle';
 import { userService } from '../../services/userService';
-import { providerService } from '../../services/providerService';
+import { supplierService } from '../../services/supplierService';
 import { MOCK_USERS } from '../../data/mockUsers';
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
+import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { Dropdown } from 'primereact/dropdown';
 
-const NewProvider = () => {
+const NewSupplier = () => {
   const { id } = useParams(); // ID del usuario si estamos agregando rol
   const navigate = useNavigate();
   // Using URLSearchParams to get query params
@@ -22,13 +22,13 @@ const NewProvider = () => {
   // State del Wizard
   const [currentStep, setCurrentStep] = useState(1);
   const [userMode, setUserMode] = useState('NEW'); // 'NEW' | 'EXISTING'
-  const [providerMode, setProviderMode] = useState('NEW'); // 'NEW' | 'EXISTING'
+  const [supplierMode, setSupplierMode] = useState('NEW'); // 'NEW' | 'EXISTING'
 
   // Data acumulada
   const [userData, setUserData] = useState(null);
   const [selectedRole, setSelectedRole] = useState(searchParams.get('role') || null);
   const [createdUser, setCreatedUser] = useState(null);
-  const [selectedExistingProvider, setSelectedExistingProvider] = useState(null);
+  const [selectedExistingSupplier, setSelectedExistingSupplier] = useState(null);
 
   // Efecto para cargar usuario existente si hay ID
   useEffect(() => {
@@ -74,28 +74,44 @@ const NewProvider = () => {
     setCurrentStep(3);
   };
 
-  // Paso 3: Entidad completada (Provider)
-  const handleProviderSubmit = async () => {
+  // Paso 3: Entidad completada (Supplier)
+  const handleSupplierSubmit = async (supplierFormData) => {
     try {
       let userToUse = createdUser;
 
       // 1. Crear Usuario (SOLO SI NO EXISTE)
       if (!id) {
-        userToUse = await userService.create(userData);
-        setCreatedUser(userToUse);
+        // --- INTEGRACIÓN CON API ---
+        // if (!createdUser) {
+        //   userToUse = await userService.create(userData);
+        //   setCreatedUser(userToUse);
+        // }
+        // --- MOCK ---
+        if (!createdUser) {
+          console.log("[MOCK] Creando usuario:", userData);
+          userToUse = { ...userData, id: Date.now() }; // ID temporal
+          setCreatedUser(userToUse);
+        }
       }
 
       // 2. Asignar Rol
-      await userService.assignRole(userToUse.id, selectedRole);
+      // --- INTEGRACIÓN CON API ---
+      // await userService.assignRole(userToUse.id, selectedRole);
+      // --- MOCK ---
+      console.log(`[MOCK] Asignando rol ${selectedRole} a usuario ${userToUse.id}`);
 
-      // 3. Crear O Asociar Provider (si aplica)
+      // 3. Crear O Asociar Supplier (si aplica)
       if (selectedRole === 'PROVEEDOR') {
-        if (selectedExistingProvider) {
-          console.log(`Asociando proveedor existente ID ${selectedExistingProvider.id} a usuario ${userToUse.id}`);
-          // providerService.associate(userToUse.id, selectedExistingProvider.id);
-        } else {
+        if (selectedExistingSupplier) {
+          console.log(`Asociando proveedor existente ID ${selectedExistingSupplier.id} a usuario ${userToUse.id}`);
+          // supplierService.associate(userToUse.id, selectedExistingSupplier.id);
+        } else if (supplierFormData) {
           console.log("Creando NUEVO proveedor asociado al usuario " + userToUse.id);
-          // providerService.create(userToUse.id, formData...);
+          // --- INTEGRACIÓN CON API ---
+          // const finalSupplierData = { ...supplierFormData, userId: userToUse.id };
+          // await supplierService.create(finalSupplierData);
+          // --- MOCK ---
+          console.log("[MOCK] Datos proveedor create:", { ...supplierFormData, userId: userToUse.id });
         }
       }
 
@@ -138,7 +154,7 @@ const NewProvider = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className={`bg-white rounded-xl border border-secondary/20 shadow-sm animate-fade-in ${searchParams.get('mode') === 'NEW' ? 'p-0 border-none shadow-none bg-transparent' : 'p-6'}`}>
+          <div className="bg-white rounded-xl border border-secondary/20 shadow-sm animate-fade-in p-4 md:p-6">
 
             {/* Si NO venimos forzados a modo NEW, mostramos el toggle */}
             {searchParams.get('mode') !== 'NEW' && (
@@ -231,18 +247,18 @@ const NewProvider = () => {
                   { label: isExistingRole ? "Agregar Nueva Entidad" : "Crear Nueva Empresa", value: 'NEW' },
                   { label: "Asociar Empresa Existente", value: 'EXISTING' }
                 ]}
-                value={providerMode}
-                onChange={setProviderMode}
+                value={supplierMode}
+                onChange={setSupplierMode}
               />
 
               <div className="mt-6">
-                {providerMode === 'NEW' ? (
-                  <ProviderForm
+                {supplierMode === 'NEW' ? (
+                  <SupplierForm
                     title={isExistingRole ? "Agregar Nueva Entidad Proveedor" : "Datos del Proveedor"}
                     subtitle={isExistingRole
                       ? `El usuario ya es Proveedor. Complete los datos de la NUEVA empresa a asociar.`
                       : `Configurando el primer perfil de proveedor para ${userData?.username}`}
-                    onSubmit={handleProviderSubmit}
+                    onSubmit={handleSupplierSubmit}
                     onBack={handleBack}
                   />
                 ) : (
@@ -255,10 +271,10 @@ const NewProvider = () => {
                     <div className="text-left">
                       <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Buscar Empresa / Proveedor</label>
                       <Dropdown
-                        value={selectedExistingProvider}
-                        options={MOCK_PROVEEDORES}
+                        value={selectedExistingSupplier}
+                        options={MOCK_SUPPLIERS}
                         optionLabel="razonSocial"
-                        onChange={(e) => setSelectedExistingProvider(e.value)}
+                        onChange={(e) => setSelectedExistingSupplier(e.value)}
                         itemTemplate={(option) => (
                           <div className="flex flex-col">
                             <span className="font-bold">{option.razonSocial}</span>
@@ -277,10 +293,10 @@ const NewProvider = () => {
                     </div>
 
                     <button
-                      onClick={handleProviderSubmit}
-                      disabled={!selectedExistingProvider}
+                      onClick={handleSupplierSubmit}
+                      disabled={!selectedExistingSupplier}
                       className={`w-full py-3 rounded-lg font-bold text-white transition-all shadow-lg
-                                    ${selectedExistingProvider ? 'bg-primary hover:bg-primary-hover shadow-primary/30' : 'bg-gray-300 cursor-not-allowed'}
+                                    ${selectedExistingSupplier ? 'bg-primary hover:bg-primary-hover shadow-primary/30' : 'bg-gray-300 cursor-not-allowed'}
                                 `}
                     >
                       Asociar y Finalizar <i className="pi pi-check ml-2"></i>
@@ -303,7 +319,7 @@ const NewProvider = () => {
           return (
             <AuditorForm
               initialData={{ nombre: userData?.firstName, apellido: userData?.lastName }}
-              onSubmit={handleProviderSubmit}
+              onSubmit={handleSupplierSubmit}
               onBack={handleBack}
             />
           );
@@ -321,7 +337,7 @@ const NewProvider = () => {
               >
                 <i className="pi pi-arrow-left"></i> Volver
               </button>
-              <button onClick={handleProviderSubmit} className="text-white bg-primary px-5 py-2.5 rounded-lg font-bold">
+              <button onClick={handleSupplierSubmit} className="text-white bg-primary px-5 py-2.5 rounded-lg font-bold">
                 Finalizar y Guardar
               </button>
             </div>
@@ -340,7 +356,7 @@ const NewProvider = () => {
                 isExistingRoleFinal ? (
                   <>Se ha asociado una <strong>nueva entidad</strong> del tipo <strong>{selectedRole}</strong> al usuario <strong>{userData?.username}</strong>.</>
                 ) : (
-                  <>Se ha agregado el nuevo rol <strong>{selectedRole}</strong> al usuario <strong>{userData?.username}</strong> {selectedExistingProvider ? ` y se ha asociado a ${selectedExistingProvider.razonSocial}` : ''}.</>
+                  <>Se ha agregado el nuevo rol <strong>{selectedRole}</strong> al usuario <strong>{userData?.username}</strong> {selectedExistingSupplier ? ` y se ha asociado a ${selectedExistingSupplier.razonSocial}` : ''}.</>
                 )
               ) : (
                 <>Se ha creado el usuario <strong>{createdUser?.username}</strong> con el rol <strong>{selectedRole}</strong>.</>
@@ -418,4 +434,4 @@ const NewProvider = () => {
   );
 };
 
-export default NewProvider;
+export default NewSupplier;

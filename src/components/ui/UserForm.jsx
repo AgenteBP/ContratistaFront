@@ -25,7 +25,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
         <div className="animate-fade-in w-full">
             <SectionTitle title="Datos del Usuario" subtitle="Información de acceso y perfil del nuevo usuario." />
 
-            <div className="bg-white border border-secondary/20 rounded-xl shadow-sm p-8">
+            <div className="bg-white border border-secondary/20 rounded-xl shadow-sm p-5 md:p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <Input
                         label="Nombre de Usuario"

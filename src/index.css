@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-    /* --- BRANDING --- */
-    --primary-color: #84cc16 !important;
-    --primary-color-text: #0f172a !important;
-    --focus-ring: #84cc16 !important;
+    /* --- BRANDING (Indigo - Tailwind Match) --- */
+    --primary-color: #6366f1 !important;
+    --primary-color-text: #ffffff !important;
+    --focus-ring: #6366f1 !important;
 
     /* --- SEMÁNTICOS --- */
     /* Success */
@@ -45,12 +45,14 @@
 /* --- FIN TEMA PERSONALIZADO --- */
 
 body {
-    background-color: #f3f4f6;
+    background-color: #f8fafc;
+    /* Slate-50 used in tailwind config */
 }
 
 /* Ajuste: Forzamos negrita en los botones para que se vea más industrial */
 .p-button {
-    font-weight: 700 !important;
+    font-weight: 600 !important;
+    /* Slightly reduced from 700 for Indigo elegance */
 }
 
 /* Estilo para botones deshabilitados (Estándar Global) */
@@ -62,12 +64,10 @@ body {
 }
 
 /* --- COMPACT CALENDAR (PrimeReact) --- */
-.compact-calendar-panel {
-    font-size: 0.75rem !important;
-}
+/* Removed hardcoded small fonts for improved readability */
 
 .compact-calendar-panel .p-datepicker-header {
-    padding: 0.25rem 0.5rem !important;
+    padding: 0.5rem !important;
 }
 
 .compact-calendar-panel table th {
@@ -75,30 +75,36 @@ body {
 }
 
 .compact-calendar-panel table td {
-    padding: 0.15rem !important;
-}
-
-.compact-calendar-panel table td>span {
-    width: 1.75rem !important;
-    height: 1.75rem !important;
-}
-
-.compact-calendar-panel .p-datepicker-calendar {
-    font-size: 0.7rem !important;
+    padding: 0.25rem !important;
 }
 
 /* Custom Input Calendar styling */
 .compact-calendar-input {
-    width: auto !important;
+    width: 100%;
 }
 
 .compact-calendar-input .p-inputtext {
-    width: 100px !important;
-    padding: 0.4rem 0.5rem !important;
-    border-radius: 6px !important;
-    font-size: 11px !important;
-    border-color: rgba(100, 116, 139, 0.2) !important;
+    width: 100%;
+    padding: 0.5rem 0.75rem !important;
+    /* Standard padding */
+    border-radius: 8px !important;
+    font-size: 0.875rem !important;
+    /* 14px Standard */
+    border-color: #e2e8f0 !important;
+    /* Slate-200 */
 }
+
+.compact-calendar-input .p-inputtext:hover {
+    border-color: #6366f1 !important;
+    /* Primary Hover */
+}
+
+.compact-calendar-input .p-inputtext:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px #e0e7ff !important;
+    /* Ring Indigo-100 */
+}
+
 
 /* --- ANIMACIONES PERSONALIZADAS --- */
 @keyframes wiggle {
@@ -115,4 +121,27 @@ body {
 
 .animate-wiggle:hover {
     animation: wiggle 0.3s ease-in-out infinite;
+}
+
+/* --- OPTIMIZACIÓN MÓVIL (Tablas) --- */
+@media (max-width: 768px) {
+
+    /* Ocultar la flecha expansora (botón) */
+    .p-datatable .p-datatable-tbody>tr>td .p-row-toggler {
+        display: none !important;
+    }
+}
+
+/* --- UTILIDADES PERSONALIZADAS --- */
+/* Hide Scrollbar but allow scrolling */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
 }

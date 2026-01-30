@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import ProviderForm from './ProviderForm';
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
+import SupplierForm from './SupplierForm';
+import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
-const ProviderData = () => {
-    const [providerData, setProviderData] = useState(null);
+const SupplierData = () => {
+    const [supplierData, setSupplierData] = useState(null);
 
     useEffect(() => {
         // SIMULACIÓN: Obtener datos del proveedor logueado (Braian Paez ID: 1)
-        const myProfile = MOCK_PROVEEDORES.find(p => p.id === 1);
-        setProviderData(myProfile);
+        const myProfile = MOCK_SUPPLIERS.find(p => p.id === 1);
+        setSupplierData(myProfile);
     }, []);
 
     const handleUpdate = (updatedData) => {
@@ -16,32 +16,32 @@ const ProviderData = () => {
         alert("Datos actualizados correctamente (Simulación)");
     };
 
-    if (!providerData) {
+    if (!supplierData) {
         return <div className="p-8 text-center text-secondary">Cargando datos...</div>;
     }
 
     return (
         <div className="mx-auto max-w-7xl">
-            <ProviderForm
-                initialData={providerData}
+            <SupplierForm
+                initialData={supplierData}
                 partialEdit={true}
                 onSubmit={handleUpdate}
                 title="Mis Datos"
                 subtitle="Complete su legajo y mantenga sus datos actualizados."
                 headerInfo={{
-                    name: providerData.razonSocial,
-                    cuit: providerData.cuit,
-                    status: providerData.estatus, // 'ACTIVO', 'PENDIENTE', etc.
+                    name: supplierData.razonSocial,
+                    cuit: supplierData.cuit,
+                    status: supplierData.estatus, // 'ACTIVO', 'PENDIENTE', etc.
                     docStatus: (() => {
-                        const docs = providerData.documentacion || [];
+                        const docs = supplierData.documentacion || [];
                         if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';
 
                         // Validar campos de ubicación obligatorios
-                        const locationComplete = providerData.pais &&
-                            providerData.provincia &&
-                            providerData.localidad &&
-                            providerData.codigoPostal &&
-                            providerData.direccionFiscal;
+                        const locationComplete = supplierData.pais &&
+                            supplierData.provincia &&
+                            supplierData.localidad &&
+                            supplierData.codigoPostal &&
+                            supplierData.direccionFiscal;
 
                         const allDocsValid = docs.every(d => d.estado === 'VIGENTE' || d.estado === 'PRESENTADO');
 
@@ -53,4 +53,4 @@ const ProviderData = () => {
     );
 };
 
-export default ProviderData;
+export default SupplierData;

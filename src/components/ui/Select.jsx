@@ -7,19 +7,25 @@ const Select = ({ label, options, size = 'md', ...props }) => {
     md: 'p-2.5 text-sm rounded-lg pr-8'
   };
 
+  const isPlaceholderSelected = props.value && typeof props.value === 'string' && props.value.toLowerCase().includes('seleccione');
+
   return (
     <div className="w-full">
       {label && <Label className={size === 'sm' ? 'mb-1 text-xs' : 'mb-2 text-sm'}>{label}</Label>}
       <div className="relative">
         <select
           {...props}
-          className={`appearance-none bg-white border border-secondary/30 text-secondary-dark outline-none transition-all block w-full
+          className={`appearance-none bg-white border border-secondary/30 outline-none transition-all block w-full uppercase
           focus:ring-2 focus:ring-primary/20 focus:border-primary
           ${sizeClasses[size] || sizeClasses.md}
           ${props.disabled ? 'bg-secondary-light cursor-not-allowed text-secondary border-secondary/10' : ''}
+          ${isPlaceholderSelected ? 'text-gray-400 font-medium' : 'text-secondary-dark'}
           ${props.className || ''}`}
         >
-          {options.map((opt, i) => <option key={i}>{opt}</option>)}
+          {options.map((opt, i) => {
+            const isPlaceholder = typeof opt === 'string' && opt.toLowerCase().includes('seleccione');
+            return <option key={i} value={opt} disabled={isPlaceholder} hidden={isPlaceholder} className="uppercase text-secondary-dark">{opt}</option>;
+          })}
         </select>
         <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-secondary`}>
           <svg className={`${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} fill-current`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">

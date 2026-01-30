@@ -21,11 +21,46 @@ const AppTable = (props) => {
         ...rest
     } = props;
 
+    const handleRowClick = (e) => {
+        // 1. Call user defined onRowClick if exists
+        if (rest.onRowClick) {
+            rest.onRowClick(e);
+        }
+
+        // 2. Mobile Tap-to-Expand Logic (Global)
+        // Check if we have expansion capabilities props
+        if (window.innerWidth < 768 && props.onRowToggle && props.expandedRows !== undefined) {
+            // Avoid toggling if clicking on interactive elements
+            if (e.originalEvent.target.closest('button') ||
+                e.originalEvent.target.closest('a') ||
+                e.originalEvent.target.closest('.p-checkbox') ||
+                e.originalEvent.target.closest('.p-column-filter') ||
+                e.originalEvent.target.closest('.p-row-toggler')) {
+                return;
+            }
+
+            const dataKey = props.dataKey || 'id';
+            const rowId = e.data[dataKey]; // PrimeReact usually keys by ID or dataKey
+
+            // Clone existing expanded state (PrimeReact uses object map { id: true })
+            let _expandedRows = { ...(props.expandedRows || {}) };
+
+            if (_expandedRows[rowId]) {
+                delete _expandedRows[rowId];
+            } else {
+                _expandedRows[rowId] = true;
+            }
+
+            // Propagate change
+            props.onRowToggle({ originalEvent: e.originalEvent, data: _expandedRows });
+        }
+    };
+
     return (
-        <div className="bg-white border border-secondary/20 rounded-xl shadow-sm overflow-hidden w-full">
+        <div className="bg-white border border-secondary/20 rounded-xl shadow-sm w-full overflow-hidden">
+            {header}
             <DataTable
                 value={value}
-                header={header}
                 paginator
                 rows={5}
                 rowsPerPageOptions={[5, 10, 25, 50]}
@@ -35,10 +70,12 @@ const AppTable = (props) => {
                 size="small"
                 stripedRows
                 tableClassName="w-full text-sm text-left text-secondary"
+                onRowClick={handleRowClick}
                 pt={{
+                    wrapper: { className: 'overflow-x-auto' }, // SCROLL ONLY DATA
                     thead: { className: 'text-xs text-secondary-dark uppercase bg-secondary-light border-b border-secondary/20' },
                     headerCell: { className: 'px-3 py-2.5 font-bold hover:bg-white transition-colors cursor-pointer focus:shadow-none align-top group' },
-                    bodyRow: ({ context }) => ({ className: `border-b border-secondary/10 transition-colors` }),
+                    bodyRow: ({ context }) => ({ className: `border-b border-secondary/10 transition-colors cursor-pointer bg-white` }), // FORCE SOLID BG
                     bodyCell: { className: 'px-3 py-2.5 align-middle text-secondary-dark' },
                     paginator: {
                         root: { className: 'flex justify-between items-center p-2 border-t border-secondary/20 text-xs text-secondary' },

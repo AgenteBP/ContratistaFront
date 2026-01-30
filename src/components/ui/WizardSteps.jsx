@@ -11,22 +11,45 @@ import React from 'react';
  */
 const WizardSteps = ({ currentStep, steps = [1, 2, 3], id = null }) => {
     return (
-        <div className="flex justify-center mb-10 w-full">
-            <div className="flex items-start w-full max-w-3xl justify-between relative">
-                {/* Línea de fondo conectora (absoluta para que quede detrás) */}
-                <div className="absolute top-5 left-0 w-full h-0.5 bg-gray-200 -z-10" style={{ width: '90%', left: '5%' }}></div>
+        <div className="flex justify-center mb-6 md:mb-10 w-full flex-col items-center">
 
+            {/* --- VISTA MÓVIL (Barra de Progreso Simple) --- */}
+            <div className="md:hidden w-full px-1 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-secondary uppercase tracking-wider">
+                        PASO {currentStep} / {steps.length}
+                    </span>
+                    <span className="text-xs font-bold text-primary truncate max-w-[60%] text-right">
+                        {typeof steps[currentStep - 1] === 'object' ? steps[currentStep - 1].label : steps[currentStep - 1]}
+                    </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                        className="bg-primary h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                        style={{ width: `${(currentStep / steps.length) * 100}%` }}
+                    ></div>
+                </div>
+            </div>
+
+            {/* --- VISTA DESKTOP (Stepper Completo) --- */}
+            <div className="hidden md:flex items-start w-full max-w-3xl justify-between relative">
                 {steps.map((stepItem, index) => {
                     const stepNumber = index + 1;
                     const isCompleted = currentStep > stepNumber || (id && stepNumber === 1);
                     const isActive = currentStep === stepNumber;
 
-                    // Normalizar input: si es objeto usa sus props, si no, usa defaults
+                    // Normalizar input
                     const label = typeof stepItem === 'object' ? stepItem.label : `Paso ${stepNumber}`;
                     const context = typeof stepItem === 'object' ? stepItem.context : null;
 
                     return (
-                        <div key={stepNumber} className="flex flex-col items-center relative z-10 bg-white dark:bg-transparent px-2">
+                        <div key={stepNumber} className="flex flex-1 flex-col items-center relative z-10 px-2 group">
+
+                            {/* Línea conectora segmentada (Gap Style) */}
+                            {index < steps.length - 1 && (
+                                <div className="absolute top-5 left-[calc(50%+2.5rem)] w-[calc(100%-5rem)] h-0.5 bg-gray-300 -z-10"></div>
+                            )}
+
                             {/* Círculo */}
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-500 mb-2 border-2
                                     ${isActive || isCompleted
@@ -38,11 +61,11 @@ const WizardSteps = ({ currentStep, steps = [1, 2, 3], id = null }) => {
 
                             {/* Textos */}
                             <div className="flex flex-col items-center text-center">
-                                <span className={`text-xs font-bold uppercase tracking-wide transition-colors duration-300 ${isActive ? 'text-primary' : 'text-secondary'}`}>
+                                <span className={`text-xs font-bold uppercase tracking-wide transition-colors duration-300 ${isActive ? 'text-primary' : 'text-secondary'} whitespace-normal break-words`}>
                                     {label}
                                 </span>
                                 {context && (
-                                    <span className="text-[10px] items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold mt-1 shadow-sm animate-fade-in inline-flex">
+                                    <span className="text-[10px] items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold mt-1 shadow-sm animate-fade-in inline-flex whitespace-nowrap">
                                         <i className="pi pi-check-circle text-[9px]"></i> {context}
                                     </span>
                                 )}

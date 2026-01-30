@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { MOCK_AUDITORES } from '../../data/mockAuditors';
 import { StatusBadge } from '../../components/ui/Badges';
 import AuditorForm from './AuditorForm';
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
+import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
 const AuditorDetail = () => {
     const { id } = useParams();
@@ -14,8 +14,8 @@ const AuditorDetail = () => {
     const auditor = MOCK_AUDITORES.find(a => a.id === parseInt(id));
 
     // Estados para la pestaña de asignación de empresas
-    const [sourceCompanies, setSourceCompanies] = useState(MOCK_PROVEEDORES);
-    const [targetCompanies, setTargetCompanies] = useState(MOCK_PROVEEDORES.slice(0, 2));
+    const [sourceCompanies, setSourceCompanies] = useState(MOCK_SUPPLIERS);
+    const [targetCompanies, setTargetCompanies] = useState(MOCK_SUPPLIERS.slice(0, 2));
     const [searchTerm, setSearchTerm] = useState('');
 
     // Filtrar empresas disponibles

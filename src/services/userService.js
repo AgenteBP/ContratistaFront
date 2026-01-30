@@ -1,26 +1,41 @@
 import api from '../api/axiosConfig';
 
 export const userService = {
-    // Crear usuario
-    create: async (userData) => {
-        // En una implementación real: const response = await api.post('/users', userData);
-        // return response.data;
-        console.log("Simulating User Creation:", userData);
-        return {
-            id: Date.now(),
-            username: userData.username,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            email: userData.email, // Asumiendo que se agregará email
-            roles: []
-        };
+    // 1. Obtener todos (GET)
+    getAll: async () => {
+        const response = await api.get('/user');
+        return response.data;
     },
 
-    // Asignar rol
+    // 2. Obtener uno por ID (GET)
+    getById: async (id) => {
+        const response = await api.get(`/user/${id}`);
+        return response.data;
+    },
+
+    // 3. Crear usuario (POST)
+    create: async (userData) => {
+        const response = await api.post('/user', userData);
+        return response.data;
+    },
+
+    // 4. Actualizar usuario (PUT)
+    update: async (id, userData) => {
+        const response = await api.put(`/user/${id}`, userData);
+        return response.data;
+    },
+
+    // 5. Borrar usuario (DELETE)
+    delete: async (id) => {
+        const response = await api.delete(`/user/${id}`);
+        return response.data;
+    },
+
+    // 6. Asignar rol
     assignRole: async (userId, role) => {
-        // const response = await api.post(`/users/${userId}/roles`, { role });
-        console.log(`Simulating Role Assignment: User ${userId} -> Role ${role}`);
-        return { success: true };
+        // Asumiendo endpoint: POST /user/{id}/roles
+        const response = await api.post(`/user/${userId}/roles`, { role });
+        return response.data;
     },
 
     // Obtener roles disponibles (para el selector)

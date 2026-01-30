@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useBlocker, useBeforeUnload } from 'react-router-dom';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
@@ -11,7 +11,10 @@ import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
 import { StatusBadge } from '../../components/ui/Badges';
 
-const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
+const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
+    // Wizard Mode: Alta de Usuario (Not ReadOnly, Not PartialEdit)
+    const isWizardMode = !readOnly && !partialEdit;
+
     // State único para todo el formulario
     const [formData, setFormData] = useState({
         // Paso 1: General
@@ -19,8 +22,8 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         cuit: '',
         nombreFantasia: '',
         tipoPersona: 'JURIDICA',
-        clasificacionAFIP: 'Seleccione...',
-        servicio: 'Seleccione...',
+        clasificacionAFIP: 'SELECCIONE CLASIFICACIÓN AFIP',
+        servicio: 'SELECCIONE SERVICIO',
         email: '',
         telefono: '',
         empleadorAFIP: false,
@@ -42,8 +45,10 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         ...(initialData || {}) // Use prop or empty object for initial state
     });
 
+
     const [currentStep, setCurrentStep] = useState(1);
     const steps = ['Proveedor', 'Ubicación', 'Contactos', 'Documentos'];
+    const [validationError, setValidationError] = useState(null);
 
     // State para tracking de cambios sin guardar
     const [dirtySteps, setDirtySteps] = useState(new Set());
@@ -100,10 +105,14 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     };
 
 
-    // Reset edit mode when changing steps
+    // Reset edit mode when changing steps, or auto-enable if there are unsaved changes
     useEffect(() => {
-        setIsEditingStep(false);
-    }, [currentStep]);
+        if (dirtySteps.has(currentStep)) {
+            setIsEditingStep(true);
+        } else {
+            setIsEditingStep(false);
+        }
+    }, [currentStep, dirtySteps]);
 
     const handleStartEdit = () => setIsEditingStep(true);
     const handleStopEdit = () => {
@@ -125,11 +134,11 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     }, [initialData]);
 
     // Opciones para selects
-    const servicios = ['Seleccione...', 'Mantenimiento', 'Limpieza', 'Seguridad', 'Logística', 'VIGILANCIA'];
-    const clasificacionesAFIP = ['Seleccione...', 'Responsable Inscripto', 'Monotributista', 'Exento', 'Consumidor Final'];
+    const servicios = ['SELECCIONE SERVICIO', 'Mantenimiento', 'Limpieza', 'Seguridad', 'Logística', 'VIGILANCIA'];
+    const clasificacionesAFIP = ['SELECCIONE CLASIFICACIÓN AFIP', 'Responsable Inscripto', 'Monotributista', 'Exento', 'Consumidor Final'];
     const tiposPersona = ['JURIDICA', 'FISICA'];
     const tiposContacto = [
-        'Seleccione',
+        'SELECCIONE TIPO',
         'REPRESENTANTE LEGAL',
         'ADMINISTRATIVO - LEGAJO',
         'OPERATIVO - LEGAJO',
@@ -146,7 +155,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         movil: '',
         email: '',
         telefono: '',
-        tipo: 'Seleccione'
+        tipo: 'SELECCIONE TIPO'
     });
 
     const handleChange = (e) => {
@@ -168,7 +177,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     };
 
     const addContact = () => {
-        if (!newContact.nombre || newContact.tipo === 'Seleccione') {
+        if (!newContact.nombre || newContact.tipo === 'SELECCIONE TIPO') {
             alert("Complete nombre y tipo de contacto");
             return;
         }
@@ -176,7 +185,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             ...prev,
             contactos: [...prev.contactos, { ...newContact, id: Date.now() }]
         }));
-        setNewContact({ nombre: '', dni: '', movil: '', email: '', telefono: '', tipo: 'Seleccione' });
+        setNewContact({ nombre: '', dni: '', movil: '', email: '', telefono: '', tipo: 'SELECCIONE TIPO' });
         markStepDirty(3); // Contactos es paso 3
     };
 
@@ -212,7 +221,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         if (!scope || scope === 4) {
             updatedDocs = formData.documentacion?.map(doc => {
                 // Only update status if the document was MODIFIED (file uploaded or date changed)
-                if (doc.modified && doc.archivo && !['VIGENTE', 'PRESENTADO', 'EN REVISIÓN', 'APROBADO'].includes(doc.estado)) {
+                if (doc.modified && doc.archivo) {
                     console.log(`[Submit] Updating ${doc.tipo} to EN REVISIÓN`);
                     return { ...doc, estado: 'EN REVISIÓN' };
                 }
@@ -369,8 +378,9 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const [requiredDocs, setRequiredDocs] = useState([]);
     const [isCustomConfig, setIsCustomConfig] = useState(false);
-    const [editDocMode, setEditDocMode] = useState(false);
+    const [editDocMode, setEditDocMode] = useState(!readOnly && !partialEdit); // En Wizard Mode, editamos configuración por defecto
     const [showDocModal, setShowDocModal] = useState(false);
+    const [isStepperOpen, setIsStepperOpen] = useState(false); // Mobile Accordion State
 
     // Recalcular requisitos automáticamente SI NO está personalizado
     useEffect(() => {
@@ -400,13 +410,45 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         markStepDirty(4); // Documentos es paso 4
     };
 
+    const updateDocRequirement = (docId, field, value) => {
+        setRequiredDocs(prev => prev.map(d =>
+            d.id === docId ? { ...d, [field]: value } : d
+        ));
+        setIsCustomConfig(true);
+        markStepDirty(4);
+    };
+
     const resetDocConfig = () => {
         setIsCustomConfig(false);
         const defaults = ALL_DOCS_RULES.filter(rule => rule.defaultFor(formData));
         setRequiredDocs(defaults);
     };
 
-    const nextStep = () => setCurrentStep(prev => prev + 1);
+    const nextStep = () => {
+        // Obtenemos si el paso actual es inválido
+        const currentStepObj = steps.map((step, index) => {
+            const stepNum = index + 1;
+            let isInvalid = false;
+
+            if (stepNum === 1) {
+                if (!formData.razonSocial || !formData.cuit || !formData.email) isInvalid = true;
+            } else if (stepNum === 2 && !isWizardMode) {
+                if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) isInvalid = true;
+            } else if (stepNum === 3 && !isWizardMode) {
+                if (formData.contactos.length === 0) isInvalid = true;
+            }
+
+            return { stepNum, isInvalid };
+        }).find(s => s.stepNum === currentStep);
+
+        if (currentStepObj?.isInvalid) {
+            // Animación de error o feedback visual si se desea
+            return;
+        }
+
+        setCurrentStep(prev => prev + 1);
+    };
+
     const prevStep = () => setCurrentStep(prev => prev - 1);
 
     const renderStepContent = () => {
@@ -447,7 +489,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 const isFiscalDataLocked = readOnly || partialEdit; // Siempre bloqueado en partialEdit
 
                 return (
-                    <div className="p-8">
+                    <div className="p-0 md:p-8">
                         <StepHeader title="Datos Fiscales" subtitle="Información registrada ante AFIP." />
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                             <Input
@@ -557,7 +599,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             case 2:
                 const isStep2Disabled = readOnly || (partialEdit && !isEditingStep);
                 return (
-                    <div className="p-8">
+                    <div className="p-0 md:p-8">
                         <StepHeader title="Ubicación" subtitle="Domicilio fiscal y real." />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -574,8 +616,9 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     className="w-full"
                                     disabled={isStep2Disabled}
                                     pt={{
-                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${isStep2Disabled ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
-                                        input: { className: 'w-full text-sm p-3' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center uppercase ${isStep2Disabled ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
+                                        input: { className: 'w-full text-sm p-3 uppercase' },
+                                        item: { className: 'uppercase' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
                                     }}
@@ -595,8 +638,9 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     disabled={!formData.paisCode || isStep2Disabled}
                                     emptyMessage="Seleccione un país primero"
                                     pt={{
-                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${(!formData.paisCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
-                                        input: { className: 'w-full text-sm p-3' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center uppercase ${(!formData.paisCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
+                                        input: { className: 'w-full text-sm p-3 uppercase' },
+                                        item: { className: 'uppercase' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
                                     }}
@@ -615,8 +659,9 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     disabled={!formData.provinciaCode || isStep2Disabled}
                                     emptyMessage="Seleccione una provincia primero"
                                     pt={{
-                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center ${(!formData.provinciaCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
-                                        input: { className: 'w-full text-sm p-3' },
+                                        root: { className: `w-full border border-secondary/20 rounded-lg hover:border-primary focus:border-primary h-[42px] flex items-center uppercase ${(!formData.provinciaCode || isStep2Disabled) ? 'bg-gray-50 opacity-90' : 'bg-white'}` },
+                                        input: { className: 'w-full text-sm p-3 uppercase' },
+                                        item: { className: 'uppercase' },
                                         trigger: { className: 'w-10 text-secondary' },
                                         panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' }
                                     }}
@@ -659,7 +704,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             case 3:
                 const isStep3Editing = !partialEdit || (partialEdit && isEditingStep);
                 return (
-                    <div className="p-8">
+                    <div className="p-0 md:p-8">
                         <StepHeader title="Contactos" subtitle="Personas autorizadas para gestiones." />
 
                         {/* 1. Formulario de Alta (Solo si está en modo edición) */}
@@ -690,7 +735,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     />
                                     <Input
                                         size="sm"
-                                        label="Teléfono Móvil"
+                                        label="Teléfono"
                                         value={newContact.movil}
                                         onChange={(e) => setNewContact({ ...newContact, movil: e.target.value })}
                                         placeholder="+54 9 11 1234 5678"
@@ -701,13 +746,6 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         value={newContact.email}
                                         onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
                                         placeholder="contacto@empresa.com"
-                                    />
-                                    <Input
-                                        size="sm"
-                                        label="Teléfono Proveedor"
-                                        value={newContact.telefono}
-                                        onChange={(e) => setNewContact({ ...newContact, telefono: e.target.value })}
-                                        placeholder="011 4123-4567"
                                     />
                                     <div className="w-full">
                                         <Select
@@ -756,18 +794,26 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-secondary border-t border-secondary/5 pt-3">
-                                        <div className="flex items-center gap-1.5 min-w-fit">
-                                            <i className="pi pi-envelope text-[10px] opacity-70"></i>
-                                            <span className="truncate max-w-[150px]">{contacto.email || '-'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 min-w-fit">
-                                            <i className="pi pi-whatsapp text-[10px] opacity-70"></i>
-                                            <span>{contacto.movil || '-'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 min-w-fit">
-                                            <i className="pi pi-id-card text-[10px] opacity-70"></i>
-                                            <span>DNI: {contacto.dni || '-'}</span>
+                                    <div className="flex flex-col gap-2 text-xs font-medium text-gray-700 border-t border-secondary/10 pt-3">
+                                        {contacto.email && (
+                                            <div className="flex items-center gap-2">
+                                                <i className="pi pi-envelope text-primary/80 text-[11px]"></i>
+                                                <span className="truncate">{contacto.email}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center justify-between gap-2">
+                                            {(contacto.movil || contacto.telefono) && (
+                                                <div className="flex items-center gap-2">
+                                                    <i className="pi pi-whatsapp text-primary/80 text-[11px]"></i>
+                                                    <span>{contacto.movil || contacto.telefono}</span>
+                                                </div>
+                                            )}
+                                            {contacto.dni && (
+                                                <div className="flex items-center gap-2">
+                                                    <i className="pi pi-id-card text-primary/80 text-[11px]"></i>
+                                                    <span>{contacto.dni}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -784,14 +830,33 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     </div>
                 );
             case 4:
-                // En step 4, 'partialEdit' permite ver y subir archivos.
-                // Modificar: Habilita los controles de subida y fecha.
-                const isStep4ConfigReadOnly = readOnly || partialEdit;
-                const isStep4ActionsEnabled = !partialEdit || (partialEdit && isEditingStep); // Si partialEdit, necesito 'Modificar' para activar inputs
+                // Wizard Mode: Config Enabled, Uploads Disabled
+                // Partial Edit: Config Disabled, Uploads Enabled (if editing)
+                const isStep4ConfigReadOnly = !isWizardMode;
+                const isStep4ActionsEnabled = partialEdit && isEditingStep;
 
                 return (
                     <div className="p-8 animate-fade-in relative">
-                        <StepHeader title="Documentación Requerida" subtitle={isStep4ConfigReadOnly ? "Estado de la documentación." : "Configuración de requisitos."} />
+                        <StepHeader title="Configuración de Documentación" subtitle={isWizardMode ? "Defina qué documentos se solicitarán al proveedor." : "Estado de la documentación."} />
+
+                        {/* Indicar de dónde viene la configuración por defecto */}
+                        {isWizardMode && (
+                            <div className="mb-6 p-4 bg-primary/5 rounded-xl border border-primary/20 flex flex-col md:flex-row gap-4 items-center justify-between">
+                                <div className="flex flex-wrap gap-3 items-center">
+                                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-primary/10">Basado en:</span>
+                                    <div className="flex gap-2">
+                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.tipoPersona}</span>
+                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.clasificacionAFIP}</span>
+                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.servicio}</span>
+                                    </div>
+                                </div>
+                                {isCustomConfig && (
+                                    <button onClick={resetDocConfig} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-primary/20">
+                                        <i className="pi pi-refresh"></i> Restablecer sugeridos
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {!isStep4ConfigReadOnly && !editDocMode && isCustomConfig && (
                             <div className="mb-4 bg-warning-light/50 border border-warning/30 rounded-lg p-3 flex items-center justify-between text-xs">
@@ -835,6 +900,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 const handleFileUpload = (e) => {
                                     const file = e.target.files[0];
                                     if (file) {
+                                        const fileUrl = URL.createObjectURL(file);
                                         setDirtySteps(prev => new Set(prev).add(4));
 
                                         setFormData(prev => {
@@ -844,11 +910,11 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             let newDocs;
                                             if (docIndex >= 0) {
                                                 // Update existing - PRESERVE STATUS until save
-                                                // If status is PENDING/EXPIRED, it remains so until user saves.
                                                 newDocs = [...currentDocs];
                                                 newDocs[docIndex] = {
                                                     ...newDocs[docIndex],
                                                     archivo: file.name,
+                                                    fileUrl: fileUrl,
                                                     // Mark as modified so we know to update status on save
                                                     modified: true,
                                                     fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
@@ -860,6 +926,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     tipo: doc.id,
                                                     estado: 'PENDIENTE',
                                                     archivo: file.name,
+                                                    fileUrl: fileUrl,
                                                     modified: true, // New docs are modified by definition
                                                     fechaVencimiento: null
                                                 }];
@@ -867,6 +934,26 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             return { ...prev, documentacion: newDocs };
                                         });
                                     }
+                                };
+
+                                const handleRemoveFile = (docId) => {
+                                    setDirtySteps(prev => new Set(prev).add(4));
+                                    setFormData(prev => {
+                                        const currentDocs = prev.documentacion || [];
+                                        const docIndex = currentDocs.findIndex(d => d.tipo === docId);
+
+                                        if (docIndex >= 0) {
+                                            const newDocs = [...currentDocs];
+                                            newDocs[docIndex] = {
+                                                ...newDocs[docIndex],
+                                                archivo: null,
+                                                fileUrl: null,
+                                                modified: true
+                                            };
+                                            return { ...prev, documentacion: newDocs };
+                                        }
+                                        return prev;
+                                    });
                                 };
 
                                 const handleDateChange = (docId, date) => {
@@ -902,7 +989,7 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 };
 
                                 return (
-                                    <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${getStatusColor(status)} group relative`}>
+                                    <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${getStatusColor(status)} group relative h-full min-h-[150px]`}>
 
                                         {/* Botón Eliminar (Solo edición config) */}
                                         {!isStep4ConfigReadOnly && editDocMode && (
@@ -914,73 +1001,161 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             </button>
                                         )}
 
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="font-bold text-secondary-dark text-sm pr-4">{doc.label}</h4>
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${(status === 'VIGENTE' || status === 'PRESENTADO') ? 'bg-success-light text-success border-success/20' :
-                                                    status === 'VENCIDO' ? 'bg-danger-light text-danger border-danger/20' :
-                                                        (status === 'EN REVISIÓN' || status === 'EN REVISION') ? 'bg-info-light text-info border-info/20' :
-                                                            'bg-warning-light text-warning-hover border-warning/20'
-                                                    }`}>
-                                                    {status}
-                                                </span>
-                                            </div>
-
-                                            <div className="space-y-3 mb-3">
-                                                <div className="flex items-center gap-1.5">
-                                                    <i className="pi pi-clock text-primary text-[10px]"></i>
-                                                    <span className="text-xs text-secondary">{doc.frecuencia}</span>
+                                        <div className="flex-1 flex flex-col h-full">
+                                            {/* Header: Icon + Title */}
+                                            <div className="flex items-start gap-4 mb-5">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' : (status === 'VIGENTE' || status === 'PRESENTADO' ? 'bg-success/10 border-success/20 text-success' : 'bg-warning/10 border-warning/20 text-warning')}`}>
+                                                    <i className={`pi ${doc.id.includes('AFIP') ? 'pi-verified' : doc.id.includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
                                                 </div>
-
-                                                {/* Vencimiento */}
-                                                {(docData?.fechaVencimiento || isStep4ActionsEnabled) && (
-                                                    <div className="flex items-center gap-2">
-                                                        <i className="pi pi-calendar text-secondary/50 text-sm"></i>
-                                                        {isStep4ActionsEnabled ? (
-                                                            <Calendar
-                                                                value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
-                                                                onChange={(e) => handleDateChange(doc.id, e.value)}
-                                                                placeholder="Vencimiento"
-                                                                minDate={new Date()} // Prevent past dates
-                                                                className="compact-calendar-input"
-                                                                panelClassName="compact-calendar-panel"
-                                                                dateFormat="dd/mm/yy"
-                                                            />
-                                                        ) : (
-                                                            <span className="text-xs text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
-                                                        )}
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={doc.label}>{doc.label}</h4>
                                                     </div>
-                                                )}
-
-                                                {/* Archivo */}
-                                                <div className="pt-2 border-t border-secondary/10">
-                                                    {isStep4ActionsEnabled ? (
-                                                        <div className="space-y-2">
-                                                            <input
-                                                                type="file"
-                                                                onChange={handleFileUpload}
-                                                                className="block w-full text-xs text-secondary
-                                                                file:mr-2 file:py-1 file:px-2
-                                                                file:rounded-full file:border-0
-                                                                file:text-xs file:font-semibold
-                                                                file:bg-secondary/10 file:text-secondary
-                                                                hover:file:bg-secondary/20"
-                                                            />
-                                                            {docData?.archivo && <span className="text-[10px] text-success block"><i className="pi pi-check"></i> {docData.archivo}</span>}
-                                                        </div>
-                                                    ) : (
-                                                        docData?.archivo ? (
-                                                            <button className="text-primary hover:text-primary-hover text-xs font-bold flex items-center gap-1 transition-colors">
-                                                                <i className="pi pi-eye"></i> Ver Archivo
-                                                            </button>
-                                                        ) : (
-                                                            <span className="text-xs text-secondary/50 italic flex items-center gap-1">
-                                                                <i className="pi pi-times-circle"></i> No presentado
-                                                            </span>
-                                                        )
+                                                    {!isWizardMode && (
+                                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${(status === 'VIGENTE' || status === 'PRESENTADO') ? 'bg-success/10 text-success border-success/20' :
+                                                            status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                                'bg-warning/10 text-warning border-warning/20'
+                                                            }`}>
+                                                            {status}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* Body: Configuration (Wizard Mode) */}
+                                            {isWizardMode ? (
+                                                <div className="mt-auto pt-4 border-t border-secondary/5 space-y-4">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                            <i className="pi pi-history text-[9px]"></i> Periodicidad
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select
+                                                                value={doc.frecuencia}
+                                                                onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
+                                                                className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
+                                                            >
+                                                                <option value="Mensual">Mensual</option>
+                                                                <option value="Trimestral">Trimestral</option>
+                                                                <option value="Semestral">Semestral</option>
+                                                                <option value="Anual">Anual</option>
+                                                                <option value="Única vez">Única vez</option>
+                                                            </select>
+                                                            <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                            <i className="pi pi-lock text-[9px]"></i> Requerimiento
+                                                        </label>
+                                                        <div
+                                                            onClick={() => updateDocRequirement(doc.id, 'isOptional', !doc.isOptional)}
+                                                            className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${doc.isOptional
+                                                                ? 'bg-gray-50 border-secondary/10 opacity-70'
+                                                                : 'bg-indigo-50/50 border-indigo-100'}`}
+                                                        >
+                                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${doc.isOptional ? 'bg-white text-secondary/40' : 'bg-indigo-500 text-white shadow-sm'}`}>
+                                                                <i className={`pi ${doc.isOptional ? 'pi-circle' : 'pi-check-circle'} text-[11px]`}></i>
+                                                            </div>
+                                                            <span className={`text-[11px] font-bold ${doc.isOptional ? 'text-secondary' : 'text-indigo-700'}`}>
+                                                                {doc.isOptional ? 'Opcional' : 'Obligatorio'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3 mt-auto">
+                                                    <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
+                                                        <i className="pi pi-clock text-primary text-[11px]"></i>
+                                                        <span className="text-xs font-medium text-secondary-dark">{doc.frecuencia} — {doc.obligatoriedad}</span>
+                                                    </div>
+
+                                                    {(docData?.fechaVencimiento || isStep4ActionsEnabled) && (
+                                                        <div className="flex flex-col w-full">
+                                                            <div className="flex items-center gap-2">
+                                                                <i className="pi pi-calendar text-secondary/50 text-base"></i>
+                                                                {isStep4ActionsEnabled ? (
+                                                                    <Calendar
+                                                                        value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
+                                                                        onChange={(e) => handleDateChange(doc.id, e.value)}
+                                                                        placeholder="Vencimiento"
+                                                                        disabled={!docData?.archivo}
+                                                                        minDate={new Date()}
+                                                                        className={`compact-calendar-input w-full border border-secondary/50 rounded-lg ${!docData?.archivo ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                                                                        panelClassName="compact-calendar-panel"
+                                                                        dateFormat="dd/mm/yy"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
+                                                                )}
+                                                            </div>
+                                                            {isStep4ActionsEnabled && !docData?.archivo && (
+                                                                <span className="text-[10px] text-warning font-medium ml-6 mt-1.5 animate-pulse">
+                                                                    * Requiere archivo para editar fecha
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* File Control (Partial Edit Only) */}
+                                                    {!isWizardMode && (
+                                                        <div className="pt-3 border-t border-secondary/10">
+                                                            {isStep4ActionsEnabled ? (
+                                                                <div className="w-full">
+                                                                    {docData?.archivo ? (
+                                                                        <div className="group/file flex items-center justify-between p-2.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all duration-300">
+                                                                            <div
+                                                                                onClick={() => docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización: ${docData.archivo}`)}
+                                                                                className="flex items-center gap-3 cursor-pointer overflow-hidden"
+                                                                            >
+                                                                                <div className="bg-white p-2 rounded-full text-primary shadow-sm group-hover/file:scale-110 transition-transform">
+                                                                                    <i className="pi pi-file-pdf text-sm"></i>
+                                                                                </div>
+                                                                                <span className="text-[11px] font-bold text-primary-dark truncate max-w-[120px]">
+                                                                                    {docData.archivo}
+                                                                                </span>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => handleRemoveFile(doc.id)}
+                                                                                className="text-secondary/40 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all"
+                                                                            >
+                                                                                <i className="pi pi-trash text-sm"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="relative group/upload">
+                                                                            <input
+                                                                                type="file"
+                                                                                id={`file-${doc.id}`}
+                                                                                onChange={handleFileUpload}
+                                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                                            />
+                                                                            <div className="flex items-center justify-center gap-2 w-full p-2.5 border border-dashed border-secondary/30 rounded-xl text-secondary group-hover/upload:text-primary group-hover/upload:border-primary/50 group-hover/upload:bg-primary/5 transition-all">
+                                                                                <i className="pi pi-upload text-sm"></i>
+                                                                                <span className="text-xs font-bold uppercase tracking-wider">Subir</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                docData?.archivo ? (
+                                                                    <button
+                                                                        onClick={() => docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización: ${docData.archivo}`)}
+                                                                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-primary/5 text-primary hover:bg-primary/10 text-xs font-bold transition-all border border-primary/10"
+                                                                    >
+                                                                        <i className="pi pi-eye"></i> Ver Documento
+                                                                    </button>
+                                                                ) : (
+                                                                    <div className="w-full p-2.5 text-center text-[10px] font-bold text-secondary/40 uppercase tracking-widest bg-gray-50/50 rounded-xl border border-secondary/5">
+                                                                        No presentado
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -1059,8 +1234,84 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 </div>
             )}
 
-            {/* --- 2. STEPPER --- */}
-            <ol className="flex items-center w-full mb-10 text-sm font-medium text-center text-secondary bg-white p-6 rounded-xl border border-secondary/20 shadow-sm">
+            {/* --- 2. STEPPER (Collapsible Mobile / Horizontal Desktop) --- */}
+
+            {/* Lógica de Validación para el Header Móvil */}
+            {(() => {
+                let status = 'neutral';
+                let msg = '';
+
+                if (currentStep === 1) {
+                    if (!formData.razonSocial || !formData.cuit || !formData.email) { status = 'invalid'; msg = 'Datos faltantes'; }
+                } else if (currentStep === 2) {
+                    if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) { status = 'invalid'; msg = 'Ubicación incompleta'; }
+                } else if (currentStep === 3) {
+                    if (formData.contactos.length === 0) { status = 'invalid'; msg = 'Sin contactos'; }
+                } else if (currentStep === 4) {
+                    const missingDocs = requiredDocs.some(req => {
+                        const doc = formData.documentacion?.find(d => d.tipo === req.id);
+                        return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                    });
+                    if (missingDocs) { status = 'invalid'; msg = 'Doc. pendiente'; }
+                }
+
+                const isDirtyState = dirtySteps.has(currentStep);
+                if (isDirtyState && status !== 'invalid') status = 'dirty';
+
+                const headerBg = status === 'invalid' ? 'bg-red-50' : status === 'dirty' ? 'bg-orange-50' : 'bg-white';
+                const circleBg = status === 'invalid' ? 'bg-danger' : status === 'dirty' ? 'bg-warning' : 'bg-primary';
+                const textColor = status === 'invalid' ? 'text-danger' : status === 'dirty' ? 'text-warning' : 'text-secondary-dark';
+
+                // Common Badge Styles
+                const badgeBase = "px-1.5 py-0.5 rounded border text-[8px] font-extrabold tracking-wider whitespace-nowrap";
+                const badgeColor = status === 'invalid' ? 'bg-white border-danger/20 text-danger' : 'bg-white border-warning/20 text-warning';
+
+                return (
+                    <div
+                        onClick={() => setIsStepperOpen(!isStepperOpen)}
+                        className={`md:hidden w-full border border-secondary/20 p-4 shadow-sm flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all select-none z-20 relative
+                            ${isStepperOpen ? 'rounded-t-xl border-b-0' : 'rounded-xl mb-4'} 
+                            ${headerBg}
+                        `}
+                    >
+                        <div className="flex items-center gap-4 w-full overflow-hidden">
+                            <div className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm shadow-md transition-colors shrink-0 ${circleBg}`}>
+                                {currentStep}
+                            </div>
+                            <div className="flex flex-col w-full overflow-hidden justify-center">
+                                <span className="text-[10px] uppercase font-bold text-secondary tracking-wider mb-0.5 leading-tight">
+                                    PASO {currentStep} DE {steps.length}
+                                </span>
+                                <span className={`text-sm font-bold truncate mb-1.5 leading-tight ${textColor}`}>
+                                    {steps[currentStep - 1]}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {msg && (
+                                        <span className={`${badgeBase} ${badgeColor}`}>
+                                            {msg}
+                                        </span>
+                                    )}
+                                    {isDirtyState && status !== 'invalid' && (
+                                        <span className={`${badgeBase} ${badgeColor}`}>
+                                            SIN GUARDAR
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-secondary transition-transform duration-300 shrink-0 ml-2 ${isStepperOpen ? 'rotate-180' : ''}`}>
+                            <i className="pi pi-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Lista de Pasos (Oculta en móvil si está cerrada) */}
+            <ol className={`${isStepperOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row items-start md:items-center w-full mb-0 md:mb-8 text-sm font-medium text-center text-secondary bg-white p-6 rounded-b-xl md:rounded-xl border border-secondary/20 border-t-0 md:border-t shadow-sm relative animate-fade-in gap-6 md:gap-0`}>
+
+                {/* Vertical Connector Line (Mobile Only) */}
+                <div className="absolute left-[38px] top-10 bottom-10 w-0.5 bg-gray-200 z-0 md:hidden"></div>
+
                 {steps.map((step, index) => {
                     const stepNum = index + 1;
                     const isActive = stepNum === currentStep;
@@ -1076,18 +1327,17 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             isInvalid = true;
                             missingMsg = 'Datos faltantes';
                         }
-                    } else if (stepNum === 2) {
+                    } else if (stepNum === 2 && !isWizardMode) {
                         if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) {
                             isInvalid = true;
                             missingMsg = 'Ubicación incompleta';
                         }
-                    } else if (stepNum === 3) {
+                    } else if (stepNum === 3 && !isWizardMode) {
                         if (formData.contactos.length === 0) {
                             isInvalid = true;
                             missingMsg = 'Sin contactos';
                         }
-                    } else if (stepNum === 4) {
-                        // Check if ANY required doc is missing or expired
+                    } else if (stepNum === 4 && !isWizardMode) {
                         const missingDocs = requiredDocs.some(req => {
                             const doc = formData.documentacion?.find(d => d.tipo === req.id);
                             return !doc || !doc.archivo || doc.estado === 'VENCIDO';
@@ -1098,45 +1348,115 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         }
                     }
 
+                    // Unified Badge Style based on priority (Invalid > Dirty)
+                    const itemBadgeStyle = isInvalid
+                        ? 'text-danger bg-white border-danger/30 shadow-sm'
+                        : 'text-warning bg-white border-warning/30 shadow-sm';
+
                     return (
                         <li
                             key={index}
-                            onClick={() => setCurrentStep(stepNum)}
-                            className={`flex md:w-full items-center cursor-pointer select-none transition-all
-                                ${index < steps.length - 1 ? "after:content-[''] after:w-full after:h-1 after:border-b after:border-secondary/20 after:border-1 after:hidden sm:after:inline-block after:mx-4 xl:after:mx-8" : ""} 
-                                ${isActive ? 'text-primary font-bold' : (isInvalid ? 'text-danger font-medium hover:text-danger-dark' : 'hover:text-primary')}
+                            onClick={() => {
+                                // Validation: Cannot enter Step 4 (Docs) if Step 1 (Fiscal) is incomplete
+                                const isStep1Invalid = !formData.razonSocial || !formData.cuit || !formData.email;
+                                if (isStep1Invalid && stepNum === 4) {
+                                    setValidationError("Debe completar los datos del proveedor (Paso 1) antes de configurar la documentación.");
+                                    setTimeout(() => setValidationError(null), 3000); // Auto-dismiss after 3s
+                                    setCurrentStep(1); // Redirect to Step 1
+                                    return;
+                                }
+                                setCurrentStep(stepNum);
+                                setValidationError(null); // Clear error on valid change
+                            }}
+                            className={`flex w-full md:w-auto md:flex-1 flex-row md:flex-col items-center justify-start md:justify-center cursor-pointer select-none transition-all z-10 bg-white md:bg-transparent relative py-1 md:py-0
+                                ${isActive
+                                    ? (isInvalid ? 'text-danger' : isDirty ? 'text-warning' : 'text-secondary-dark')
+                                    : (isInvalid ? 'text-danger hover:text-danger-dark' : isDirty ? 'text-warning hover:text-warning-hover' : 'hover:text-secondary-dark')
+                                }
                             `}
                         >
-                            <span className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-secondary/30 whitespace-nowrap relative group">
-                                <span className={`mr-2 w-6 h-6 rounded-full flex items-center justify-center border transition-colors 
-                                    ${isActive ? 'border-primary bg-primary text-white scale-110' :
-                                        isInvalid ? 'border-danger bg-danger text-white' :
-                                            isDirty ? 'border-warning bg-warning text-white' :
-                                                isCompleted ? 'border-success bg-success text-white' :
-                                                    'border-secondary/30 text-secondary group-hover:border-primary group-hover:text-primary'
-                                    } font-bold text-xs`}>
-                                    {isActive ? stepNum : (isInvalid ? stepNum : (isDirty ? <i className="pi pi-pencil text-[10px]"></i> : (isCompleted ? <i className="pi pi-check text-[10px]"></i> : stepNum)))}
+                            {/* Desktop Connector Line (Absolute Div) */}
+                            {index < steps.length - 1 && (
+                                <div className="hidden md:block absolute top-[15px] left-[calc(50%+2rem)] w-[calc(100%-4rem)] h-[2px] bg-gray-300 z-0"></div>
+                            )}
+
+                            <span className="flex items-center md:flex-col w-full md:w-auto relative group gap-4 md:gap-0">
+                                <span className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold text-xs shrink-0 z-10 md:mb-2 relative
+                                    ${isActive
+                                        ? `scale-110 shadow-md ring-2 ring-offset-1 ring-transparent text-white ${isInvalid ? 'bg-danger border-danger' : isDirty ? 'bg-warning border-warning' : 'bg-secondary-dark border-secondary-dark'}`
+                                        : `${isInvalid ? 'border-danger bg-white text-danger' :
+                                            isDirty ? 'border-warning bg-white text-warning' :
+                                                isCompleted ? 'border-secondary-dark bg-white text-secondary-dark' :
+                                                    'border-secondary/30 text-secondary bg-white'}`
+                                    } 
+                                `}>
+                                    {!isActive && isCompleted && !isInvalid && !isDirty ? <i className="pi pi-check text-xs font-bold text-secondary-dark"></i> : stepNum}
                                 </span>
-                                {step}
-                                {isInvalid && <span className="absolute -bottom-5 left-8 text-[9px] text-danger font-bold whitespace-nowrap animate-fade-in">{missingMsg}</span>}
-                                {isDirty && !isInvalid && <span className="ml-2 text-[10px] text-warning font-bold bg-warning/10 px-1.5 rounded uppercase tracking-wider">Sin Guardar</span>}
+
+                                {/* Mobile View: Title Left, Badges Right */}
+                                <div className="flex flex-1 flex-row items-center justify-between md:hidden w-full">
+                                    <span className={`font-semibold text-left text-sm mr-2 flex-1
+                                        ${!isActive && !isInvalid && !isDirty && isCompleted ? 'text-secondary-dark' : ''}
+                                        ${!isActive && !isInvalid && !isDirty && !isCompleted ? 'text-secondary' : ''}
+                                    `}>
+                                        {step}
+                                    </span>
+                                    {/* Evitar redundancia: No mostrar badges en el paso activo (ya están en el header) */}
+                                    {!isActive && (
+                                        <div className="flex flex-col items-end gap-1 shrink-0">
+                                            {isInvalid && <span className={`text-[8px] px-1.5 py-0.5 rounded font-extrabold uppercase tracking-wider border whitespace-nowrap ${itemBadgeStyle}`}>{missingMsg}</span>}
+                                            {isDirty && !isInvalid && <span className={`text-[8px] px-1.5 py-0.5 rounded font-extrabold tracking-wider border whitespace-nowrap ${itemBadgeStyle}`}>SIN GUARDAR</span>}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Desktop View: Center + Absolute Badges */}
+                                <div className="hidden md:flex flex-1 items-center justify-center md:flex-col md:w-auto">
+                                    <span className={`font-semibold text-center ${isActive ? 'text-base' : 'text-sm'} 
+                                        ${!isActive && !isInvalid && !isDirty && isCompleted ? 'text-secondary-dark' : ''}
+                                        ${!isActive && !isInvalid && !isDirty && !isCompleted ? 'text-secondary' : ''}
+                                    `}>
+                                        {step}
+                                    </span>
+                                </div>
+
+
+                                {/* Desktop Badges (Square - Mixed Rotation - Balanced Shift) */}
+                                {isInvalid && (
+                                    <span className="hidden md:block absolute -top-3 left-1/2 ml-2 text-[6px] font-black px-1 py-0 rounded-md uppercase tracking-wider border text-danger bg-white border-danger/40 shadow-sm transform -translate-x-1/2 rotate-[15deg] animate-fade-in z-20 whitespace-nowrap">
+                                        {missingMsg}
+                                    </span>
+                                )}
+                                {isDirty && !isInvalid && (
+                                    <span className="hidden md:block absolute -top-3 left-1/2 ml-2 text-[6px] font-black px-1 py-0 rounded-md uppercase tracking-wider border text-warning bg-white border-warning/40 shadow-sm transform -translate-x-1/2 rotate-[17deg] z-20 whitespace-nowrap">
+                                        Sin Guardar
+                                    </span>
+                                )}
                             </span>
                         </li>
                     );
                 })}
             </ol>
 
+            {/* Validation Inline Alert */}
+            {validationError && (
+                <div className="mb-6 mx-1 md:mx-0 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3 animate-fade-in shadow-sm">
+                    <i className="pi pi-exclamation-circle text-xl shrink-0"></i>
+                    <span className="text-sm font-semibold">{validationError}</span>
+                </div>
+            )}
+
             {/* --- 3. FORMULARIO CONTENIDO --- */}
-            <div className="bg-white border border-secondary/20 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border-0 md:border md:border-secondary/20 rounded-xl shadow-none md:shadow-sm overflow-hidden">
                 {renderStepContent()}
 
-                <div className="bg-secondary-light px-8 py-4 border-t border-secondary/20 flex justify-between items-center">
-                    <div>
+                <div className="bg-secondary-light p-4 md:px-8 md:py-4 border-t border-secondary/20 flex flex-col-reverse gap-3 md:flex-row md:justify-between md:items-center">
+                    <div className="w-full md:w-auto">
                         {currentStep === 1 ? (
                             onBack && !readOnly && (
                                 <button
                                     onClick={onBack}
-                                    className="text-secondary hover:text-secondary-dark font-medium rounded-lg text-sm px-5 py-2.5 transition-all flex items-center gap-2 hover:bg-black/5"
+                                    className="text-secondary hover:text-secondary-dark font-medium rounded-lg text-sm px-5 py-2.5 transition-all flex items-center justify-center gap-2 hover:bg-black/5 w-full md:w-auto"
                                 >
                                     <i className="pi pi-arrow-left"></i> Cancelar
                                 </button>
@@ -1144,19 +1464,27 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         ) : (
                             <button
                                 onClick={prevStep}
-                                className="text-secondary hover:text-secondary-dark font-medium rounded-lg text-sm px-5 py-2.5 transition-all flex items-center gap-2 hover:bg-black/5"
+                                className="text-secondary hover:text-secondary-dark font-medium rounded-lg text-sm px-5 py-2.5 transition-all flex items-center justify-center gap-2 hover:bg-black/5 w-full md:w-auto"
                             >
                                 <i className="pi pi-arrow-left"></i> Anterior
                             </button>
                         )}
                     </div>
-                    <div className="flex gap-3">
-                        {currentStep < 4 && (
+                    <div className="flex gap-3 w-full md:w-auto">
+                        {currentStep < steps.length && (
                             <button
                                 onClick={nextStep}
-                                className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center gap-2 shadow-md transition-all"
+                                className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center justify-center gap-2 shadow-md transition-all w-full md:w-auto"
                             >
                                 Siguiente <i className="pi pi-arrow-right"></i>
+                            </button>
+                        )}
+                        {currentStep === steps.length && !readOnly && !partialEdit && (
+                            <button
+                                onClick={() => onSubmit && onSubmit(formData)}
+                                className="text-white bg-green-600 hover:bg-green-700 font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center justify-center gap-2 shadow-md transition-all w-full md:w-auto animate-fade-in"
+                            >
+                                <i className="pi pi-check"></i> Finalizar y Guardar
                             </button>
                         )}
                     </div>
@@ -1172,4 +1500,4 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     );
 };
 
-export default ProviderForm;
+export default SupplierForm;
