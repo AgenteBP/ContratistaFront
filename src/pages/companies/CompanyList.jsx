@@ -117,7 +117,7 @@ const CompanyList = () => {
 
     const header = renderHeader();
 
-    // Template para mobile expansion (simple, reutilizando el estilo de Providers)
+    // Template para mobile expansion (simple, reutilizando el estilo de Suppliers)
     const rowExpansionTemplate = (data) => (
         <div className="bg-secondary-light border-t border-secondary/20 p-4 shadow-inner animate-fade-in text-sm">
             <div className="flex items-center gap-2 mb-3">
@@ -125,9 +125,14 @@ const CompanyList = () => {
                 <h5 className="font-bold text-secondary-dark">{data.razonSocial}</h5>
             </div>
             <div className="grid grid-cols-1 gap-2">
-                <div><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{data.cuit}</span></div>
-                <div><span className="block text-[10px] text-secondary">Rubro</span><span className="font-medium text-secondary-dark">{data.rubro}</span></div>
-                <div><span className="block text-[10px] text-secondary">Grupo</span><span className="font-medium text-secondary-dark">{data.grupo}</span></div>
+                {/* CUIT: Hidden sm:table-cell -> sm:hidden */}
+                <div className="sm:hidden"><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{data.cuit}</span></div>
+
+                {/* Rubro: Hidden lg:table-cell -> lg:hidden */}
+                <div className="lg:hidden"><span className="block text-[10px] text-secondary">Rubro</span><span className="font-medium text-secondary-dark">{data.rubro}</span></div>
+
+                {/* Grupo: Hidden xl:table-cell -> xl:hidden */}
+                <div className="xl:hidden"><span className="block text-[10px] text-secondary">Grupo</span><span className="font-medium text-secondary-dark">{data.grupo}</span></div>
             </div>
         </div>
     );
@@ -156,6 +161,7 @@ const CompanyList = () => {
                 header={header}
                 filters={filters}
                 globalFilterFields={['razonSocial', 'cuit', 'rubro', 'grupo', 'estatus']}
+                filterDisplay="row"
                 emptyMessage="No se encontraron empresas."
                 sortMode="multiple"
                 removableSort

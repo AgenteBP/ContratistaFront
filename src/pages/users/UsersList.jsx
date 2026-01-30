@@ -7,6 +7,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Menu } from 'primereact/menu';
 import { StatusBadge } from '../../components/ui/Badges';
 import { MOCK_USERS } from '../../data/mockUsers';
+import { userService } from '../../services/userService';
 import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
 
@@ -14,14 +15,39 @@ const UsersList = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [users] = useState(MOCK_USERS);
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
 
     const roles = ['ADMINISTRADOR', 'PROVEEDOR', 'AUDITOR', 'TECNICO', 'RRHH'];
     const estatusOptions = ['ACTIVO', 'INACTIVO', 'SUSPENDIDO'];
 
-    useEffect(() => { initFilters(); }, []);
+    useEffect(() => {
+        initFilters();
+        loadUsers();
+    }, []);
+
+    const loadUsers = async () => {
+        try {
+            setLoading(true);
+            // --- INTEGRACIÓN CON API ---
+            // Para activar la API real:
+            // 1. Descomentar la siguiente línea:
+            // const data = await userService.getAll();
+            // 2. Comentar la línea de mock data:
+            const data = MOCK_USERS;
+
+            // Simular delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            setUsers(data);
+        } catch (error) {
+            console.error("Error al cargar usuarios:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const initFilters = () => {
         setFilters({
@@ -76,7 +102,7 @@ const UsersList = () => {
             </div>
             <div className="relative w-full md:w-auto">
                 <div className="absolute inset-y-0 start-0 flex items-center ps-2.5 pointer-events-none"><i className="pi pi-search text-secondary text-xs"></i></div>
-                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} className="bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none" placeholder="Buscar..." />
+                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} disabled={loading} className={`bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`} placeholder="Buscar..." />
             </div>
         </div>
     );
@@ -152,6 +178,7 @@ const UsersList = () => {
 
             <AppTable
                 value={users}
+                loading={loading}
                 header={header}
                 filters={filters}
                 globalFilterFields={['username', 'firstName', 'lastName', 'email', 'role']}

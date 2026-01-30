@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { InputText } from 'primereact/inputtext';
 import { Dropdown } from 'primereact/dropdown';
 import { MultiSelect } from 'primereact/multiselect';
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
+import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
 const AuditorForm = ({ onSubmit, onBack, initialData = {}, readOnly = false }) => {
     const [formData, setFormData] = useState({
@@ -95,7 +95,7 @@ const AuditorForm = ({ onSubmit, onBack, initialData = {}, readOnly = false }) =
                         <label className="block text-xs font-bold text-secondary uppercase tracking-wider">Empresas Asignadas (Opcional)</label>
                         <MultiSelect
                             value={formData.empresas}
-                            options={MOCK_PROVEEDORES}
+                            options={MOCK_SUPPLIERS}
                             onChange={(e) => setFormData({ ...formData, empresas: e.value })}
                             optionLabel="razonSocial"
                             placeholder="Seleccione empresas a auditar..."

@@ -57,10 +57,10 @@ const AppTable = (props) => {
     };
 
     return (
-        <div className="bg-white border border-secondary/20 rounded-xl shadow-sm w-full">
+        <div className="bg-white border border-secondary/20 rounded-xl shadow-sm w-full overflow-hidden">
+            {header}
             <DataTable
                 value={value}
-                header={header}
                 paginator
                 rows={5}
                 rowsPerPageOptions={[5, 10, 25, 50]}

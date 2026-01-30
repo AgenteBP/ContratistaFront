@@ -82,14 +82,23 @@ const AuditorsList = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Clasificación</h6>
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Detalles Adicionales</h6>
                     <div><span className="block text-[10px] text-secondary">Servicio</span><span className="font-medium text-secondary-dark">{data.servicio}</span></div>
-                    <div><span className="block text-[10px] text-secondary">Grupo</span><span className="font-medium text-secondary-dark">{data.grupo}</span></div>
+                    {/* Grupo: Visible en card solo si está oculto en tabla (hidden xl:table-cell -> xl:hidden) */}
+                    <div className="xl:hidden"><span className="block text-[10px] text-secondary">Grupo</span><span className="font-medium text-secondary-dark">{data.grupo}</span></div>
                     <div><span className="block text-[10px] text-secondary">Riesgo</span><RiskBadge nivel={data.riesgo} /></div>
                 </div>
                 <div className="space-y-2">
                     <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado</h6>
                     <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">Acceso</span><div className="mt-0.5"><BooleanBadge value={data.accesoHabilitado} isAccess={true} /></div></div>
+                </div>
+                <div className="space-y-2">
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Identificación</h6>
+                    {/* CUIT: Hidden sm:table-cell -> sm:hidden */}
+                    <div className="sm:hidden"><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{data.cuit}</span></div>
+                    {/* Servicio (redundante con Detalle Adicional pero diferente punto de vista si se quiere ocultar especif. en lg) */}
+                    {/* En AuditorList: Servicio es hidden lg:table-cell. Entonces aquí: lg:hidden */}
+                    <div className="lg:hidden"><span className="block text-[10px] text-secondary">Servicio (Tipo)</span><span className="font-medium text-secondary-dark">{data.servicio}</span></div>
                 </div>
                 <div className="space-y-2">
                     <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Historial</h6>
@@ -176,6 +185,7 @@ const AuditorsList = () => {
                 header={header}
                 filters={filters}
                 globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
+                filterDisplay="row"
                 emptyMessage="No se encontraron datos."
                 sortMode="multiple"
                 removableSort

@@ -45,15 +45,15 @@ const UserDetail = () => {
         }
     }, [user, selectedRole]);
 
-    const viewProviderDetail = (providerId) => {
-        navigate(`/proveedores/${providerId}`);
+    const viewSupplierDetail = (supplierId) => {
+        navigate(`/proveedores/${supplierId}`);
     };
 
     const actionTemplate = (rowData) => {
         if (selectedRole === 'PROVEEDOR') {
             return (
                 <button
-                    onClick={() => viewProviderDetail(rowData.id)}
+                    onClick={() => viewSupplierDetail(rowData.id)}
                     className="text-primary hover:text-primary-dark font-bold text-xs underline hover:scale-105 transition-transform"
                 >
                     Ver más

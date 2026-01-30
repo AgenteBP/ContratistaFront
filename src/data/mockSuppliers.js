@@ -1,4 +1,4 @@
-export const MOCK_PROVEEDORES = [
+export const MOCK_SUPPLIERS = [
     {
         id: 1,
         razonSocial: 'PAEZ BRAIAN ANDRES',
@@ -10,7 +10,7 @@ export const MOCK_PROVEEDORES = [
         email: 'braian.paez@email.com',
         telefono: '+54 11 1234 5678',
         empleadorAFIP: true,
-        esTemporal: false,
+        esTemporal: true,
         estatus: 'ACTIVO',
         facturasAPOC: 'No',
         altaSistema: '04/11/2025',
@@ -101,8 +101,8 @@ export const MOCK_PROVEEDORES = [
         facturasAPOC: 'No',
         altaSistema: '15/06/2024',
         pais: 'Argentina',
-        provincia: 'Santa Fe',
-        localidad: 'Rosario',
+        provincia: 'Santa Cruz',
+        localidad: 'Río Turbio',
         codigoPostal: '2000',
         direccionFiscal: 'Bv. Oroño 100',
         direccionReal: 'Bv. Oroño 100',

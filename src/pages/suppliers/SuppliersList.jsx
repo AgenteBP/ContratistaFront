@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { providerService } from '../../services/providerService';
+import { supplierService } from '../../services/supplierService';
 
 // --- IMPORTACIONES DE PRIME REACT ---
 import { Column } from 'primereact/column';
@@ -15,23 +15,49 @@ import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
 
 // --- DATOS MOCK ---
-import { MOCK_PROVEEDORES } from '../../data/mockProviders';
+import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
-const ProvidersList = () => {
+const SuppliersList = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [expandedRows, setExpandedRows] = useState(null);
+    // Estado para los datos y carga
+    const [proveedores, setProveedores] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Cargamos los datos desde el mock importado
-    const [proveedores] = useState(MOCK_PROVEEDORES);
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
+    const [expandedRows, setExpandedRows] = useState(null);
 
     const servicios = ['ALQUILER DE VEHICULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
     const estatusOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
 
-    useEffect(() => { initFilters(); }, []);
+    useEffect(() => {
+        initFilters();
+        loadSuppliers();
+    }, []);
+
+    const loadSuppliers = async () => {
+        try {
+            setLoading(true);
+            // --- INTEGRACIÓN CON API ---
+            // Para activar la API real:
+            // 1. Descomentar la siguiente línea:
+            // const data = await supplierService.getAll();
+            // 2. Comentar la línea de mock data:
+            const data = MOCK_SUPPLIERS;
+
+            // Simular delay de red
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            setProveedores(data);
+        } catch (error) {
+            console.error("Error al cargar proveedores:", error);
+            // Aquí podrías agregar un toast de error
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const initFilters = () => {
         setFilters({
@@ -92,26 +118,68 @@ const ProvidersList = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Clasificación</h6>
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Datos Comerciales</h6>
+                    {data.nombreFantasia && <div><span className="block text-[10px] text-secondary">Nombre Fantasía</span><span className="font-medium text-secondary-dark">{data.nombreFantasia}</span></div>}
+                    <div><span className="block text-[10px] text-secondary">Condición AFIP</span><span className="font-medium text-secondary-dark">{data.clasificacionAFIP}</span></div>
                     <div><span className="block text-[10px] text-secondary">Servicio</span><span className="font-medium text-secondary-dark">{data.servicio}</span></div>
-                    <div><span className="block text-[10px] text-secondary">Grupo</span><span className="font-medium text-secondary-dark">{data.grupo}</span></div>
-                    <div><span className="block text-[10px] text-secondary">Riesgo</span><RiskBadge nivel={data.riesgo} /></div>
                 </div>
+
                 <div className="space-y-2">
-                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado</h6>
-                    <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">Acceso</span><div className="mt-0.5"><BooleanBadge value={data.accesoHabilitado} isAccess={true} /></div></div>
-                    <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">Temporal</span><div className="mt-0.5"><BooleanBadge value={data.esTemporal} /></div></div>
-                    <div className="flex justify-between md:block"><span className="text-[10px] text-secondary">APOC</span><div className="mt-0.5"><BooleanBadge value={data.facturasAPOC} /></div></div>
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado y Ubicación</h6>
+                    <div className="mb-2">
+                        <span className="block text-[10px] text-secondary">Ubicación</span>
+                        <span className="font-medium text-secondary-dark">
+                            {data.localidad ? `${data.localidad}, ${data.provincia}` : data.provincia}
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 items-center">
+                        <div className="flex flex-col items-start gap-1">
+                            <span className="text-[10px] text-secondary">Acceso</span>
+                            <BooleanBadge value={data.accesoHabilitado} isAccess={true} />
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                            <span className="text-[10px] text-secondary">Temporal</span>
+                            {data.esTemporal ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-warning-light text-warning-hover border border-warning/30 inline-flex items-center gap-1">
+                                    <i className="pi pi-clock text-[8px]"></i> SÍ
+                                </span>
+                            ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-success-light text-success-hover border border-success/30 inline-flex items-center gap-1">
+                                    NO
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex flex-col items-start gap-1">
+                            <span className="text-[10px] text-secondary">APOC</span>
+                            {String(data.facturasAPOC).toLowerCase() === 'no' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-success-light text-success-hover border border-success/30 inline-flex items-center gap-1">
+                                    NO
+                                </span>
+                            ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-danger-light text-danger-hover border border-danger/30 inline-flex items-center gap-1">
+                                    <i className="pi pi-exclamation-triangle text-[8px]"></i> SÍ
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    {data.motivo && <div className="mt-2 bg-warning-light p-1.5 rounded border border-warning"><p className="text-[10px] text-secondary-dark italic">"{data.motivo}"</p></div>}
                 </div>
+
                 <div className="space-y-2">
-                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Historial</h6>
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Identificación</h6>
+                    {/* CUIT: Hidden sm:table-cell -> sm:hidden */}
+                    <div className="sm:hidden"><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{data.cuit}</span></div>
+                    {/* Tipo: Hidden lg:table-cell -> lg:hidden */}
+                    <div className="lg:hidden"><span className="block text-[10px] text-secondary">Tipo Persona</span><span className="font-medium text-secondary-dark">{data.tipoPersona}</span></div>
                     <div><span className="block text-[10px] text-secondary">Alta</span><span className="font-mono text-secondary-dark">{data.altaSistema}</span></div>
                     {data.bajaSistema && <div><span className="block text-[10px] text-secondary">Baja</span><span className="font-mono text-danger">{data.bajaSistema}</span></div>}
                 </div>
+
                 <div className="space-y-2">
-                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Notas</h6>
-                    <div><span className="block text-[10px] text-secondary">Empleador AFIP</span><span className="font-medium text-secondary-dark">{data.empleadorAFIP}</span></div>
-                    {data.motivo && <div className="bg-warning-light p-1.5 rounded border border-warning"><p className="text-[10px] text-secondary-dark italic">"{data.motivo}"</p></div>}
+                    <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Contacto</h6>
+                    {data.email && <div className="truncate"><span className="block text-[10px] text-secondary">Email</span><a href={`mailto:${data.email}`} className="font-medium text-primary hover:underline truncate block" title={data.email}>{data.email}</a></div>}
+                    {data.telefono && <div><span className="block text-[10px] text-secondary">Teléfono</span><span className="font-mono text-secondary-dark">{data.telefono}</span></div>}
+                    <div><span className="block text-[10px] text-secondary">Empleador AFIP</span><div className="mt-0.5"><BooleanBadge value={data.empleadorAFIP} trueLabel="SI" falseLabel="NO" /></div></div>
                 </div>
             </div>
         </div>
@@ -125,7 +193,7 @@ const ProvidersList = () => {
             </div>
             <div className="relative w-full md:w-auto">
                 <div className="absolute inset-y-0 start-0 flex items-center ps-2.5 pointer-events-none"><i className="pi pi-search text-secondary text-xs"></i></div>
-                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} className="bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none" placeholder="Buscar..." />
+                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} disabled={loading} className={`bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`} placeholder="Buscar..." />
             </div>
         </div>
     );
@@ -187,9 +255,11 @@ const ProvidersList = () => {
 
             <AppTable
                 value={proveedores}
+                loading={loading}
                 header={header}
                 filters={filters}
                 globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
+                filterDisplay="row"
                 emptyMessage="No se encontraron datos."
                 sortMode="multiple"
                 removableSort
@@ -218,4 +288,4 @@ const ProvidersList = () => {
     );
 };
 
-export default ProvidersList;
+export default SuppliersList;

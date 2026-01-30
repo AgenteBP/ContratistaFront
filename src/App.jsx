@@ -10,10 +10,10 @@ import RoleSelectionPage from './pages/auth/RoleSelectionPage';
 
 // 3. Páginas del Sistema (Privadas)
 import DashboardHome from './pages/dashboard/DashboardHome';
-import ProvidersList from './pages/providers/ProvidersList';
-import NewProvider from './pages/providers/NewProvider';
-import ProviderDetail from './pages/providers/ProviderDetail';
-import ProviderData from './pages/providers/ProviderData';
+import SuppliersList from './pages/suppliers/SuppliersList';
+import NewSupplier from './pages/suppliers/NewSupplier';
+import SupplierDetail from './pages/suppliers/SupplierDetail';
+import SupplierData from './pages/suppliers/SupplierData';
 import UsersList from './pages/users/UsersList';
 import UserDetail from './pages/users/UserDetail';
 import AuditorsList from './pages/auditors/AuditorsList';
@@ -37,10 +37,10 @@ const router = createBrowserRouter(
                 <Route path="/dashboard" element={<DashboardHome />} />
 
                 {/* Proveedores */}
-                <Route path="/proveedores" element={<ProvidersList />} />
-                <Route path="/proveedor" element={<ProviderData />} />
-                <Route path="/proveedores/nuevo" element={<NewProvider />} />
-                <Route path="/proveedores/:id" element={<ProviderDetail />} />
+                <Route path="/proveedores" element={<SuppliersList />} />
+                <Route path="/proveedor" element={<SupplierData />} />
+                <Route path="/proveedores/nuevo" element={<NewSupplier />} />
+                <Route path="/proveedores/:id" element={<SupplierDetail />} />
 
                 {/* Auditores */}
                 <Route path="/auditores" element={<AuditorsList />} />
@@ -52,8 +52,8 @@ const router = createBrowserRouter(
 
                 {/* Usuarios */}
                 <Route path="/usuarios" element={<UsersList />} />
-                <Route path="/usuarios/nuevo" element={<NewProvider />} />
-                <Route path="/usuarios/:id/nuevo-rol" element={<NewProvider />} />
+                <Route path="/usuarios/nuevo" element={<NewSupplier />} />
+                <Route path="/usuarios/:id/nuevo-rol" element={<NewSupplier />} />
                 <Route path="/usuarios/:id" element={<UserDetail />} />
 
                 {/* Fallback */}

@@ -11,7 +11,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
 import { StatusBadge } from '../../components/ui/Badges';
 
-const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
+const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
     // Wizard Mode: Alta de Usuario (Not ReadOnly, Not PartialEdit)
     const isWizardMode = !readOnly && !partialEdit;
 
@@ -1500,4 +1500,4 @@ const ProviderForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     );
 };
 
-export default ProviderForm;
+export default SupplierForm;
