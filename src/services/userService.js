@@ -3,13 +3,13 @@ import api from '../api/axiosConfig';
 export const userService = {
     // 1. Obtener todos (GET)
     getAll: async () => {
-        const response = await api.get('/user');
+        const response = await api.get('/auth/users');
         return response.data;
     },
 
     // 2. Obtener uno por ID (GET)
     getById: async (id) => {
-        const response = await api.get(`/user/${id}`);
+        const response = await api.get(`auth/users/${id}`);
         return response.data;
     },
 

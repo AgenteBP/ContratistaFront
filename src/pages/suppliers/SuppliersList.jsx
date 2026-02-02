@@ -40,20 +40,31 @@ const SuppliersList = () => {
     const loadSuppliers = async () => {
         try {
             setLoading(true);
-            // --- INTEGRACIÓN CON API ---
-            // Para activar la API real:
-            // 1. Descomentar la siguiente línea:
-            // const data = await supplierService.getAll();
-            // 2. Comentar la línea de mock data:
+            // --- INTEGRACIÓN CON API (DESHABILITADA TEMPORALMENTE) ---
+            // console.log("Iniciando fetch de proveedores...");
+            // const response = await supplierService.getAll();
+            // console.log("Respuesta API GetAll:", response);
+
+            // if (!response || !Array.isArray(response)) {
+            //     console.error("Respuesta inválida API:", response);
+            //     throw new Error("La API no devolvió una lista válida de proveedores.");
+            // }
+
+            // --- MOCK DATA ---
             const data = MOCK_SUPPLIERS;
 
-            // Simular delay de red
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // Map API data to Table structure (Mantenemos la lógica por si acaso, pero usando mock directo es más simple)
+            // Si usamos MOCK directo, ya tiene la estructura esperada por la tabla.
+            // const data = response.map(s => ({ ... }));
+
+            // Para debug
+            console.log("Proveedores cargados:", data);
 
             setProveedores(data);
         } catch (error) {
             console.error("Error al cargar proveedores:", error);
-            // Aquí podrías agregar un toast de error
+            // Fallback a mock vacio o mensaje
+            setProveedores([]);
         } finally {
             setLoading(false);
         }

@@ -21,7 +21,7 @@ const UsersList = () => {
     const [selectedRow, setSelectedRow] = useState(null);
 
     const roles = ['ADMINISTRADOR', 'PROVEEDOR', 'AUDITOR', 'TECNICO', 'RRHH'];
-    const estatusOptions = ['ACTIVO', 'INACTIVO', 'SUSPENDIDO'];
+    const estatusOptions = ['ACTIVO', 'INACTIVO'];
 
     useEffect(() => {
         initFilters();
@@ -34,14 +34,27 @@ const UsersList = () => {
             // --- INTEGRACIÓN CON API ---
             // Para activar la API real:
             // 1. Descomentar la siguiente línea:
-            // const data = await userService.getAll();
-            // 2. Comentar la línea de mock data:
-            const data = MOCK_USERS;
+            const data = await userService.getAll();
 
-            // Simular delay
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // Transformar datos de API para la tabla
+            const processedData = data.map(user => ({
+                ...user,
+                // Mapear active (bool) a status (string) para el Badge
+                status: user.active ? 'ACTIVO' : 'INACTIVO',
+                // Si la API no trae email separado y usa username como email
+                email: user.username,
+                // Aplanar roles para filtrado/ordenamiento simple si es necesario
+                // Aplanar roles para filtrado/ordenamiento simple si es necesario
+                roleStr: user.rols ? user.rols.join(', ') : ''
+            }));
 
-            setUsers(data);
+            console.log("Raw API Data:", data);
+            console.log("Processed Data:", processedData);
+
+            // Comentar la línea de mock data:
+            // const data = MOCK_USERS;
+
+            setUsers(processedData);
         } catch (error) {
             console.error("Error al cargar usuarios:", error);
         } finally {
@@ -53,8 +66,10 @@ const UsersList = () => {
         setFilters({
             global: { value: null, matchMode: FilterMatchMode.CONTAINS },
             username: { value: null, matchMode: FilterMatchMode.CONTAINS },
+            firstName: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Agregado
+            lastName: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Agregado
             email: { value: null, matchMode: FilterMatchMode.CONTAINS },
-            role: { value: null, matchMode: FilterMatchMode.EQUALS },
+            // role: { value: null, matchMode: FilterMatchMode.EQUALS }, // Ajustar si se quiere filtrar por rol
             status: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
@@ -147,15 +162,17 @@ const UsersList = () => {
         return (
             <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold text-xs">
-                    {rowData.firstName.charAt(0)}{rowData.lastName.charAt(0)}
+                    {rowData.firstName?.charAt(0) || ''}{rowData.lastName?.charAt(0) || ''}
                 </div>
                 <div className="flex flex-col">
                     <span className="font-bold text-secondary-dark leading-tight">{rowData.firstName} {rowData.lastName}</span>
-                    <span className="text-[10px] text-secondary">{rowData.email}</span>
+                    <span className="text-[10px] text-secondary">{rowData.username}</span>
                 </div>
             </div>
         );
     };
+
+
 
     const header = renderHeader();
 
@@ -181,16 +198,24 @@ const UsersList = () => {
                 loading={loading}
                 header={header}
                 filters={filters}
-                globalFilterFields={['username', 'firstName', 'lastName', 'email', 'role']}
+                globalFilterFields={['username', 'firstName', 'lastName', 'email', 'status']}
                 filterDisplay="row"
                 dataKey="id"
                 sortIcon={customSortIcon}
                 emptyMessage="No se encontraron usuarios."
             >
-                <Column field="id" header="#" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
-                <Column field="username" header="Usuario" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="hidden md:table-cell font-mono text-secondary-dark" headerClassName="hidden md:table-cell"></Column>
-                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" filter filterPlaceholder="Buscar nombre..." filterElement={createTextFilter} showFilterMenu={false} className="pl-4" headerClassName="pl-4"></Column>
+                <Column field="id" header="#ID" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
+
+                {/* Usuario / Email */}
+                <Column field="username" header="Usuario" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="hidden lg:table-cell font-mono text-secondary-dark" headerClassName="hidden lg:table-cell"></Column>
+
+                {/* Nombre Completo */}
+                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" filter filterPlaceholder="Buscar..." filterElement={createTextFilter} showFilterMenu={false} className="pl-4" headerClassName="pl-4"></Column>
+
+
+                {/* Estatus Mapeado */}
                 <Column field="status" header="Estatus" sortable body={(d) => <StatusBadge status={d.status} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false}></Column>
+
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
         </div>
