@@ -89,7 +89,7 @@ const UserDetail = () => {
                     roleName: 'AUDITOR',
                     entities: data.auditors.map(a => ({
                         id: a.id_auditor,
-                        name: a.registration_number ? `Matrícula: ${a.registration_number}` : NO_DATA,
+                        registrationNumber: a.registration_number || NO_DATA,
                         type: a.type_auditor || NO_DATA,
                         date: '-',
                         details: a
@@ -389,9 +389,9 @@ const UserDetail = () => {
                             <Column key="emp-active" field="activo" header="Estado" body={(d) => d.activo ? <StatusBadge status="ACTIVO" /> : <StatusBadge status="INACTIVO" />}></Column>,
                             <Column key="emp-act" header="Acción" body={actionTemplate} className="pr-6 text-center" headerClassName="pr-6"></Column>
                         ] : [
-                            // AUDITOR (u otros)
+                            // AUDITOR
                             <Column key="def-id" field="id" header="ID" className="pl-6" headerClassName="pl-6"></Column>,
-                            <Column key="def-name" field="name" header="Nombre" className="font-bold" body={(d) => checkData(d.name)}></Column>,
+                            <Column key="def-registrationNumber" field="registrationNumber" header="Matrícula" className="font-bold" body={(d) => checkData(d.registrationNumber)}></Column>,
                             <Column key="def-type" field="type" header="Tipo" body={(d) => checkData(d.type)}></Column>,
                             <Column key="def-act" header="Acción" body={actionTemplate} className="pr-6" headerClassName="pr-6"></Column>
                         ]}

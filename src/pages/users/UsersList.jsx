@@ -44,7 +44,6 @@ const UsersList = () => {
                 // Si la API no trae email separado y usa username como email
                 email: user.username,
                 // Aplanar roles para filtrado/ordenamiento simple si es necesario
-                // Aplanar roles para filtrado/ordenamiento simple si es necesario
                 roleStr: user.rols ? user.rols.join(', ') : ''
             }));
 

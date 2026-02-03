@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 // 1. Componente auxiliar SidebarItem
@@ -59,6 +59,53 @@ const SidebarItem = ({ icon, label, to, badge, badgeColor, end = false, isExpand
                     </div>
                 )}
             </NavLink>
+        </li>
+    );
+};
+
+const SidebarSubmenu = ({ icon, label, items, isExpanded }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const hasActiveChild = items.some(item => window.location.pathname === item.to);
+
+    // Si el sidebar se contrae, cerramos el submenu
+    useEffect(() => {
+        if (!isExpanded) setIsOpen(false);
+    }, [isExpanded]);
+
+    return (
+        <li className="mr-1">
+            <button
+                onClick={() => isExpanded && setIsOpen(!isOpen)}
+                className={`w-full flex items-center p-3 rounded-lg group transition-all duration-200 overflow-hidden whitespace-nowrap relative border border-transparent
+                ${hasActiveChild ? 'bg-primary-light/50 text-primary border-primary/20 shadow-sm' : 'text-secondary-dark hover:bg-secondary-light'}
+                ${!isExpanded ? 'justify-center px-0' : ''}`}
+            >
+                <div className={`flex items-center min-w-0 ${isExpanded ? 'w-full' : 'justify-center w-auto'}`}>
+                    <i className={`pi ${icon} w-5 h-5 text-lg transition duration-75 flex-shrink-0 ${hasActiveChild ? 'text-primary' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
+                    <span className={`font-medium transition-all duration-200 ${isExpanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>
+                        {label}
+                    </span>
+                    {isExpanded && (
+                        <i className={`pi pi-chevron-down ms-auto text-[10px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}></i>
+                    )}
+                </div>
+            </button>
+            <ul className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? 'max-h-40 mt-1 mb-2' : 'max-h-0'}`}>
+                {items.map((item, idx) => (
+                    <li key={idx} className="mb-0.5 ml-8 pr-2">
+                        <NavLink
+                            to={item.to}
+                            className={({ isActive }) => `
+                                flex items-center p-2 rounded-lg text-xs font-medium transition-all duration-200
+                                ${isActive ? 'text-primary bg-primary/10 font-bold' : 'text-secondary hover:text-secondary-dark hover:bg-black/5'}
+                            `}
+                        >
+                            <i className={`pi ${item.icon} text-[10px] mr-2`}></i>
+                            <span>{item.label}</span>
+                        </NavLink>
+                    </li>
+                ))}
+            </ul>
         </li>
     );
 };
@@ -148,7 +195,11 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                         <SidebarItem icon="pi-home" label="Inicio" to="/dashboard" end={true} isExpanded={isExpanded} />
                         <SidebarItem icon="pi-briefcase" label="Proveedores" to="/proveedores" isExpanded={isExpanded} badge="5" />
                         <SidebarItem icon="pi-user" label="Mis Datos" to="/proveedor" isExpanded={isExpanded} badge="!" badgeColor="danger" />
+
+                        <SidebarItem icon="pi-box" label="Recursos" to="/recursos" isExpanded={isExpanded} />
+
                         <SidebarItem icon="pi-shield" label="Auditores" to="/auditores" isExpanded={isExpanded} badge="5" />
+                        <SidebarItem icon="pi-chart-bar" label="Auditoría Técnica" to="/auditores/tecnica" isExpanded={isExpanded} />
                         <SidebarItem icon="pi-users" label="Usuarios" to="/usuarios" isExpanded={isExpanded} badge="7" />
                         <SidebarItem icon="pi-building" label="Empresas" to="/empresas" isExpanded={isExpanded} badge="5" />
 

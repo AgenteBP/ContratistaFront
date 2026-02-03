@@ -25,7 +25,9 @@ export const MOCK_SUPPLIERS = [
         ],
         documentacion: [
             { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2026-12-01', archivo: 'constancia_afip.pdf' },
-            { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf' },
+            { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf', observacion: 'El comprobante de pago adjunto es ilegible. Además, la póliza ya está vencida.' },
+            { id: 3, tipo: 'FORM_931', estado: 'CON OBSERVACIÓN', fechaVencimiento: '2025-05-10', archivo: 'f931_error.pdf', observacion: 'El formulario 931 presentado no corresponde al período solicitado. Por favor, suba el último pagado.' },
+            { id: 4, tipo: 'SOLICITUD_USUARIOS', estado: 'PENDIENTE', archivo: null, observacion: 'Documento obligatorio no presentado a la fecha de la última auditoría (01/02/2026).' },
             // Simulamos documentos pendientes (faltan id 3 y 4 por ejemplo)
         ]
     },
@@ -56,7 +58,7 @@ export const MOCK_SUPPLIERS = [
         ],
         documentacion: [
             { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2025-12-31', archivo: 'constancia.pdf' },
-            { id: 2, tipo: 'ESTATUTO', estado: 'PRESENTADO', fechaVencimiento: null, archivo: 'estatuto_social.pdf' },
+            { id: 2, tipo: 'ESTATUTO', estado: 'EN REVISIÓN', fechaVencimiento: null, archivo: 'estatuto_social.pdf' },
             { id: 3, tipo: 'FORM_931', estado: 'VIGENTE', fechaVencimiento: '2025-11-20', archivo: 'f931_nov.pdf' },
             { id: 4, tipo: 'HABILITACION_SEGURIDAD', estado: 'VENCIDO', fechaVencimiento: '2024-12-31', archivo: null }
         ]

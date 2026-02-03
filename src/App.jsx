@@ -18,8 +18,15 @@ import UsersList from './pages/users/UsersList';
 import UserDetail from './pages/users/UserDetail';
 import AuditorsList from './pages/auditors/AuditorsList';
 import AuditorDetail from './pages/auditors/AuditorDetail';
+import TechnicalAudit from './pages/auditors/TechnicalAudit';
 import CompanyList from './pages/companies/CompanyList';
 import CompanyForm from './pages/companies/CompanyForm';
+
+// 4. Recursos
+import ResourcesDashboard from './pages/resources/ResourcesDashboard';
+import VehiclesList from './pages/resources/VehiclesList';
+import EmployeesList from './pages/resources/EmployeesList';
+import MachineryList from './pages/resources/MachineryList';
 
 // Definición del Router usando Data APIs para soportar features nuevas como useBlocker
 const router = createBrowserRouter(
@@ -44,11 +51,18 @@ const router = createBrowserRouter(
 
                 {/* Auditores */}
                 <Route path="/auditores" element={<AuditorsList />} />
+                <Route path="/auditores/tecnica" element={<TechnicalAudit />} />
                 <Route path="/auditores/:id" element={<AuditorDetail />} />
 
                 {/* Empresas */}
                 <Route path="/empresas" element={<CompanyList />} />
                 <Route path="/empresas/nueva" element={<CompanyForm />} />
+
+                {/* Recursos */}
+                <Route path="/recursos" element={<ResourcesDashboard />} />
+                <Route path="/recursos/vehiculos" element={<VehiclesList />} />
+                <Route path="/recursos/empleados" element={<EmployeesList />} />
+                <Route path="/recursos/maquinaria" element={<MachineryList />} />
 
                 {/* Usuarios */}
                 <Route path="/usuarios" element={<UsersList />} />

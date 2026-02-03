@@ -110,7 +110,7 @@ const LoginPage = () => {
                                 <InputText
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    placeholder="ej: elon@tesla.com"
+                                    placeholder="admin@email.com"
                                     className="w-full p-3 pl-10 text-secondary-dark border border-secondary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-lg shadow-sm transition-all"
                                 />
                             </span>
@@ -148,7 +148,7 @@ const LoginPage = () => {
                                 <Password
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder="ej: ilovemanagement123"
+                                    placeholder="password"
                                     feedback={false}
                                     toggleMask
 
