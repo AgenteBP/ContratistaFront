@@ -7,7 +7,7 @@ const Select = ({ label, options, size = 'md', ...props }) => {
     md: 'p-2.5 text-sm rounded-lg pr-8'
   };
 
-  const isPlaceholderSelected = props.value && typeof props.value === 'string' && props.value.toLowerCase().includes('seleccione');
+  const hasValue = props.value && props.value !== '';
 
   return (
     <div className="w-full">
@@ -19,12 +19,16 @@ const Select = ({ label, options, size = 'md', ...props }) => {
           focus:ring-2 focus:ring-primary/20 focus:border-primary
           ${sizeClasses[size] || sizeClasses.md}
           ${props.disabled ? 'bg-secondary-light cursor-not-allowed text-secondary border-secondary/10' : ''}
-          ${isPlaceholderSelected ? 'text-gray-400 font-medium' : 'text-secondary-dark'}
+          ${!hasValue ? 'text-gray-400 font-medium' : 'text-secondary-dark'}
           ${props.className || ''}`}
         >
+          {props.placeholder && <option value="" disabled hidden className="text-gray-400">{props.placeholder}</option>}
           {options.map((opt, i) => {
-            const isPlaceholder = typeof opt === 'string' && opt.toLowerCase().includes('seleccione');
-            return <option key={i} value={opt} disabled={isPlaceholder} hidden={isPlaceholder} className="uppercase text-secondary-dark">{opt}</option>;
+            const isObject = typeof opt === 'object' && opt !== null;
+            const value = isObject ? opt.value : opt;
+            const label = isObject ? opt.label : opt;
+
+            return <option key={i} value={value} className="uppercase text-secondary-dark">{label}</option>;
           })}
         </select>
         <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-secondary`}>

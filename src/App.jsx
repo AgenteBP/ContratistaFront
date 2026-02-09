@@ -24,9 +24,13 @@ import CompanyForm from './pages/companies/CompanyForm';
 
 // 4. Recursos
 import ResourcesDashboard from './pages/resources/ResourcesDashboard';
-import VehiclesList from './pages/resources/VehiclesList';
-import EmployeesList from './pages/resources/EmployeesList';
-import MachineryList from './pages/resources/MachineryList';
+import VehiclesList from './pages/resources/vehicles/VehiclesList';
+import NewVehicle from './pages/resources/vehicles/NewVehicle';
+import EmployeesList from './pages/resources/employees/EmployeesList';
+import NewEmployee from './pages/resources/employees/NewEmployee';
+import MachineryList from './pages/resources/machinery/MachineryList';
+import NewMachinery from './pages/resources/machinery/NewMachinery';
+import ProviderDocuments from './pages/resources/ProviderDocuments';
 
 // Definición del Router usando Data APIs para soportar features nuevas como useBlocker
 const router = createBrowserRouter(
@@ -61,14 +65,20 @@ const router = createBrowserRouter(
                 {/* Recursos */}
                 <Route path="/recursos" element={<ResourcesDashboard />} />
                 <Route path="/recursos/vehiculos" element={<VehiclesList />} />
+                <Route path="/recursos/vehiculos/nuevo" element={<NewVehicle />} />
                 <Route path="/recursos/empleados" element={<EmployeesList />} />
+                <Route path="/recursos/empleados/nuevo" element={<NewEmployee />} />
                 <Route path="/recursos/maquinaria" element={<MachineryList />} />
+                <Route path="/recursos/maquinaria/nueva" element={<NewMachinery />} />
 
                 {/* Usuarios */}
                 <Route path="/usuarios" element={<UsersList />} />
                 <Route path="/usuarios/nuevo" element={<NewSupplier />} />
                 <Route path="/usuarios/:id/nuevo-rol" element={<NewSupplier />} />
                 <Route path="/usuarios/:id" element={<UserDetail />} />
+
+                {/* Gestión de Documentos (Proveedor) */}
+                <Route path="/documentos/:status?" element={<ProviderDocuments />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

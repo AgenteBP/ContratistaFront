@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { OverlayPanel } from 'primereact/overlaypanel';
 
@@ -7,6 +7,39 @@ const Navbar = ({ onToggleSidebar }) => {
     const navigate = useNavigate();
     const menuRef = useRef(null);
     const userMenuRef = useRef(null);
+
+    // --- Dynamic User Info ---
+    const [userInfo, setUserInfo] = useState(null);
+
+    React.useEffect(() => {
+        try {
+            const stored = localStorage.getItem('currentRole');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                // Map role codes to display labels
+                const roleLabels = {
+                    'PROVEEDOR': 'Proveedor',
+                    'EMPRESA': 'Empresa', // Or 'Cliente' based on preference
+                    'AUDITOR': 'Auditor Técnico',
+                    'ADMIN': 'Administrador'
+                };
+
+                let entityName = '';
+                if (parsed.entity) {
+                    entityName = parsed.entity.name || parsed.entity.entity || '';
+                }
+
+                setUserInfo({
+                    user: 'Brian Paez', // Still hardcoded user as it's not in role selection context yet?
+                    role: parsed.role,
+                    roleLabel: roleLabels[parsed.role] || parsed.role,
+                    entityName: entityName
+                });
+            }
+        } catch (e) {
+            console.error("Error loading user info", e);
+        }
+    }, []);
 
     // 1. DICCIONARIO DE NOMBRES
     const breadcrumbNameMap = {
@@ -18,6 +51,20 @@ const Navbar = ({ onToggleSidebar }) => {
         'auditorias': 'Auditorías',
         'usuarios': 'Usuarios',
         'configuracion': 'Configuración',
+        'recursos': 'Recursos',
+        'empleados': 'Empleados',
+        'vehiculos': 'Vehículos',
+        'maquinaria': 'Maquinaria',
+        'tecnica': 'Técnica',
+        'configuracion': 'Configuración',
+        'auditoria': 'Auditoría',
+    };
+
+    // Helper para formato Título (Camel Case visual)
+    const toTitleCase = (str) => {
+        return str.replace(/\w\S*/g, (txt) => {
+            return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
     };
 
     // 2. FUNCIÓN GENERADORA
@@ -44,7 +91,8 @@ const Navbar = ({ onToggleSidebar }) => {
         // Nombre del último elemento (Página Actual)
         const lastValue = pathnames[pathnames.length - 1];
         const lastIsId = !isNaN(lastValue);
-        const lastDisplayName = lastIsId ? `Detalle #${lastValue}` : (breadcrumbNameMap[lastValue] || lastValue);
+        // Usamos el mapa, o formateamos el valor si no existe
+        const lastDisplayName = lastIsId ? `Detalle #${lastValue}` : (breadcrumbNameMap[lastValue] || toTitleCase(lastValue));
 
         // Generar lista de padres (excluyendo el actual)
         const parentPaths = pathnames.slice(0, -1);
@@ -81,7 +129,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                 [...parentPaths].reverse().map((value, index) => {
                                     const realIndex = pathnames.indexOf(value);
                                     const to = `/${pathnames.slice(0, realIndex + 1).join('/')}`;
-                                    const name = breadcrumbNameMap[value] || value;
+                                    const name = breadcrumbNameMap[value] || toTitleCase(value);
 
                                     return (
                                         <div key={to} className="contents">
@@ -129,7 +177,7 @@ const Navbar = ({ onToggleSidebar }) => {
                         const to = `/${pathnames.slice(0, index + 1).join('/')}`;
                         const isLast = index === pathnames.length - 1;
                         const isId = !isNaN(value);
-                        let displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || value);
+                        let displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || toTitleCase(value));
 
                         return (
                             <React.Fragment key={to}>
@@ -168,10 +216,12 @@ const Navbar = ({ onToggleSidebar }) => {
                     onClick={(e) => userMenuRef.current?.toggle(e)}
                 >
                     <div className="hidden md:flex text-right flex-col leading-tight">
-                        <span className="font-bold text-secondary-dark text-sm">Brian Paez</span>
-                        <span className="text-xs text-secondary">Admin</span>
+                        <span className="font-bold text-secondary-dark text-sm">{userInfo?.user || 'Usuario'}</span>
+                        <span className="text-xs text-secondary truncate max-w-[150px]">
+                            {userInfo?.roleLabel}
+                        </span>
                     </div>
-                    <img className="w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100" src="https://ui-avatars.com/api/?name=Brian+Paez&background=6366f1&color=fff" alt="User" />
+                    <img className="w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100" src={`https://ui-avatars.com/api/?name=${userInfo?.user || 'U'}&background=6366f1&color=fff`} alt="User" />
                     <i className="pi pi-angle-down text-secondary/50 text-xs hidden md:block"></i>
                 </div>
 
@@ -180,21 +230,34 @@ const Navbar = ({ onToggleSidebar }) => {
 
                     {/* Header: User Info */}
                     <div className="flex flex-col items-center p-4 bg-gray-50/50 rounded-t-xl gap-2 border-b border-gray-100">
-                        <img className="w-16 h-16 rounded-full border-4 border-white shadow-md mb-1" src="https://ui-avatars.com/api/?name=Brian+Paez&background=6366f1&color=fff&size=128" alt="Profile" />
-                        <div className="text-center">
-                            <h4 className="font-bold text-gray-800 text-base leading-tight">Brian Paez</h4>
-                            <span className="inline-block mt-1 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-wider">Administrador</span>
-                            <p className="text-xs text-gray-400 mt-1 font-medium">brian.paez@contratista.com</p>
+                        <img className="w-16 h-16 rounded-full border-4 border-white shadow-md mb-1" src={`https://ui-avatars.com/api/?name=${userInfo?.user || 'U'}&background=6366f1&color=fff&size=128`} alt="Profile" />
+                        <div className="text-center w-full">
+                            <h4 className="font-bold text-gray-800 text-base leading-tight truncate px-2">{userInfo?.user || 'Usuario'}</h4>
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-wider mb-1">
+                                {userInfo?.roleLabel || 'Usuario'}
+                            </span>
+                            {userInfo?.entityName && (
+                                <p className="text-xs text-secondary-dark font-medium truncate px-2">
+                                    {userInfo.entityName}
+                                </p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1 font-medium">user@contratista.com</p>
                         </div>
                     </div>
 
                     {/* Actions List */}
                     <div className="flex flex-col p-2 gap-1">
-                        <div className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors group">
+                        <Link to={userInfo?.role === 'PROVEEDOR' ? '/proveedor' : '/usuarios/1'} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors group text-decoration-none">
                             <i className="pi pi-user text-gray-400 group-hover:text-primary transition-colors"></i>
                             <span className="text-sm font-medium text-gray-600 group-hover:text-primary transition-colors">Mi Perfil</span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 hover:bg-red-50 rounded-lg cursor-pointer transition-colors group">
+                        </Link>
+                        <div
+                            className="flex items-center gap-3 p-3 hover:bg-red-50 rounded-lg cursor-pointer transition-colors group"
+                            onClick={() => {
+                                localStorage.removeItem('currentRole');
+                                navigate('/login');
+                            }}
+                        >
                             <i className="pi pi-sign-out text-gray-400 group-hover:text-red-500 transition-colors"></i>
                             <span className="text-sm font-medium text-gray-600 group-hover:text-red-600 transition-colors">Cerrar Sesión</span>
                         </div>

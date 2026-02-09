@@ -67,7 +67,14 @@ body {
 /* Removed hardcoded small fonts for improved readability */
 
 .compact-calendar-panel .p-datepicker-header {
-    padding: 0.5rem !important;
+    padding: 0.25rem !important;
+    font-size: 0.75rem !important;
+    /* Smaller header */
+}
+
+.compact-calendar-panel table {
+    font-size: 0.75rem !important;
+    /* Smaller days */
 }
 
 .compact-calendar-panel table th {

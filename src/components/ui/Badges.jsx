@@ -9,6 +9,8 @@ export const StatusBadge = ({ status }) => {
             case 'HABILITADO':
             case 'APROBADO':
             case 'PAGADO':
+            case 'COMPLETA':
+            case 'VIGENTE':
                 // Success: Lime (Brand) or Emerald
                 return 'bg-success-light text-success-hover border-success/30';
 
@@ -26,16 +28,17 @@ export const StatusBadge = ({ status }) => {
             case 'BLOQUEADO':
             case 'RECHAZADO':
             case 'VENCIDO':
+            case 'OBSERVADO':
+            case 'CON OBSERVACIÓN':
                 // Danger: Red
                 return 'bg-danger-light text-danger-hover border-danger/30';
 
             case 'PENDIENTE':
             case 'EN PROCESO':
-                // Warning: Amber
-                return 'bg-warning-light text-warning-hover border-warning/30';
-
             case 'SIN COMPLETAR':
-                // Warning: Amber (Explicit)
+            case 'INCOMPLETA':
+            case 'POR VENCER':
+                // Warning: Amber
                 return 'bg-warning-light text-warning-hover border-warning/30';
 
             case 'EN REVISIÓN':

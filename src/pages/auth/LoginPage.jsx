@@ -38,6 +38,12 @@ const LoginPage = () => {
                         { id: 31, name: 'Pepito Holdings' },
                         { id: 32, name: 'Juan SRL' }
                     ]
+                },
+                {
+                    id: 4,
+                    role: 'ADMIN',
+                    type: 'Super Admin',
+                    entities: [{ id: 0, name: 'FlowTrack Global' }]
                 }
             ];
 

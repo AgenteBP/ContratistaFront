@@ -11,11 +11,14 @@ import { userService } from '../../services/userService';
 import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
 
+import PrimaryButton from '../../components/ui/PrimaryButton';
+
 const UsersList = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [users, setUsers] = useState([]);
+    const [filteredUsers, setFilteredUsers] = useState(null);
     const [loading, setLoading] = useState(true);
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
@@ -109,30 +112,77 @@ const UsersList = () => {
         setGlobalFilterValue(value);
     };
 
+    const dropdownPt = {
+        root: { className: 'w-full md:w-48 bg-white border border-secondary/30 rounded-lg h-9 flex items-center focus-within:ring-2 focus-within:ring-primary/50 shadow-sm' },
+        input: { className: 'text-xs px-3 text-secondary-dark font-medium' },
+        trigger: { className: 'w-8 text-secondary flex items-center justify-center border-l border-secondary/10' },
+        panel: { className: 'text-xs bg-white border border-secondary/10 shadow-xl rounded-lg mt-1' },
+        item: { className: 'p-2.5 hover:bg-secondary-light text-secondary-dark transition-colors' },
+        list: { className: 'p-1' }
+    };
+
     const renderHeader = () => (
-        <div className="flex flex-col md:flex-row justify-between items-center bg-white p-3 border-b border-secondary/20 gap-3">
-            <div className="flex gap-2">
-                <button onClick={initFilters} className="text-xs text-primary hover:text-primary-active font-bold hover:underline">Limpiar Filtros</button>
+        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
+            {/* Top Row: Search and Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-[450px]">
+                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+                        <i className="pi pi-search text-secondary/50 text-xs"></i>
+                    </div>
+                    <input
+                        type="text"
+                        value={globalFilterValue}
+                        onChange={onGlobalFilterChange}
+                        disabled={loading}
+                        className={`bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9 ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        placeholder="Buscar usuario..."
+                    />
+                </div>
             </div>
-            <div className="relative w-full md:w-auto">
-                <div className="absolute inset-y-0 start-0 flex items-center ps-2.5 pointer-events-none"><i className="pi pi-search text-secondary text-xs"></i></div>
-                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} disabled={loading} className={`bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`} placeholder="Buscar..." />
+
+            {/* Bottom Row: Filters & Stats */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.status?.value}
+                            options={estatusOptions.map(s => ({ label: s, value: s }))}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['status'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="Estatus"
+                            pt={dropdownPt}
+                        />
+                        {filters?.status?.value && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['status'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs ml-auto">
+                    <button
+                        onClick={initFilters}
+                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
+                    >
+                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
+                    </button>
+                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
+                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
+                        {filteredUsers ? filteredUsers.length : users.length} Usuarios
+                    </span>
+                </div>
             </div>
         </div>
-    );
-
-    const createTextFilter = (options) => <InputText value={options.value || ''} onChange={(e) => options.filterApplyCallback(e.target.value)} placeholder="Filtrar..." unstyled className="bg-white border border-secondary/30 text-secondary-dark text-sm rounded focus:ring-primary focus:border-primary block w-full px-2 h-8 outline-none font-normal" />;
-
-    const createDropdownFilter = (options, list, placeholder = "Todos") => (
-        <Dropdown value={options.value} options={list} onChange={(e) => options.filterApplyCallback(e.value)} placeholder={placeholder} className="p-column-filter w-full"
-            pt={{
-                root: { className: 'w-full bg-white border border-secondary/30 rounded h-8 flex items-center focus-within:ring-2 focus-within:ring-primary/50' },
-                input: { className: 'text-sm px-2 text-secondary-dark' },
-                trigger: { className: 'w-6 text-secondary flex items-center justify-center' },
-                panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' },
-                item: { className: 'p-2 hover:bg-secondary-light text-secondary-dark' }
-            }}
-        />
     );
 
     const customSortIcon = (options) => {
@@ -171,8 +221,6 @@ const UsersList = () => {
         );
     };
 
-
-
     const header = renderHeader();
 
     return (
@@ -181,12 +229,10 @@ const UsersList = () => {
                 title="Usuarios"
                 subtitle="Gestión de usuarios y roles del sistema."
                 actionButton={
-                    <button
+                    <PrimaryButton
+                        label="Nuevo Usuario"
                         onClick={() => navigate('/usuarios/nuevo?mode=NEW')}
-                        className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-4 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 w-full md:w-auto"
-                    >
-                        <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Usuario</span><span className="md:hidden">Nuevo</span>
-                    </button>
+                    />
                 }
             />
 
@@ -195,10 +241,10 @@ const UsersList = () => {
             <AppTable
                 value={users}
                 loading={loading}
-                header={header}
+                header={renderHeader()}
                 filters={filters}
-                globalFilterFields={['username', 'firstName', 'lastName', 'email', 'status']}
-                filterDisplay="row"
+                globalFilterFields={['username', 'role', 'email']}
+                onValueChange={(data) => setFilteredUsers(data)}
                 dataKey="id"
                 sortIcon={customSortIcon}
                 emptyMessage="No se encontraron usuarios."
@@ -206,14 +252,14 @@ const UsersList = () => {
                 <Column field="id" header="#ID" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
 
                 {/* Usuario / Email */}
-                <Column field="username" header="Usuario" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="hidden lg:table-cell font-mono text-secondary-dark" headerClassName="hidden lg:table-cell"></Column>
+                <Column field="username" header="Usuario" sortable className="hidden lg:table-cell font-mono text-secondary-dark" headerClassName="hidden lg:table-cell"></Column>
 
                 {/* Nombre Completo */}
-                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" filter filterPlaceholder="Buscar..." filterElement={createTextFilter} showFilterMenu={false} className="pl-4" headerClassName="pl-4"></Column>
+                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" className="pl-4" headerClassName="pl-4"></Column>
 
 
                 {/* Estatus Mapeado */}
-                <Column field="status" header="Estatus" sortable body={(d) => <StatusBadge status={d.status} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false}></Column>
+                <Column field="status" header="Estatus" sortable body={(d) => <StatusBadge status={d.status} />}></Column>
 
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>

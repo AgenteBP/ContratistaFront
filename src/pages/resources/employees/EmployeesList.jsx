@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Column } from 'primereact/column';
 import { FilterMatchMode } from 'primereact/api';
-import { Dropdown } from 'primereact/dropdown';
+import Dropdown from '../../../components/ui/Dropdown';
 
-import PageHeader from '../../components/ui/PageHeader';
-import AppTable from '../../components/ui/AppTable';
-import { StatusBadge } from '../../components/ui/Badges';
-import { MOCK_EMPLOYEES } from '../../data/mockResources';
+import PageHeader from '../../../components/ui/PageHeader';
+import AppTable from '../../../components/ui/AppTable';
+import { StatusBadge } from '../../../components/ui/Badges';
+import { MOCK_EMPLOYEES } from '../../../data/mockResources';
+
+import { useNavigate } from 'react-router-dom';
+import PrimaryButton from '../../../components/ui/PrimaryButton';
 
 const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
+    const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [employees, setEmployees] = useState([]);
+    const [filteredEmployees, setFilteredEmployees] = useState(null);
     const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState(null);
 
@@ -28,15 +33,6 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
             habilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
-    };
-
-    const dropdownPt = {
-        root: { className: 'w-full md:w-36 bg-secondary-light/40 border border-secondary/20 rounded-lg h-9 flex items-center transition-all hover:border-secondary/40' },
-        input: { className: 'text-xs px-2 text-secondary-dark font-medium' },
-        trigger: { className: 'w-6 text-secondary flex items-center justify-center scale-90' },
-        panel: { className: 'text-xs bg-white border border-secondary/20 shadow-lg' },
-        item: { className: 'p-2 hover:bg-secondary-light text-secondary-dark text-xs' },
-        clearIcon: { className: 'text-[10px] text-secondary/60' }
     };
 
     const rowExpansionTemplate = (data) => (
@@ -106,10 +102,10 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
     );
 
     const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-6 py-3 flex flex-col xl:flex-row items-center justify-between gap-4">
-            {/* Left side: Search and Filters */}
-            <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto flex-1">
-                <div className="relative flex-1 md:max-w-[200px]">
+        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
+            {/* Top Row: Search and Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-[450px]">
                     <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
                         <i className="pi pi-search text-secondary/50 text-xs"></i>
                     </div>
@@ -124,54 +120,92 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                             setFilters(_filters);
                         }}
                         className="bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9"
-                        placeholder="Buscar..."
+                        placeholder="Buscar empleado..."
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    <Dropdown
-                        value={filters?.habilitado?.value}
-                        options={[
-                            { label: 'Habilitado', value: true },
-                            { label: 'No Habilitado', value: false }
-                        ]}
-                        onChange={(e) => {
-                            let _filters = { ...filters };
-                            _filters['habilitado'].value = e.value;
-                            setFilters(_filters);
-                        }}
-                        placeholder="Habilitación"
-                        showClear
-                        pt={dropdownPt}
-                    />
-
-                    <Dropdown
-                        value={filters?.estado?.value}
-                        options={['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s }))}
-                        onChange={(e) => {
-                            let _filters = { ...filters };
-                            _filters['estado'].value = e.value;
-                            setFilters(_filters);
-                        }}
-                        placeholder="Estado"
-                        showClear
-                        pt={dropdownPt}
-                    />
-                </div>
-
-                <div className="hidden 2xl:flex items-center gap-2 text-secondary/30 ml-auto whitespace-nowrap">
-                    <span className="text-[10px] font-bold uppercase tracking-widest">{employees.length} Legajos</span>
+                <div className="flex items-center gap-2">
+                    <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
+                        <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
+                    </button>
+                    {isEmbedded && (
+                        <PrimaryButton
+                            label="Nuevo Empleado"
+                            onClick={() => navigate('/recursos/empleados/nuevo')}
+                        />
+                    )}
                 </div>
             </div>
 
-            {/* Right side: Actions */}
-            <div className="flex items-center gap-2 w-full xl:w-auto">
-                <button className="flex-1 md:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
-                    <i className="pi pi-file-excel"></i> Exportar
-                </button>
-                <button className="flex-1 md:flex-none text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-5 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 h-9 uppercase tracking-wider">
-                    <i className="pi pi-plus"></i> <span className="hidden sm:inline">Nuevo Empleado</span><span className="sm:hidden">Nuevo</span>
-                </button>
+            {/* Bottom Row: Filters & Stats */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.habilitado?.value}
+                            options={[
+                                { label: 'Habilitado', value: true },
+                                { label: 'No Habilitado', value: false }
+                            ]}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['habilitado'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="HABILITACIÓN"
+                            className="w-full md:w-48"
+                        />
+                        {filters?.habilitado?.value !== null && filters?.habilitado?.value !== undefined && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['habilitado'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.estado?.value}
+                            options={['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s }))}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['estado'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="ESTADO"
+                            className="w-full md:w-48"
+                        />
+                        {filters?.estado?.value && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['estado'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs ml-auto">
+                    <button
+                        onClick={initFilters}
+                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
+                    >
+                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
+                    </button>
+                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
+                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
+                        {filteredEmployees ? filteredEmployees.length : employees.length} Legajos
+                    </span>
+                </div>
             </div>
         </div>
     );
@@ -182,6 +216,13 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                 <PageHeader
                     title="Empleados"
                     subtitle="Nómina de personal y personal habilitado."
+                    icon="pi pi-users"
+                    actionButton={
+                        <PrimaryButton
+                            label="Nuevo Empleado"
+                            onClick={() => navigate('/recursos/empleados/nuevo')}
+                        />
+                    }
                 />
             )}
 
@@ -196,6 +237,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                     dataKey="id"
                     expandedRows={expandedRows}
                     onRowToggle={(e) => setExpandedRows(e.data)}
+                    onValueChange={(data) => setFilteredEmployees(data)}
                     rowExpansionTemplate={rowExpansionTemplate}
                     rowClassName={() => 'hover:bg-primary-light/5 transition-colors border-b border-secondary/5'}
                 >

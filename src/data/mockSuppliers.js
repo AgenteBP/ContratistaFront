@@ -24,10 +24,11 @@ export const MOCK_SUPPLIERS = [
             { id: 101, nombre: 'Braian Paez', tipo: 'OPERATIVO - LEGAJO', email: 'braian@email.com', movil: '11 5555 6666' }
         ],
         documentacion: [
-            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2026-12-01', archivo: 'constancia_afip.pdf' },
-            { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf', observacion: 'El comprobante de pago adjunto es ilegible. Además, la póliza ya está vencida.' },
-            { id: 3, tipo: 'FORM_931', estado: 'CON OBSERVACIÓN', fechaVencimiento: '2025-05-10', archivo: 'f931_error.pdf', observacion: 'El formulario 931 presentado no corresponde al período solicitado. Por favor, suba el último pagado.' },
-            { id: 4, tipo: 'SOLICITUD_USUARIOS', estado: 'PENDIENTE', archivo: null, observacion: 'Documento obligatorio no presentado a la fecha de la última auditoría (01/02/2026).' },
+            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2026-12-01', archivo: 'constancia_afip.pdf', obligatorio: true },
+            { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf', observacion: 'El comprobante de pago adjunto es ilegible. Además, la póliza ya está vencida.', obligatorio: true },
+            { id: 3, tipo: 'FORM_931', estado: 'CON OBSERVACIÓN', fechaVencimiento: '2025-05-10', archivo: 'f931_error.pdf', observacion: 'El formulario 931 presentado no corresponde al período solicitado. Por favor, suba el último pagado.', obligatorio: true },
+            { id: 4, tipo: 'SOLICITUD_USUARIOS', estado: 'PENDIENTE', archivo: null, observacion: 'Documento obligatorio no presentado a la fecha de la última auditoría (01/02/2026).', obligatorio: true },
+            { id: 5, tipo: 'CERTIFICADO_ISO', estado: 'VIGENTE', fechaVencimiento: '2025-08-15', archivo: 'iso_9001.pdf', obligatorio: false },
             // Simulamos documentos pendientes (faltan id 3 y 4 por ejemplo)
         ]
     },

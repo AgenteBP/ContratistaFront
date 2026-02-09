@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { TbBackhoe } from 'react-icons/tb';
+
+// Helper for rendering icons
+const renderIcon = (iconClassOrComponent, className = "") => {
+    if (!iconClassOrComponent) return null;
+    if (typeof iconClassOrComponent === 'string') {
+        return <i className={`pi ${iconClassOrComponent} ${className}`}></i>;
+    }
+    if (React.isValidElement(iconClassOrComponent)) {
+        return React.cloneElement(iconClassOrComponent, { className: `${iconClassOrComponent.props.className || ''} ${className}`.trim() });
+    }
+    return iconClassOrComponent;
+};
 
 // 1. Componente auxiliar SidebarItem
 const SidebarItem = ({ icon, label, to, badge, badgeColor, end = false, isExpanded }) => {
 
-    // Función para obtener estilos según el color del badge
+    // ... (getBadgeStyle function remains)
     const getBadgeStyle = (color) => {
         switch (color) {
             case 'danger': return { bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-600' };
@@ -26,19 +39,17 @@ const SidebarItem = ({ icon, label, to, badge, badgeColor, end = false, isExpand
                 className={({ isActive }) => `
             w-full flex items-center p-3 rounded-lg group transition-all duration-200 overflow-hidden whitespace-nowrap relative border border-transparent
             ${isActive
-                        ? 'bg-primary-light border-primary text-primary shadow-sm' // Estilo Activo: Light + Borde
-                        : 'text-secondary-dark hover:bg-secondary-light'           // Estilo Inactivo
+                        ? 'bg-primary-light border-primary text-primary shadow-sm'
+                        : 'text-secondary-dark hover:bg-secondary-light'
                     }
             ${!isExpanded ? 'justify-center px-0' : ''}
           `}
             >
                 {({ isActive }) => (
                     <div className={`flex items-center min-w-0 ${isExpanded ? 'w-full' : 'justify-center w-auto'}`}>
-                        {/* Icon Wrapper for Positioning Dot */}
                         <div className="relative flex items-center justify-center">
-                            <i className={`pi ${icon} w-5 h-5 text-lg transition duration-75 flex-shrink-0 ${isActive ? 'text-primary' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
+                            {renderIcon(icon, `w-5 h-5 text-lg transition duration-75 flex-shrink-0 ${isActive ? 'text-primary' : 'text-secondary group-hover:text-secondary-dark'}`)}
 
-                            {/* COMPACT MODE DOT */}
                             {!isExpanded && badge && (
                                 <span className={`absolute -top-1 -right-1 flex h-2.5 w-2.5`}>
                                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 border border-white ${styles.dot}`}></span>
@@ -50,7 +61,6 @@ const SidebarItem = ({ icon, label, to, badge, badgeColor, end = false, isExpand
                             {label}
                         </span>
 
-                        {/* EXPANDED MODE BADGE */}
                         {badge && isExpanded && (
                             <span className={`inline-flex items-center justify-center px-2 py-0.5 ms-auto text-xs font-bold rounded-full transition-colors ${isActive ? `${styles.dot} text-white` : `${styles.bg} ${styles.text}`}`}>
                                 {isIcon ? <i className={`${badge} text-[10px]`}></i> : badge}
@@ -65,9 +75,12 @@ const SidebarItem = ({ icon, label, to, badge, badgeColor, end = false, isExpand
 
 const SidebarSubmenu = ({ icon, label, items, isExpanded }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const hasActiveChild = items.some(item => window.location.pathname === item.to);
+    const hasActiveChild = items.some(item =>
+        item.end
+            ? window.location.pathname === item.to
+            : window.location.pathname.startsWith(item.to)
+    );
 
-    // Si el sidebar se contrae, cerramos el submenu
     useEffect(() => {
         if (!isExpanded) setIsOpen(false);
     }, [isExpanded]);
@@ -77,35 +90,43 @@ const SidebarSubmenu = ({ icon, label, items, isExpanded }) => {
             <button
                 onClick={() => isExpanded && setIsOpen(!isOpen)}
                 className={`w-full flex items-center p-3 rounded-lg group transition-all duration-200 overflow-hidden whitespace-nowrap relative border border-transparent
-                ${hasActiveChild ? 'bg-primary-light/50 text-primary border-primary/20 shadow-sm' : 'text-secondary-dark hover:bg-secondary-light'}
+                ${hasActiveChild ? 'bg-primary-light/40 text-primary border-primary/20 shadow-sm' : 'text-secondary-dark hover:bg-secondary-light'}
                 ${!isExpanded ? 'justify-center px-0' : ''}`}
             >
                 <div className={`flex items-center min-w-0 ${isExpanded ? 'w-full' : 'justify-center w-auto'}`}>
-                    <i className={`pi ${icon} w-5 h-5 text-lg transition duration-75 flex-shrink-0 ${hasActiveChild ? 'text-primary' : 'text-secondary group-hover:text-secondary-dark'}`}></i>
+                    {renderIcon(icon, `w-5 h-5 text-lg transition duration-75 flex-shrink-0 ${hasActiveChild ? 'text-primary' : 'text-secondary group-hover:text-secondary-dark'}`)}
                     <span className={`font-medium transition-all duration-200 ${isExpanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>
                         {label}
                     </span>
                     {isExpanded && (
-                        <i className={`pi pi-chevron-down ms-auto text-[10px] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}></i>
+                        <i className={`pi pi-chevron-down ms-auto text-xs text-secondary/60 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}></i>
                     )}
                 </div>
             </button>
-            <ul className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? 'max-h-40 mt-1 mb-2' : 'max-h-0'}`}>
-                {items.map((item, idx) => (
-                    <li key={idx} className="mb-0.5 ml-8 pr-2">
-                        <NavLink
-                            to={item.to}
-                            className={({ isActive }) => `
-                                flex items-center p-2 rounded-lg text-xs font-medium transition-all duration-200
-                                ${isActive ? 'text-primary bg-primary/10 font-bold' : 'text-secondary hover:text-secondary-dark hover:bg-black/5'}
-                            `}
-                        >
-                            <i className={`pi ${item.icon} text-[10px] mr-2`}></i>
-                            <span>{item.label}</span>
-                        </NavLink>
-                    </li>
-                ))}
-            </ul>
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <ul className="pl-2 pt-1 pb-2 space-y-1">
+                    {items.map((item, idx) => (
+                        <li key={idx}>
+                            <NavLink
+                                to={item.to}
+                                end={item.end}
+                                className={({ isActive }) => `
+                                    flex items-center p-2.5 rounded-lg text-sm font-medium transition-all duration-200
+                                    ${isActive
+                                        ? 'text-primary bg-primary/5 font-bold'
+                                        : 'text-secondary hover:text-secondary-dark hover:bg-secondary-light/50'
+                                    }
+                                `}
+                            >
+                                <div className={`mr-3 transition-colors ${(item.end ? window.location.pathname === item.to : window.location.pathname.startsWith(item.to)) ? 'text-primary' : 'text-secondary/70'}`}>
+                                    {renderIcon(item.icon, "text-lg")}
+                                </div>
+                                <span>{item.label}</span>
+                            </NavLink>
+                        </li>
+                    ))}
+                </ul>
+            </div>
         </li>
     );
 };
@@ -139,6 +160,148 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
         if (isLeftSwipe && isOpen) {
             closeMobile();
         }
+    };
+
+    // --- Dynamic Menu Logic ---
+    const [userRole, setUserRole] = useState(null);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('currentRole');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                setUserRole(parsed.role);
+            }
+        } catch (e) {
+            console.error("Error reading role", e);
+        }
+    }, []);
+
+    const getMenuItems = (role) => {
+        // Base items reusable across roles
+        const ITEM_INICIO = { type: 'item', icon: 'pi-home', label: 'Inicio', to: '/dashboard', end: true };
+        const ITEM_REPORTES = {
+            type: 'custom',
+            render: (expanded) => (
+                <li className="mr-1" key="reports">
+                    <button className={`w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200 overflow-hidden whitespace-nowrap ${!expanded ? 'justify-center px-0' : ''}`}>
+                        <div className={`flex items-center min-w-0 ${expanded ? 'w-full' : 'justify-center w-auto'}`}>
+                            <i className="pi pi-chart-bar w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark text-lg flex-shrink-0"></i>
+                            <span className={`font-medium transition-all duration-200 ${expanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>Reportes</span>
+                        </div>
+                    </button>
+                </li>
+            )
+        };
+
+        const SUBMENU_DOCUMENTOS = {
+            type: 'submenu',
+            icon: 'pi-file',
+            label: 'Documentos',
+            items: [
+                { label: 'General', to: '/documentos/general', icon: 'pi-th-large' },
+                { label: 'Pendientes', to: '/documentos/pendientes', icon: 'pi-upload' },
+                { label: 'Por Vencer', to: '/documentos/por-vencer', icon: 'pi-clock' },
+                { label: 'Observados', to: '/documentos/observados', icon: 'pi-exclamation-circle' },
+                { label: 'En Revisión', to: '/documentos/en-revision', icon: 'pi-eye' },
+                { label: 'Vigentes', to: '/documentos/vigentes', icon: 'pi-check-circle' }
+            ]
+        };
+
+        const SUBMENU_RECURSOS_STD = {
+            type: 'submenu',
+            icon: 'pi-box',
+            label: 'Recursos',
+            items: [
+                { label: 'Resumen', to: '/recursos', icon: 'pi-objects-column', end: true },
+                { label: 'Vehículos', to: '/recursos/vehiculos', icon: 'pi-car' },
+                { label: 'Empleados', to: '/recursos/empleados', icon: 'pi-users' },
+                { label: 'Maquinaria', to: '/recursos/maquinaria', icon: <TbBackhoe className="text-[26px]" /> }
+            ]
+        };
+
+        // --- Role Configurations ---
+
+        if (role === 'PROVEEDOR') {
+            return [
+                ITEM_INICIO,
+                { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/proveedor', badge: '!', badgeColor: 'danger' },
+                SUBMENU_RECURSOS_STD,
+                SUBMENU_DOCUMENTOS,
+                ITEM_REPORTES
+            ];
+        }
+
+        if (role === 'AUDITOR') {
+            return [
+                ITEM_INICIO,
+                { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
+                SUBMENU_RECURSOS_STD,
+                { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' },
+                SUBMENU_DOCUMENTOS,
+                ITEM_REPORTES
+            ];
+        }
+
+        if (role === 'EMPRESA') {
+            // "Recursos" renamed to "Datos" excluding "Proveedores" as first item
+            return [
+                ITEM_INICIO,
+                {
+                    type: 'submenu',
+                    icon: 'pi-database', // Changed icon for "Datos" distinction
+                    label: 'Datos',
+                    items: [
+                        { label: 'Proveedores', to: '/proveedores', icon: 'pi-briefcase' }, // Moved here
+                        { label: 'Resumen', to: '/recursos', icon: 'pi-objects-column', end: true },
+                        { label: 'Vehículos', to: '/recursos/vehiculos', icon: 'pi-car' },
+                        { label: 'Empleados', to: '/recursos/empleados', icon: 'pi-users' },
+                        { label: 'Maquinaria', to: '/recursos/maquinaria', icon: <TbBackhoe className="text-[26px]" /> }
+                    ]
+                },
+                SUBMENU_DOCUMENTOS,
+                ITEM_REPORTES
+            ];
+        }
+
+        if (role === 'ADMIN') {
+            return [
+                ITEM_INICIO,
+                { type: 'item', icon: 'pi-users', label: 'Usuarios', to: '/usuarios', end: true, badge: '7' },
+                { type: 'item', icon: 'pi-building', label: 'Empresas', to: '/empresas', end: true, badge: '5' },
+                { type: 'item', icon: 'pi-shield', label: 'Auditores', to: '/auditores', end: true, badge: '5' },
+                { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
+                { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
+                { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' },
+                SUBMENU_DOCUMENTOS,
+                ITEM_REPORTES
+            ];
+        }
+
+        // Default / Fallback (similar to Admin but simpler)
+        return [ITEM_INICIO, SUBMENU_RECURSOS_STD, SUBMENU_DOCUMENTOS];
+    };
+
+    const renderMenuItems = (expanded) => {
+        const items = getMenuItems(userRole);
+        return items.map((item, idx) => {
+            if (item.type === 'custom') return item.render(expanded);
+            if (item.type === 'submenu') {
+                return <SidebarSubmenu key={idx} icon={item.icon} label={item.label} items={item.items} isExpanded={expanded} />;
+            }
+            return (
+                <SidebarItem
+                    key={idx}
+                    icon={item.icon}
+                    label={item.label}
+                    to={item.to}
+                    end={item.end}
+                    isExpanded={expanded}
+                    badge={item.badge}
+                    badgeColor={item.badgeColor}
+                />
+            );
+        });
     };
 
     // Clases dinámicas para el contenedor
@@ -192,52 +355,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
 
                     {/* Lista de Menú con Scroll Minimalista */}
                     <ul className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden minimal-scroll">
-                        <SidebarItem icon="pi-home" label="Inicio" to="/dashboard" end={true} isExpanded={isExpanded} />
-                        <SidebarItem icon="pi-briefcase" label="Proveedores" to="/proveedores" isExpanded={isExpanded} badge="5" />
-                        <SidebarItem icon="pi-user" label="Mis Datos" to="/proveedor" isExpanded={isExpanded} badge="!" badgeColor="danger" />
-
-                        <SidebarItem icon="pi-box" label="Recursos" to="/recursos" isExpanded={isExpanded} />
-
-                        <SidebarItem icon="pi-shield" label="Auditores" to="/auditores" isExpanded={isExpanded} badge="5" />
-                        <SidebarItem icon="pi-chart-bar" label="Auditoría Técnica" to="/auditores/tecnica" isExpanded={isExpanded} />
-                        <SidebarItem icon="pi-users" label="Usuarios" to="/usuarios" isExpanded={isExpanded} badge="7" />
-                        <SidebarItem icon="pi-building" label="Empresas" to="/empresas" isExpanded={isExpanded} badge="5" />
-
-                        <div className="pt-4 mt-4 border-t border-secondary/10">
-                            <li className="mb-2 mr-1">
-                                <button className={`w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200 overflow-hidden whitespace-nowrap ${!isExpanded ? 'justify-center px-0' : ''}`}>
-
-                                    <div className={`flex items-center min-w-0 ${isExpanded ? 'w-full' : 'justify-center w-auto'}`}>
-                                        <div className="relative flex items-center justify-center">
-                                            <i className="pi pi-file w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark text-lg flex-shrink-0"></i>
-                                            {/* Dot for Documentos (mock logic) */}
-                                            {!isExpanded && (
-                                                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 border border-white bg-blue-600"></span>
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <span className={`font-medium transition-all duration-200 ${isExpanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>Documentos</span>
-
-                                        {isExpanded && (
-                                            <span className="inline-flex items-center justify-center px-2 py-0.5 ms-auto text-xs font-bold rounded-full bg-blue-100 text-blue-600">3</span>
-                                        )}
-                                    </div>
-
-                                </button>
-                            </li>
-                            <li className="mr-1">
-                                <button className={`w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200 overflow-hidden whitespace-nowrap ${!isExpanded ? 'justify-center px-0' : ''}`}>
-
-                                    <div className={`flex items-center min-w-0 ${isExpanded ? 'w-full' : 'justify-center w-auto'}`}>
-                                        <i className="pi pi-chart-bar w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark text-lg flex-shrink-0"></i>
-                                        <span className={`font-medium transition-all duration-200 ${isExpanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>Reportes</span>
-                                    </div>
-
-                                </button>
-                            </li>
-                        </div>
+                        {renderMenuItems(isExpanded)}
                     </ul>
 
                     {/* Botón PIN (Solo Desktop) */}
