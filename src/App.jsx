@@ -7,19 +7,33 @@ import MainLayout from './components/layout/MainLayout';
 // 2. Páginas de Autenticación (Nuevas)
 import LoginPage from './pages/auth/LoginPage';
 import RoleSelectionPage from './pages/auth/RoleSelectionPage';
+import NotFound from './pages/errors/NotFound';
+import ServerError from './pages/errors/ServerError';
 
 // 3. Páginas del Sistema (Privadas)
 import DashboardHome from './pages/dashboard/DashboardHome';
 import SuppliersList from './pages/suppliers/SuppliersList';
 import NewSupplier from './pages/suppliers/NewSupplier';
 import SupplierDetail from './pages/suppliers/SupplierDetail';
+import AssociateCompany from './pages/suppliers/AssociateCompany';
 import SupplierData from './pages/suppliers/SupplierData';
 import UsersList from './pages/users/UsersList';
 import UserDetail from './pages/users/UserDetail';
 import AuditorsList from './pages/auditors/AuditorsList';
 import AuditorDetail from './pages/auditors/AuditorDetail';
+import TechnicalAudit from './pages/auditors/TechnicalAudit';
 import CompanyList from './pages/companies/CompanyList';
 import CompanyForm from './pages/companies/CompanyForm';
+
+// 4. Recursos
+import ResourcesDashboard from './pages/resources/ResourcesDashboard';
+import VehiclesList from './pages/resources/vehicles/VehiclesList';
+import NewVehicle from './pages/resources/vehicles/NewVehicle';
+import EmployeesList from './pages/resources/employees/EmployeesList';
+import NewEmployee from './pages/resources/employees/NewEmployee';
+import MachineryList from './pages/resources/machinery/MachineryList';
+import NewMachinery from './pages/resources/machinery/NewMachinery';
+import ProviderDocuments from './pages/resources/ProviderDocuments';
 
 // Definición del Router usando Data APIs para soportar features nuevas como useBlocker
 const router = createBrowserRouter(
@@ -41,14 +55,25 @@ const router = createBrowserRouter(
                 <Route path="/proveedor" element={<SupplierData />} />
                 <Route path="/proveedores/nuevo" element={<NewSupplier />} />
                 <Route path="/proveedores/:id" element={<SupplierDetail />} />
+                <Route path="/proveedores/:id/asociar-empresa" element={<AssociateCompany />} />
 
                 {/* Auditores */}
                 <Route path="/auditores" element={<AuditorsList />} />
+                <Route path="/auditores/tecnica" element={<TechnicalAudit />} />
                 <Route path="/auditores/:id" element={<AuditorDetail />} />
 
                 {/* Empresas */}
                 <Route path="/empresas" element={<CompanyList />} />
                 <Route path="/empresas/nueva" element={<CompanyForm />} />
+
+                {/* Recursos */}
+                <Route path="/recursos" element={<ResourcesDashboard />} />
+                <Route path="/recursos/vehiculos" element={<VehiclesList />} />
+                <Route path="/recursos/vehiculos/nuevo" element={<NewVehicle />} />
+                <Route path="/recursos/empleados" element={<EmployeesList />} />
+                <Route path="/recursos/empleados/nuevo" element={<NewEmployee />} />
+                <Route path="/recursos/maquinaria" element={<MachineryList />} />
+                <Route path="/recursos/maquinaria/nueva" element={<NewMachinery />} />
 
                 {/* Usuarios */}
                 <Route path="/usuarios" element={<UsersList />} />
@@ -56,16 +81,33 @@ const router = createBrowserRouter(
                 <Route path="/usuarios/:id/nuevo-rol" element={<NewSupplier />} />
                 <Route path="/usuarios/:id" element={<UserDetail />} />
 
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                {/* Gestión de Documentos (Proveedor) */}
+                <Route path="/documentos/:status?" element={<ProviderDocuments />} />
             </Route>
+
+            {/* 4. Pantallas de Error / Fallback */}
+            <Route path="/404" element={<NotFound />} />
+            <Route path="*" element={<Navigate to="/404" replace />} />
+
+            <Route path="/500" element={<ServerError />} />
+            <Route path="*" element={<Navigate to="/500" replace />} />
         </>
     )
 );
 
+// 0. Context Provider
+import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
+
+// ... (previous imports)
+
 function App() {
     return (
-        <RouterProvider router={router} />
+        <NotificationProvider>
+            <AuthProvider>
+                <RouterProvider router={router} />
+            </AuthProvider>
+        </NotificationProvider>
     );
 }
 

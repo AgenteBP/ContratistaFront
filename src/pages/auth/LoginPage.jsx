@@ -4,49 +4,28 @@ import { useNavigate } from 'react-router-dom';
 import { Password } from 'primereact/password';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
+import { useAuth } from '../../context/AuthContext';
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({ email: '', password: '' });
+    const [error, setError] = useState(null);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setError(null);
 
-        setTimeout(() => {
+        try {
+            const userData = await login(formData.email, formData.password);
             setLoading(false);
-            // Simulación de roles
-            const userRoles = [
-                {
-                    id: 1,
-                    role: 'AUDITOR',
-                    type: 'Auditoría Técnica',
-                    entities: [{ id: 10, name: 'Tech Solutions' }]
-                },
-                {
-                    id: 2,
-                    role: 'EMPRESA',
-                    type: 'Admin',
-                    entities: [{ id: 20, name: 'Tech Solutions' }, { id: 21, name: 'Juan SRL' }]
-                },
-                {
-                    id: 3,
-                    role: 'PROVEEDOR',
-                    type: 'Proveedor',
-                    entities: [
-                        { id: 31, name: 'Pepito Holdings' },
-                        { id: 32, name: 'Juan SRL' }
-                    ]
-                }
-            ];
-
-            if (userRoles.length > 1) {
-                navigate('/select-role', { state: { roles: userRoles, user: 'Braian Paez' } });
-            } else {
-                navigate('/dashboard');
-            }
-        }, 1500);
+            navigate('/select-role', { state: { userProfile: userData } });
+        } catch (error) {
+            setLoading(false);
+            setError("Usuario o contraseña incorrectos");
+        }
     };
 
     return (
@@ -100,6 +79,18 @@ const LoginPage = () => {
                 {/* --- 3. TARJETA BLANCA (Formulario) --- */}
                 <div className="bg-white p-8 md:p-10 rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] w-full border border-secondary/5 relative">
 
+                    {error && (
+                        <div className="mb-6 p-3.5 bg-red-50/50 backdrop-blur-sm border border-red-100 rounded-xl flex items-center gap-3 animate-fade-in shadow-sm">
+                            <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center shrink-0 shadow-lg shadow-red-500/20">
+                                <i className="pi pi-exclamation-circle text-white text-sm"></i>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-bold text-red-600 leading-tight">Acceso Denegado</span>
+                                <span className="text-[11px] font-medium text-red-400">{error}</span>
+                            </div>
+                        </div>
+                    )}
+
                     <form onSubmit={handleLogin} className="space-y-5">
 
                         {/* Email */}
@@ -110,7 +101,7 @@ const LoginPage = () => {
                                 <InputText
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    placeholder="ej: elon@tesla.com"
+                                    placeholder="admin@email.com"
                                     className="w-full p-3 pl-10 text-secondary-dark border border-secondary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-lg shadow-sm transition-all"
                                 />
                             </span>
@@ -148,7 +139,7 @@ const LoginPage = () => {
                                 <Password
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder="ej: ilovemanagement123"
+                                    placeholder="password"
                                     feedback={false}
                                     toggleMask
 

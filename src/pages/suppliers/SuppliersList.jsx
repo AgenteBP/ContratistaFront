@@ -6,7 +6,7 @@ import { supplierService } from '../../services/supplierService';
 import { Column } from 'primereact/column';
 import { FilterMatchMode } from 'primereact/api';
 import { InputText } from 'primereact/inputtext';
-import { Dropdown } from 'primereact/dropdown';
+import Dropdown from '../../components/ui/Dropdown';
 import { Menu } from 'primereact/menu';
 
 // --- IMPORTACIONES DE TUS COMPONENTES UI (Atomic Design) ---
@@ -17,19 +17,22 @@ import AppTable from '../../components/ui/AppTable';
 // --- DATOS MOCK ---
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
+import PrimaryButton from '../../components/ui/PrimaryButton';
+
 const SuppliersList = () => {
     const navigate = useNavigate();
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     // Estado para los datos y carga
     const [proveedores, setProveedores] = useState([]);
+    const [filteredProveedores, setFilteredProveedores] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
     const [expandedRows, setExpandedRows] = useState(null);
 
-    const servicios = ['ALQUILER DE VEHICULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
+    const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
     const estatusOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
 
     useEffect(() => {
@@ -40,20 +43,50 @@ const SuppliersList = () => {
     const loadSuppliers = async () => {
         try {
             setLoading(true);
-            // --- INTEGRACIÓN CON API ---
-            // Para activar la API real:
-            // 1. Descomentar la siguiente línea:
-            // const data = await supplierService.getAll();
-            // 2. Comentar la línea de mock data:
-            const data = MOCK_SUPPLIERS;
+            // --- INTEGRACIÓN CON API (DESHABILITADA TEMPORALMENTE) ---
+            // console.log("Iniciando fetch de proveedores...");
+            const response = await supplierService.getAll();
+            console.log("Respuesta API GetAll:", response);
 
-            // Simular delay de red
-            await new Promise(resolve => setTimeout(resolve, 800));
+            if (!response || !Array.isArray(response)) {
+                console.error("Respuesta inválida API:", response);
+                throw new Error("La API no devolvió una lista válida de proveedores.");
+            }
+
+            // --- MOCK DATA ---
+            //const data = MOCK_SUPPLIERS;
+
+            // Map API data to Table structure
+            const data = response.map(s => ({
+                id: s.cuit,
+                internalId: s.id_supplier,
+                razonSocial: s.company_name,
+                cuit: s.cuit,
+                nombreFantasia: s.fantasy_name,
+                tipoPersona: s.type_person || 'N/A',
+                clasificacionAFIP: s.classification_afip,
+                servicio: s.category_service || 'N/A',
+                email: s.email_corporate,
+                telefono: s.phone,
+                empleadorAFIP: s.is_an_afip_employer,
+                esTemporal: s.is_temporary_hiring,
+                estatus: s.active === 1 ? 'ACTIVO' : 'INACTIVO',
+                provincia: s.province,
+                localidad: s.city,
+                motivo: s.document_supplier?.observaciones,
+                accesoHabilitado: s.user?.active,
+                facturasAPOC: 'No', // Default for now
+                altaSistema: 'N/A' // Default for now
+            }));
+
+            // Para debug
+            console.log("Proveedores cargados:", data);
 
             setProveedores(data);
         } catch (error) {
             console.error("Error al cargar proveedores:", error);
-            // Aquí podrías agregar un toast de error
+            // Fallback a mock vacio o mensaje
+            setProveedores([]);
         } finally {
             setLoading(false);
         }
@@ -83,6 +116,15 @@ const SuppliersList = () => {
             }
         },
         {
+            label: 'Asociar Empresa',
+            icon: 'pi pi-link',
+            command: () => {
+                if (selectedRow) {
+                    navigate(`/proveedores/${selectedRow.id}/asociar-empresa`);
+                }
+            }
+        },
+        {
             label: 'Editar',
             icon: 'pi pi-pencil',
             command: () => {
@@ -91,10 +133,11 @@ const SuppliersList = () => {
         },
         { separator: true },
         {
-            label: 'Borrar',
-            icon: 'pi pi-trash',
+            label: 'Suspender',
+            icon: 'pi pi-ban',
             className: 'text-red-500',
             command: () => {
+                console.log("Suspendiendo a:", selectedRow?.razonSocial);
             }
         }
     ];
@@ -114,7 +157,7 @@ const SuppliersList = () => {
         <div className="bg-secondary-light border-t border-secondary/20 p-4 shadow-inner animate-fade-in text-sm">
             <div className="flex items-center gap-2 mb-3">
                 <i className="pi pi-id-card text-primary text-lg"></i>
-                <h5 className="font-bold text-secondary-dark">Ficha del Proveedor #{data.id}</h5>
+                <h5 className="font-bold text-secondary-dark">Ficha del Proveedor</h5>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
@@ -185,32 +228,127 @@ const SuppliersList = () => {
         </div>
     );
 
-    // Header de la tabla (Buscador y botón limpiar)
+    const dropdownPt = {
+        root: { className: 'w-full md:w-48 bg-white border border-secondary/30 rounded-lg h-9 flex items-center focus-within:ring-2 focus-within:ring-primary/50 shadow-sm' },
+        input: { className: 'text-xs px-3 text-secondary-dark font-medium' },
+        trigger: { className: 'w-8 text-secondary flex items-center justify-center border-l border-secondary/10' },
+        panel: { className: 'text-xs bg-white border border-secondary/10 shadow-xl rounded-lg mt-1' },
+        item: { className: 'p-2.5 hover:bg-secondary-light text-secondary-dark transition-colors' },
+        list: { className: 'p-1' }
+    };
+
     const renderHeader = () => (
-        <div className="flex flex-col md:flex-row justify-between items-center bg-white p-3 border-b border-secondary/20 gap-3">
-            <div className="flex gap-2">
-                <button onClick={initFilters} className="text-xs text-primary hover:text-primary-active font-bold hover:underline">Limpiar Filtros</button>
+        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
+            {/* Top Row: Search and Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-[450px]">
+                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+                        <i className="pi pi-search text-secondary/50 text-xs"></i>
+                    </div>
+                    <input
+                        type="text"
+                        value={globalFilterValue}
+                        onChange={onGlobalFilterChange}
+                        disabled={loading}
+                        className={`bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9 ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                        placeholder="Buscar proveedor..."
+                    />
+                </div>
             </div>
-            <div className="relative w-full md:w-auto">
-                <div className="absolute inset-y-0 start-0 flex items-center ps-2.5 pointer-events-none"><i className="pi pi-search text-secondary text-xs"></i></div>
-                <input type="text" value={globalFilterValue} onChange={onGlobalFilterChange} disabled={loading} className={`bg-white border border-secondary/30 text-secondary-dark text-sm rounded-lg focus:ring-primary focus:border-primary block w-full ps-8 p-1.5 outline-none ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`} placeholder="Buscar..." />
+
+            {/* Bottom Row: Filters & Stats */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.tipoPersona?.value}
+                            options={['JURIDICA', 'FISICA'].map(t => ({ label: t, value: t }))}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['tipoPersona'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="Tipo"
+                            pt={dropdownPt}
+                        />
+                        {filters?.tipoPersona?.value && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['tipoPersona'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.servicio?.value}
+                            options={servicios.map(s => ({ label: s, value: s }))}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['servicio'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="SERVICIO"
+                            className="w-full md:w-48"
+                        />
+                        {filters?.servicio?.value && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['servicio'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+
+                    <div className="relative">
+                        <Dropdown
+                            value={filters?.estatus?.value}
+                            options={estatusOptions.map(s => ({ label: s, value: s }))}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['estatus'].value = e.value;
+                                setFilters(_filters);
+                            }}
+                            placeholder="ESTADO"
+                            className="w-full md:w-48"
+                        />
+                        {filters?.estatus?.value && (
+                            <i
+                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
+                                onClick={() => {
+                                    let _filters = { ...filters };
+                                    _filters['estatus'].value = null;
+                                    setFilters(_filters);
+                                }}
+                                title="Limpiar filtro"
+                            ></i>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs ml-auto">
+                    <button
+                        onClick={initFilters}
+                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
+                    >
+                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
+                    </button>
+                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
+                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
+                        {filteredProveedores ? filteredProveedores.length : proveedores.length} Proveedores
+                    </span>
+                </div>
             </div>
         </div>
-    );
-
-    // Inputs Filtros (Para las columnas)
-    const createTextFilter = (options) => <InputText value={options.value || ''} onChange={(e) => options.filterApplyCallback(e.target.value)} placeholder="Filtrar..." unstyled className="bg-white border border-secondary/30 text-secondary-dark text-sm rounded focus:ring-primary focus:border-primary block w-full px-2 h-8 outline-none font-normal" />;
-
-    const createDropdownFilter = (options, list, placeholder = "Todos") => (
-        <Dropdown value={options.value} options={list} onChange={(e) => options.filterApplyCallback(e.value)} placeholder={placeholder} className="p-column-filter w-full"
-            pt={{
-                root: { className: 'w-full bg-white border border-secondary/30 rounded h-8 flex items-center focus-within:ring-2 focus-within:ring-primary/50' },
-                input: { className: 'text-sm px-2 text-secondary-dark' },
-                trigger: { className: 'w-6 text-secondary flex items-center justify-center' },
-                panel: { className: 'text-sm bg-white border border-secondary/20 shadow-lg' },
-                item: { className: 'p-2 hover:bg-secondary-light text-secondary-dark' }
-            }}
-        />
     );
 
     const customSortIcon = (options) => {
@@ -241,13 +379,12 @@ const SuppliersList = () => {
             <PageHeader
                 title="Proveedores"
                 subtitle="Base de datos de contratistas."
+                icon="pi pi-briefcase"
                 actionButton={
-                    <button
+                    <PrimaryButton
+                        label="Nuevo Proveedor"
                         onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
-                        className="text-white bg-primary hover:bg-primary-hover font-bold rounded-lg text-xs px-4 py-2 shadow-md shadow-primary/30 transition-all flex items-center justify-center gap-2 w-full md:w-auto"
-                    >
-                        <i className="pi pi-plus"></i> <span className="hidden md:inline">Nuevo Proveedor</span><span className="md:hidden">Nuevo</span>
-                    </button>
+                    />
                 }
             />
 
@@ -259,7 +396,7 @@ const SuppliersList = () => {
                 header={header}
                 filters={filters}
                 globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
-                filterDisplay="row"
+                onValueChange={(data) => setFilteredProveedores(data)}
                 emptyMessage="No se encontraron datos."
                 sortMode="multiple"
                 removableSort
@@ -270,14 +407,14 @@ const SuppliersList = () => {
                 sortIcon={customSortIcon}
             >
                 {/* Expander Column: Visible (Spacer on Mobile due to global CSS hiding arrow) */}
-                <Column expander={true} style={{ width: '2rem' }} />
+                <Column expander={true} style={{ width: '2rem' }} className="2xl:hidden" headerClassName="2xl:hidden" />
 
-                <Column field="id" header="#" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
-                <Column field="razonSocial" header="Razón Social" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-bold text-secondary-dark"></Column>
-                <Column field="cuit" header="CUIT" sortable filter filterElement={createTextFilter} showFilterMenu={false} className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
-                <Column field="tipoPersona" header="Tipo" sortable filter filterElement={(opts) => createDropdownFilter(opts, ['JURIDICA', 'FISICA'])} showFilterMenu={false} className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
-                <Column field="servicio" header="Servicio" sortable filter filterElement={(opts) => createDropdownFilter(opts, servicios)} showFilterMenu={false} className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
-                <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />} filter filterElement={(opts) => createDropdownFilter(opts, estatusOptions)} showFilterMenu={false} filterMenuStyle={{ width: '10rem' }}></Column>
+                {/* Column 'id' removed as requested */}
+                <Column field="razonSocial" header="Razón Social" sortable className="font-bold text-secondary-dark pl-6" headerClassName="pl-6"></Column>
+                <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
+                <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
+                <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
+                <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
 

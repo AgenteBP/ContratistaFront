@@ -18,7 +18,7 @@ const Input = ({ label, icon, size = 'md', ...props }) => {
         )}
         <input
           {...props}
-          className={`bg-white border border-secondary/30 text-secondary-dark outline-none transition-all block w-full
+          className={`bg-white border border-secondary/40 text-secondary-dark outline-none transition-all block w-full shadow-sm hover:shadow-md
           focus:ring-2 focus:ring-primary/20 focus:border-primary
           ${sizeClasses[size] || sizeClasses.md}
           ${icon ? (size === 'sm' ? 'ps-8' : 'ps-10') : ''} 

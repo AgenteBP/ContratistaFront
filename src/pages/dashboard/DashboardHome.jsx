@@ -6,27 +6,27 @@ import { useNavigate } from 'react-router-dom';
 
 // --- COMPONENTE TARJETA OPTIMIZADO ---
 const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick }) => {
-    
+
     // Mapeo de estilos (Tipografía de la V1 + Colores Semánticos)
     const styles = {
-        primary: { 
-            iconBg: 'bg-primary-light', iconText: 'text-primary', 
+        primary: {
+            iconBg: 'bg-primary-light', iconText: 'text-primary',
             badgeBg: 'bg-primary-light', badgeText: 'text-primary-active',
         },
-        success: { 
-            iconBg: 'bg-success-light', iconText: 'text-success', 
+        success: {
+            iconBg: 'bg-success-light', iconText: 'text-success',
             badgeBg: 'bg-success-light', badgeText: 'text-success-hover',
         },
-        warning: { 
-            iconBg: 'bg-warning-light', iconText: 'text-warning', 
+        warning: {
+            iconBg: 'bg-warning-light', iconText: 'text-warning',
             badgeBg: 'bg-warning-light', badgeText: 'text-warning-hover',
         },
-        info: { 
-            iconBg: 'bg-info-light', iconText: 'text-info', 
+        info: {
+            iconBg: 'bg-info-light', iconText: 'text-info',
             badgeBg: 'bg-info-light', badgeText: 'text-info-hover',
         },
         danger: {
-            iconBg: 'bg-danger-light', iconText: 'text-danger', 
+            iconBg: 'bg-danger-light', iconText: 'text-danger',
             badgeBg: 'bg-danger-light', badgeText: 'text-danger-hover',
         }
     };
@@ -34,7 +34,7 @@ const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick 
     const style = styles[type] || styles.primary;
 
     return (
-        <div 
+        <div
             onClick={onClick}
             className="bg-white rounded-xl p-6 shadow-sm border border-secondary/10 hover:shadow-md transition-all duration-300 relative overflow-hidden group cursor-pointer"
         >
@@ -44,13 +44,13 @@ const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick 
                     <p className="text-secondary text-sm font-medium mb-1 tracking-wide">{title}</p>
                     <h3 className="text-3xl font-bold text-secondary-dark">{value}</h3>
                 </div>
-                
+
                 {/* Burbuja de color */}
                 <div className={`p-3 rounded-xl ${style.iconBg} ${style.iconText} transition-transform duration-300 group-hover:scale-110`}>
                     <i className={`pi ${icon} text-xl`}></i>
                 </div>
             </div>
-            
+
             {/* 2. FOOTER: Apilado vertical para evitar amontonamiento */}
             <div className="space-y-2 pt-3 border-t border-secondary/5 relative z-10">
                 {details.map((item, index) => (
@@ -80,7 +80,7 @@ const DashboardHome = () => {
     const [chartOptions, setChartOptions] = useState({});
 
     useEffect(() => {
-        const limeColor = '#84cc16'; 
+        const limeColor = '#84cc16';
         const redColor = '#ef4444';
         const textColor = '#334155';
         const textColorSecondary = '#64748b';
@@ -94,7 +94,7 @@ const DashboardHome = () => {
                     data: [120, 135, 145, 160, 190, 210],
                     fill: true,
                     borderColor: limeColor,
-                    backgroundColor: 'rgba(132, 204, 22, 0.05)', 
+                    backgroundColor: 'rgba(132, 204, 22, 0.05)',
                     tension: 0.4,
                     pointBackgroundColor: '#fff',
                     pointBorderColor: limeColor,
@@ -136,16 +136,16 @@ const DashboardHome = () => {
     ];
 
     const estadoTemplate = (rowData) => {
-        const colors = { 
-            'VENCIDO': 'bg-danger-light text-danger', 
-            'RECHAZADO': 'bg-warning-light text-warning', 
-            'FALTANTE': 'bg-secondary-light text-secondary-dark' 
+        const colors = {
+            'VENCIDO': 'bg-danger-light text-danger',
+            'RECHAZADO': 'bg-warning-light text-warning',
+            'FALTANTE': 'bg-secondary-light text-secondary-dark'
         };
         return <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-transparent ${colors[rowData.estado]}`}>{rowData.estado}</span>;
     };
 
     const actionTemplate = (rowData) => (
-        <button 
+        <button
             onClick={() => navigate(`/proveedores/${rowData.id}`)}
             className="text-secondary hover:text-primary transition-colors text-xs font-bold flex items-center justify-end w-full gap-1 group"
         >
@@ -155,7 +155,7 @@ const DashboardHome = () => {
 
     return (
         <div className="animate-fade-in space-y-8">
-            
+
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-secondary/10 pb-6">
                 <div>
@@ -174,12 +174,12 @@ const DashboardHome = () => {
 
             {/* --- KPIs VISUALES --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                
+
                 {/* 1. Proveedores */}
-                <StatCard 
-                    title="Empresas" 
-                    value="41" 
-                    icon="pi-briefcase" 
+                <StatCard
+                    title="Empresas"
+                    value="41"
+                    icon="pi-briefcase"
                     type="primary"
                     onClick={() => navigate('/empresas?filter=active')}
                     details={[
@@ -187,12 +187,12 @@ const DashboardHome = () => {
                         { label: 'Con pendientes', value: '12', icon: 'pi-info-circle', iconColor: 'text-warning', badgeClass: 'bg-warning-light text-warning-hover' }
                     ]}
                 />
-                
+
                 {/* 2. Empleados */}
-                <StatCard 
-                    title="Recursos Humanos" 
-                    value="279" 
-                    icon="pi-users" 
+                <StatCard
+                    title="Recursos Humanos"
+                    value="279"
+                    icon="pi-users"
                     type="success"
                     onClick={() => navigate('/empleados')}
                     details={[
@@ -202,10 +202,10 @@ const DashboardHome = () => {
                 />
 
                 {/* 3. Flota */}
-                <StatCard 
-                    title="Flota Vehicular" 
-                    value="226" 
-                    icon="pi-car" 
+                <StatCard
+                    title="Flota Vehicular"
+                    value="226"
+                    icon="pi-car"
                     type="info"
                     onClick={() => navigate('/flota')}
                     details={[
@@ -215,10 +215,10 @@ const DashboardHome = () => {
                 />
 
                 {/* 4. Inconsistencias (DIVIDIDAS) */}
-                <StatCard 
-                    title="Auditoría" 
-                    value="22" 
-                    icon="pi-file-excel" 
+                <StatCard
+                    title="Auditoría"
+                    value="22"
+                    icon="pi-file-excel"
                     type="danger"
                     onClick={() => navigate('/auditoria/bandeja-entrada')}
                     details={[
@@ -230,18 +230,18 @@ const DashboardHome = () => {
 
             {/* --- SECCIÓN INFERIOR --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
+
                 {/* Gráfico (Con min-w-0 para evitar desborde) */}
                 <div className="lg:col-span-2 min-w-0 bg-white p-6 rounded-xl border border-secondary/20 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="font-bold text-secondary-dark text-lg">Evolución Semestral</h3>
-                        <div className="flex gap-3">
+                        {/* <div className="flex gap-3">
                              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success"></span><span className="text-xs text-secondary">OK</span></div>
                              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-danger"></span><span className="text-xs text-secondary">Error</span></div>
-                        </div>
+                        </div> */}
                     </div>
                     <div className="h-[300px] w-full relative">
-                        <Chart type="line" data={chartData} options={chartOptions} className="h-full"/>
+                        <Chart type="line" data={chartData} options={chartOptions} className="h-full" />
                     </div>
                 </div>
 
@@ -251,11 +251,11 @@ const DashboardHome = () => {
                         <h3 className="font-bold text-secondary-dark">Alertas Recientes</h3>
                         <span className="text-xs bg-danger-light text-danger px-2 py-0.5 rounded-full font-bold">3 Pendientes</span>
                     </div>
-                    
+
                     <div className="p-2 flex-1">
                         <DataTable value={alertas} className="text-sm" unstyled pt={{
                             table: { className: 'w-full' },
-                            thead: { className: 'hidden' }, 
+                            thead: { className: 'hidden' },
                             bodyRow: { className: 'border-b border-secondary/5 last:border-0 hover:bg-gray-50 transition-colors' },
                             bodyCell: { className: 'py-3 px-3' }
                         }}>
@@ -271,7 +271,7 @@ const DashboardHome = () => {
                     </div>
 
                     <div className="p-3 bg-gray-50 border-t border-secondary/10">
-                        <button 
+                        <button
                             onClick={() => navigate('/alertas')}
                             className="w-full py-2 text-center text-xs text-secondary hover:text-primary font-bold bg-white border border-secondary/20 rounded-lg hover:shadow-sm transition-all"
                         >

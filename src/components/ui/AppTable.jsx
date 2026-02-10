@@ -39,6 +39,11 @@ const AppTable = (props) => {
                 return;
             }
 
+            // SKIP if expandedRows is an Array (Row Grouping Mode uses Arrays, Mobile Expansion uses Object Map)
+            if (Array.isArray(props.expandedRows)) {
+                return;
+            }
+
             const dataKey = props.dataKey || 'id';
             const rowId = e.data[dataKey]; // PrimeReact usually keys by ID or dataKey
 
