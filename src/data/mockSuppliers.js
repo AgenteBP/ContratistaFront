@@ -12,6 +12,8 @@ export const MOCK_SUPPLIERS = [
         empleadorAFIP: true,
         esTemporal: true,
         estatus: 'ACTIVO',
+        grupo: 'EDESAL',
+        empresas: ['Edesal'],
         facturasAPOC: 'No',
         altaSistema: '04/11/2025',
         pais: 'Argentina',

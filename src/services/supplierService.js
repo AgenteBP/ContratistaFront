@@ -7,11 +7,9 @@ export const supplierService = {
         return response.data;
     },
 
-    // 2. Obtener uno por ID (GET)
-    // Nota: El backend actual usa /oneSupplier?cuit=... no por ID directo en este controller
-    // Se deja pendiente validación con el usuario si existe endpoint por ID.
-    getById: async (id) => {
-        const response = await api.get(`/supplier/${id}`);
+    // 2. Obtener uno por CUIT (GET)
+    getById: async (cuit) => {
+        const response = await api.get(`/supplier/oneSupplier?cuit=${cuit}`);
         return response.data;
     },
 
@@ -23,7 +21,8 @@ export const supplierService = {
 
     // 4. Actualizar (PUT)
     update: async (id, supplierData) => {
-        const response = await api.put(`/supplier/${id}`, supplierData);
+        // El backend espera /supplier/update con el ID en el body
+        const response = await api.put('/supplier/update', supplierData);
         return response.data;
     },
 

@@ -1,45 +1,35 @@
 import React, { useRef, useState } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { OverlayPanel } from 'primereact/overlaypanel';
+import { useAuth } from '../../context/AuthContext';
 
 const Navbar = ({ onToggleSidebar }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { user, currentRole, logout } = useAuth();
     const menuRef = useRef(null);
     const userMenuRef = useRef(null);
 
     // --- Dynamic User Info ---
-    const [userInfo, setUserInfo] = useState(null);
+    // Mapeo de códigos de rol a etiquetas amigables
+    const roleLabels = {
+        'PROVEEDOR': 'Proveedor',
+        'EMPRESA': 'Empresa',
+        'AUDITOR': 'Auditor Técnico',
+        'ADMIN': 'Administrador'
+    };
 
-    React.useEffect(() => {
-        try {
-            const stored = localStorage.getItem('currentRole');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                // Map role codes to display labels
-                const roleLabels = {
-                    'PROVEEDOR': 'Proveedor',
-                    'EMPRESA': 'Empresa', // Or 'Cliente' based on preference
-                    'AUDITOR': 'Auditor Técnico',
-                    'ADMIN': 'Administrador'
-                };
+    const fullName = user?.firstName && user?.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : (user?.name || 'Usuario');
 
-                let entityName = '';
-                if (parsed.entity) {
-                    entityName = parsed.entity.name || parsed.entity.entity || '';
-                }
-
-                setUserInfo({
-                    user: 'Brian Paez', // Still hardcoded user as it's not in role selection context yet?
-                    role: parsed.role,
-                    roleLabel: roleLabels[parsed.role] || parsed.role,
-                    entityName: entityName
-                });
-            }
-        } catch (e) {
-            console.error("Error loading user info", e);
-        }
-    }, []);
+    const userInfo = currentRole ? {
+        user: fullName,
+        email: user?.username || user?.email || 'usuario@contratista.com',
+        role: currentRole.role,
+        roleLabel: roleLabels[currentRole.role] || currentRole.role,
+        entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || ''
+    } : null;
 
     // 1. DICCIONARIO DE NOMBRES
     const breadcrumbNameMap = {
@@ -241,7 +231,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                     {userInfo.entityName}
                                 </p>
                             )}
-                            <p className="text-xs text-gray-400 mt-1 font-medium">user@contratista.com</p>
+                            <p className="text-xs text-gray-400 mt-1 font-medium">{userInfo?.email}</p>
                         </div>
                     </div>
 
@@ -254,7 +244,7 @@ const Navbar = ({ onToggleSidebar }) => {
                         <div
                             className="flex items-center gap-3 p-3 hover:bg-red-50 rounded-lg cursor-pointer transition-colors group"
                             onClick={() => {
-                                localStorage.removeItem('currentRole');
+                                logout();
                                 navigate('/login');
                             }}
                         >

@@ -10,7 +10,7 @@ import { userService } from '../../services/userService';
 import { supplierService } from '../../services/supplierService';
 import { MOCK_USERS } from '../../data/mockUsers';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
-import { Dropdown } from 'primereact/dropdown';
+import Dropdown from '../../components/ui/Dropdown';
 
 const NewSupplier = () => {
   const { id } = useParams(); // ID del usuario si estamos agregando rol
@@ -197,11 +197,7 @@ const NewSupplier = () => {
                       filter
                       filterBy="username,firstName,lastName"
                       placeholder="Escriba para buscar..."
-                      className="w-full"
-                      pt={{
-                        root: { className: 'w-full border border-secondary/30 rounded-lg h-10 flex items-center' },
-                        input: { className: 'text-sm px-3' }
-                      }}
+                      className="w-full h-10"
                     />
                   </div>
 
@@ -284,11 +280,7 @@ const NewSupplier = () => {
                         filter
                         filterBy="razonSocial,cuit"
                         placeholder="Buscar por Razón Social o CUIT..."
-                        className="w-full"
-                        pt={{
-                          root: { className: 'w-full border border-secondary/30 rounded-lg h-10 flex items-center' },
-                          input: { className: 'text-sm px-3' }
-                        }}
+                        className="w-full h-10"
                       />
                     </div>
 

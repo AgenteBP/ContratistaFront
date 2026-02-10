@@ -8,7 +8,8 @@ import Label from '../../components/ui/Label';
 import UnsavedChangesModal from '../../components/ui/UnsavedChangesModal'; // IMPORT MODAL
 import ConfirmationModal from '../../components/ui/ConfirmationModal'; // IMPORT CONFIRMATION MODAL
 import { Country, State, City } from 'country-state-city';
-import { Dropdown } from 'primereact/dropdown';
+import Dropdown from '../../components/ui/Dropdown';
+import MultiSelect from '../../components/ui/MultiSelect';
 import { Calendar } from 'primereact/calendar';
 import { Dialog } from 'primereact/dialog';
 import { StatusBadge } from '../../components/ui/Badges';
@@ -31,7 +32,11 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         empleadorAFIP: false,
         esTemporal: false,
 
-        // Paso 2: Ubicación
+        // Paso 2: Grupo y Empresa (Solo para Alta)
+        grupo: '',
+        empresas: [],
+
+        // Paso 3: Ubicación
         pais: '',
         paisCode: '',
         provincia: '',
@@ -41,7 +46,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         direccionFiscal: '',
         direccionReal: '',
 
-        // Paso 3: Contactos
+        // Paso 4: Contactos
         contactos: [],
 
         ...(initialData || {}) // Use prop or empty object for initial state
@@ -49,7 +54,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
 
     const [currentStep, setCurrentStep] = useState(1);
-    const steps = ['Proveedor', 'Ubicación', 'Contactos', 'Documentos'];
+    const steps = isWizardMode
+        ? ['Proveedor', 'Grupo y Empresa', 'Ubicación', 'Contactos', 'Documentos']
+        : ['Proveedor', 'Ubicación', 'Contactos', 'Documentos'];
+
+    // Helper para obtener el índice "real" de un paso por su nombre
+    const getStepIdx = (label) => steps.indexOf(label) + 1;
     const [validationError, setValidationError] = useState(null);
 
     // State para tracking de cambios sin guardar
@@ -116,7 +126,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     const confirmDeleteFile = () => {
         if (!docToDelete) return;
 
-        setDirtySteps(prev => new Set(prev).add(4));
+        setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
         setFormData(prev => {
             const currentDocs = prev.documentacion || [];
             const docIndex = currentDocs.findIndex(d => d.tipo === docToDelete);
@@ -233,7 +243,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             contactos: [...prev.contactos, { ...newContact, id: Date.now() }]
         }));
         setNewContact({ nombre: '', dni: '', movil: '', email: '', telefono: '', tipo: 'SELECCIONE TIPO' });
-        markStepDirty(3); // Contactos es paso 3
+        markStepDirty(getStepIdx('Contactos'));
     };
 
     // Aliases para compatibilidad con render logic
@@ -244,16 +254,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             ...prev,
             contactos: prev.contactos.filter(c => c.id !== id)
         }));
-        markStepDirty(3);
+        markStepDirty(getStepIdx('Contactos'));
     };
     const handleRemoveContact = removeContact;
 
     // Campos por paso para guardado parcial
     const STEP_FIELDS = {
-        1: ['razonSocial', 'cuit', 'nombreFantasia', 'tipoPersona', 'clasificacionAFIP', 'servicio', 'email', 'telefono', 'empleadorAFIP', 'esTemporal'],
-        2: ['pais', 'paisCode', 'provincia', 'provinciaCode', 'localidad', 'codigoPostal', 'direccionFiscal', 'direccionReal'],
-        3: ['contactos'],
-        4: ['documentacion']
+        'Proveedor': ['razonSocial', 'cuit', 'nombreFantasia', 'tipoPersona', 'clasificacionAFIP', 'servicio', 'email', 'telefono', 'empleadorAFIP', 'esTemporal'],
+        'Grupo y Empresa': ['grupo', 'empresas'],
+        'Ubicación': ['pais', 'paisCode', 'provincia', 'provinciaCode', 'localidad', 'codigoPostal', 'direccionFiscal', 'direccionReal'],
+        'Contactos': ['contactos'],
+        'Documentos': ['documentacion']
     };
 
     const handleSubmit = (stepScope = null) => {
@@ -285,7 +296,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
         if (scope) {
             // PARTIAL SAVE: Only submit fields for this step
-            const fieldsToSave = STEP_FIELDS[scope] || [];
+            const label = steps[scope - 1];
+            const fieldsToSave = STEP_FIELDS[label] || [];
             const partialPayload = {};
             fieldsToSave.forEach(field => {
                 partialPayload[field] = finalData[field];
@@ -408,7 +420,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             updates = { localidad: value };
         }
         setFormData(prev => ({ ...prev, ...updates }));
-        markStepDirty(2); // Ubicación es paso 2
+        markStepDirty(getStepIdx('Ubicación'));
     };
 
     // --- CONFIGURACIÓN DE DOCUMENTACIÓN ---
@@ -417,11 +429,73 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         { id: 'ESTATUTO', label: 'Estatuto Social', frecuencia: 'Única vez', obligatoriedad: 'Solo Jurídicas', defaultFor: (data) => data.tipoPersona === 'JURIDICA' },
         { id: 'FORM_931', label: 'Formulario 931', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
         { id: 'HABILITACION_SEGURIDAD', label: 'Habilitación Comercial / Seguridad', frecuencia: 'Con Vencimiento', obligatoriedad: 'Vigilancia', defaultFor: (data) => data.servicio === 'VIGILANCIA' },
-        { id: 'SEGURO_ACCIDENTES', label: 'Seguro de Accidentes Personales', frecuencia: 'Mensual', obligatoriedad: 'Opcional', defaultFor: (data) => data.tipoPersona === 'FISICA' },
-        { id: 'ART_CERTIFICADO', label: 'Certificado de Cobertura ART', frecuencia: 'Mensual', obligatoriedad: 'Opcional', defaultFor: (data) => data.empleadorAFIP },
+        { id: 'SEGURO_ACCIDENTES', label: 'Seguro de Accidentes Personales', frecuencia: 'Mensual', obligatoriedad: 'Físicas', defaultFor: (data) => data.tipoPersona === 'FISICA' },
+        { id: 'ART_CERTIFICADO', label: 'Certificado de Cobertura ART', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
         { id: 'SEGURO_VIDA', label: 'Seguro de Vida Obligatorio', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
         { id: 'HABILITACION_VEHICULOS', label: 'Habilitación de Vehículos / VTV', frecuencia: 'Con Vencimiento', obligatoriedad: 'Logística', defaultFor: (data) => data.servicio === 'Logística' || data.servicio === 'MOVILES Y EQUIPOS' },
-        { id: 'SOLICITUD_USUARIOS', label: 'Solicitud de Usuarios de Sistema', frecuencia: 'Única vez', obligatoriedad: 'Todos', defaultFor: () => true }
+        { id: 'SOLICITUD_USUARIOS', label: 'Solicitud de Usuarios de Sistema', frecuencia: 'Única vez', obligatoriedad: 'Todos', defaultFor: () => true },
+
+        // --- REGLAS ESPECÍFICAS POR GRUPO ---
+
+        // EDESAL
+        {
+            id: 'CERT_NO_DEUDA_EDESAL',
+            label: 'Certificado de No Deuda (Edesal)',
+            frecuencia: 'Mensual',
+            obligatoriedad: 'Edesal',
+            defaultFor: (data) => data.grupo === 'EDESAL'
+        },
+        {
+            id: 'EMR_MANUAL_EDESAL',
+            label: 'Manual de Inducción Seguridad EMR (Edesal)',
+            frecuencia: 'Única vez',
+            obligatoriedad: 'Edesal',
+            defaultFor: (data) => data.grupo === 'EDESAL'
+        },
+        {
+            id: 'DDJJ_ETICA_EDESAL',
+            label: 'Declaración Jurada Ética (Edesal)',
+            frecuencia: 'Única vez',
+            obligatoriedad: 'Edesal - Monotributistas',
+            defaultFor: (data) => data.grupo === 'EDESAL' && data.clasificacionAFIP === 'Monotributista'
+        },
+        {
+            id: 'HABILITACION_VIGILANCIA_EDESAL',
+            label: 'Habilitación Provincial de Seguridad (Edesal)',
+            frecuencia: 'Anual',
+            obligatoriedad: 'Edesal - Vigilancia Jurídica',
+            defaultFor: (data) => data.grupo === 'EDESAL' && data.servicio === 'VIGILANCIA' && data.tipoPersona === 'JURIDICA'
+        },
+
+        // ROVELLA
+        {
+            id: 'ANEXO_SH_ROVELLA',
+            label: 'Anexo Seguridad e Higiene (Rovella)',
+            frecuencia: 'Única vez',
+            obligatoriedad: 'Rovella',
+            defaultFor: (data) => data.grupo === 'ROVELLA'
+        },
+        {
+            id: 'FICHA_ALTA_ROVELLA',
+            label: 'Ficha Alta de Proveedor (Rovella)',
+            frecuencia: 'Única vez',
+            obligatoriedad: 'Rovella',
+            defaultFor: (data) => data.grupo === 'ROVELLA'
+        },
+        {
+            id: 'POLIZA_OBRA_ROVELLA',
+            label: 'Póliza de Seguro de Obra (Rovella)',
+            frecuencia: 'Mensual',
+            obligatoriedad: 'Rovella - Mantenimiento',
+            defaultFor: (data) => data.grupo === 'ROVELLA' && (data.servicio === 'Mantenimiento' || data.servicio === 'Logística')
+        },
+        {
+            id: 'SAP_ROVELLA',
+            label: 'Seguro ACC Personales - Cláusula Rovella',
+            frecuencia: 'Anual',
+            obligatoriedad: 'Rovella - Físicas Mantenimiento',
+            defaultFor: (data) => data.grupo === 'ROVELLA' && data.tipoPersona === 'FISICA' && data.servicio === 'Mantenimiento'
+        }
     ];
 
     const [requiredDocs, setRequiredDocs] = useState([]);
@@ -462,7 +536,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             const rule = ALL_DOCS_RULES.find(d => d.id === docId);
             return [...prev, rule];
         });
-        markStepDirty(4); // Documentos es paso 4
+        markStepDirty(getStepIdx('Documentos'));
     };
 
     const updateDocRequirement = (docId, field, value) => {
@@ -470,7 +544,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             d.id === docId ? { ...d, [field]: value } : d
         ));
         setIsCustomConfig(true);
-        markStepDirty(4);
+        markStepDirty(getStepIdx('Documentos'));
     };
 
     const resetDocConfig = () => {
@@ -481,22 +555,20 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const nextStep = () => {
         // Obtenemos si el paso actual es inválido
-        const currentStepObj = steps.map((step, index) => {
-            const stepNum = index + 1;
-            let isInvalid = false;
+        const currentLabel = steps[currentStep - 1];
+        let isInvalid = false;
 
-            if (stepNum === 1) {
-                if (!formData.razonSocial || !formData.cuit || !formData.email) isInvalid = true;
-            } else if (stepNum === 2 && !isWizardMode) {
-                if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) isInvalid = true;
-            } else if (stepNum === 3 && !isWizardMode) {
-                if (formData.contactos.length === 0) isInvalid = true;
-            }
+        if (currentLabel === 'Proveedor') {
+            if (!formData.razonSocial || !formData.cuit || !formData.email) isInvalid = true;
+        } else if (currentLabel === 'Grupo y Empresa') {
+            if (!formData.grupo || !formData.empresas || formData.empresas.length === 0) isInvalid = true;
+        } else if (currentLabel === 'Ubicación' && !isWizardMode) {
+            if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) isInvalid = true;
+        } else if (currentLabel === 'Contactos' && !isWizardMode) {
+            if (formData.contactos.length === 0) isInvalid = true;
+        }
 
-            return { stepNum, isInvalid };
-        }).find(s => s.stepNum === currentStep);
-
-        if (currentStepObj?.isInvalid) {
+        if (isInvalid) {
             // Animación de error o feedback visual si se desea
             return;
         }
@@ -536,8 +608,20 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             </div>
         );
 
-        switch (currentStep) {
-            case 1:
+        const currentLabel = steps[currentStep - 1];
+
+        const empresasByGrupo = {
+            'EDESAL': [{ label: 'Edesal', value: 'Edesal' }],
+            'ROVELLA': [
+                { label: 'Semisa', value: 'Semisa' },
+                { label: 'Nativo', value: 'Nativo' },
+                { label: 'Alubry', value: 'Alubry' },
+                { label: 'Limay', value: 'Limay' }
+            ]
+        };
+
+        switch (currentLabel) {
+            case 'Proveedor':
                 // En partialEdit: 
                 // - Si NO edito: todo disabled.
                 // - Si edito: todo disabled MENOS email y telefono.
@@ -654,7 +738,109 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         </div>
                     </div>
                 );
-            case 2:
+            case 'Grupo y Empresa':
+                const groupDefinitions = [
+                    {
+                        id: 'EDESAL',
+                        name: 'EDESAL',
+                        icon: 'pi-bolt'
+                    },
+                    {
+                        id: 'ROVELLA',
+                        name: 'ROVELLA',
+                        icon: 'pi-building'
+                    }
+                ];
+
+                return (
+                    <div className="p-0 md:p-8">
+                        <StepHeader
+                            title="Grupo y Empresa"
+                            subtitle="Seleccione el grupo empresario y las empresas a las que el proveedor prestará servicio."
+                        />
+
+                        <div className="flex flex-col items-center justify-start mt-8">
+                            <div className="max-w-2xl w-full animate-fade-in text-center">
+
+                                <div className="mt-10">
+                                    <Label className="block text-center mb-6 text-base font-bold text-secondary-dark">¿A qué grupo pertenece?</Label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 px-4">
+                                        {groupDefinitions.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                onClick={() => {
+                                                    setFormData(prev => ({ ...prev, grupo: item.id, empresas: [] }));
+                                                    setIsCustomConfig(false); // Reset docs config when group changes
+                                                    markStepDirty(currentStep);
+                                                }}
+                                                className={`
+                                                group relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 transition-all duration-300 cursor-pointer overflow-hidden
+                                                ${formData.grupo === item.id
+                                                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.03] ring-1 ring-primary'
+                                                        : 'border-secondary/20 bg-white hover:border-primary/40 hover:shadow-lg hover:scale-[1.01]'
+                                                    }
+                                            `}
+                                            >
+                                                {/* Decoration background */}
+                                                <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full transition-all duration-500 opacity-10 group-hover:scale-150 ${formData.grupo === item.id ? 'bg-primary scale-150' : 'bg-secondary'}`}></div>
+
+                                                <div className={`p-4 rounded-2xl mb-5 transition-all duration-300 ${formData.grupo === item.id ? 'bg-primary text-white scale-110 shadow-lg' : 'bg-secondary-light text-secondary-dark group-hover:bg-primary/10 group-hover:text-primary'}`}>
+                                                    <i className={`pi ${item.icon} text-3xl`}></i>
+                                                </div>
+
+                                                <h3 className={`text-xl font-black transition-colors ${formData.grupo === item.id ? 'text-primary' : 'text-secondary-dark'}`}>
+                                                    {item.name}
+                                                </h3>
+
+                                                {formData.grupo === item.id && (
+                                                    <div className="absolute top-4 right-4 animate-scale-in">
+                                                        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white shadow-sm ring-4 ring-white">
+                                                            <i className="pi pi-check text-[10px] font-bold"></i>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {formData.grupo && (
+                                    <div className="mt-12 animate-fade-in px-4">
+                                        <div className="max-w-md mx-auto p-8 rounded-2xl border border-primary/20 bg-white shadow-xl shadow-secondary/5 relative overflow-hidden">
+                                            {/* Accent stripe */}
+                                            <div className="absolute top-0 left-0 w-full h-1.5 bg-primary/20"></div>
+
+                                            <div className="text-left">
+                                                <Label className="text-sm font-bold text-secondary-dark mb-4 flex items-center gap-2">
+                                                    <i className="pi pi-building-cap text-primary"></i> Seleccionar empresas de {formData.grupo}
+                                                </Label>
+                                                <MultiSelect
+                                                    name="empresas"
+                                                    value={formData.empresas}
+                                                    options={empresasByGrupo[formData.grupo] || []}
+                                                    onChange={(e) => {
+                                                        setFormData(prev => ({ ...prev, empresas: e.value }));
+                                                        markStepDirty(currentStep);
+                                                    }}
+                                                    placeholder="Elija una o más empresas"
+                                                    className="w-full"
+                                                    display="chip"
+                                                />
+                                                <div className="mt-4 p-3 bg-secondary-light/40 rounded-lg flex items-start gap-3">
+                                                    <i className="pi pi-info-circle text-primary mt-0.5 text-sm"></i>
+                                                    <p className="text-[11px] text-secondary-dark/70 font-medium leading-relaxed italic">
+                                                        Podrá asociar más empresas o grupos adicionales una vez completado el registro inicial.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'Ubicación':
                 const isStep2Disabled = readOnly || (partialEdit && !isEditingStep);
                 return (
                     <div className="p-0 md:p-8">
@@ -738,8 +924,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         </div>
                     </div>
                 );
-            case 3:
-                const isStep3Editing = !partialEdit || (partialEdit && isEditingStep);
+            case 'Contactos':
+                const isStep3Editing = !readOnly && (!partialEdit || (partialEdit && isEditingStep));
                 return (
                     <div className="p-0 md:p-8">
                         <StepHeader title="Contactos" subtitle="Personas autorizadas para gestiones." />
@@ -772,10 +958,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     />
                                     <Input
                                         size="sm"
-                                        label="Teléfono"
+                                        label="Celular / WhatsApp"
                                         value={newContact.movil}
                                         onChange={(e) => setNewContact({ ...newContact, movil: e.target.value })}
-                                        placeholder="+54 9 11 1234 5678"
+                                        placeholder="+54 9 11 ..."
+                                    />
+                                    <Input
+                                        size="sm"
+                                        label="Teléfono Fijo"
+                                        value={newContact.telefono}
+                                        onChange={(e) => setNewContact({ ...newContact, telefono: e.target.value })}
+                                        placeholder="+54 266 ..."
                                     />
                                     <Input
                                         size="sm"
@@ -838,11 +1031,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                 <span className="truncate">{contacto.email}</span>
                                             </div>
                                         )}
-                                        <div className="flex items-center justify-between gap-2">
-                                            {(contacto.movil || contacto.telefono) && (
+                                        <div className="flex flex-wrap items-center gap-y-1 gap-x-4">
+                                            {contacto.movil && (
                                                 <div className="flex items-center gap-2">
                                                     <i className="pi pi-whatsapp text-primary/80 text-[11px]"></i>
-                                                    <span>{contacto.movil || contacto.telefono}</span>
+                                                    <span>{contacto.movil}</span>
+                                                </div>
+                                            )}
+                                            {contacto.telefono && (
+                                                <div className="flex items-center gap-2">
+                                                    <i className="pi pi-phone text-primary/80 text-[11px]"></i>
+                                                    <span>{contacto.telefono}</span>
                                                 </div>
                                             )}
                                             {contacto.dni && (
@@ -866,7 +1065,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         </div>
                     </div>
                 );
-            case 4:
+            case 'Documentos':
                 // Wizard Mode: Config Enabled, Uploads Disabled
                 // Partial Edit: Config Disabled, Uploads Enabled (if editing)
                 const isStep4ConfigReadOnly = !isWizardMode;
@@ -903,6 +1102,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 <div className="flex flex-wrap gap-3 items-center">
                                     <span className="text-[10px] font-bold text-primary uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-primary/10">Basado en:</span>
                                     <div className="flex gap-2">
+                                        {formData.grupo && (
+                                            <span className="text-xs font-bold text-white px-2.5 py-1 bg-primary rounded-lg border border-primary/20 flex items-center gap-1.5">
+                                                <i className={`pi ${formData.grupo === 'EDESAL' ? 'pi-bolt' : 'pi-building'} text-[10px]`}></i>
+                                                {formData.grupo}
+                                            </span>
+                                        )}
                                         <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.tipoPersona}</span>
                                         <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.clasificacionAFIP}</span>
                                         <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.servicio}</span>
@@ -959,7 +1164,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         const file = e.target.files[0];
                                         if (file) {
                                             const fileUrl = URL.createObjectURL(file);
-                                            setDirtySteps(prev => new Set(prev).add(4));
+                                            setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
 
                                             setFormData(prev => {
                                                 const currentDocs = prev.documentacion || [];
@@ -1001,7 +1206,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
                                     const handleDateChange = (docId, date) => {
                                         if (date) {
-                                            setDirtySteps(prev => new Set(prev).add(4));
+                                            setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
                                             setFormData(prev => {
                                                 const currentDocs = prev.documentacion || [];
                                                 const docIndex = currentDocs.findIndex(d => d.tipo === docId);
@@ -1516,7 +1721,22 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     )}
 
                     {/* Botón Global de Guardar (Solo en partialEdit) */}
-                    {/* Botón Global de Guardar - ELIMINADO PARA SIMPLIFICAR UI (Guardado por pasos) */}
+                    {partialEdit && !readOnly && (
+                        <button
+                            onClick={() => handleSubmit(null)}
+                            disabled={dirtySteps.size === 0}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all
+                                ${dirtySteps.size > 0
+                                    ? 'bg-primary hover:bg-primary-hover text-white cursor-pointer hover:shadow-md active:scale-95'
+                                    : 'bg-secondary-light text-secondary/50 cursor-not-allowed border border-secondary/10'
+                                }
+                            `}
+                        >
+                            <i className="pi pi-save"></i>
+                            <span className="hidden md:inline">Guardar Cambios</span>
+                            <span className="md:hidden">Guardar</span>
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -1610,22 +1830,27 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     let isInvalid = false;
                     let missingMsg = '';
 
-                    if (stepNum === 1) {
+                    if (step === 'Proveedor') {
                         if (!formData.razonSocial || !formData.cuit || !formData.email) {
                             isInvalid = true;
                             missingMsg = 'Datos faltantes';
                         }
-                    } else if (stepNum === 2 && !isWizardMode) {
+                    } else if (step === 'Grupo y Empresa') {
+                        if (!formData.grupo || !formData.empresas || formData.empresas.length === 0) {
+                            isInvalid = true;
+                            missingMsg = 'Selección faltante';
+                        }
+                    } else if (step === 'Ubicación' && !isWizardMode) {
                         if (!formData.pais || !formData.provincia || !formData.localidad || !formData.codigoPostal || !formData.direccionFiscal) {
                             isInvalid = true;
                             missingMsg = 'Ubicación incompleta';
                         }
-                    } else if (stepNum === 3 && !isWizardMode) {
+                    } else if (step === 'Contactos' && !isWizardMode) {
                         if (formData.contactos.length === 0) {
                             isInvalid = true;
                             missingMsg = 'Sin contactos';
                         }
-                    } else if (stepNum === 4 && !isWizardMode) {
+                    } else if (step === 'Documentos' && !isWizardMode) {
                         const missingDocs = requiredDocs.some(req => {
                             // Skip validation for optional docs
                             if (req.obligatoriedad === 'Opcional' || req.isOptional) return false;
@@ -1647,12 +1872,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         <li
                             key={index}
                             onClick={() => {
-                                // Validation: Cannot enter Step 4 (Docs) if Step 1 (Fiscal) is incomplete
+                                // Validation: Cannot enter 'Documentos' if 'Proveedor' is incomplete
                                 const isStep1Invalid = !formData.razonSocial || !formData.cuit || !formData.email;
-                                if (isStep1Invalid && stepNum === 4) {
+                                if (isStep1Invalid && step === 'Documentos') {
                                     setValidationError("Debe completar los datos del proveedor (Paso 1) antes de configurar la documentación.");
                                     setTimeout(() => setValidationError(null), 3000); // Auto-dismiss after 3s
-                                    setCurrentStep(1); // Redirect to Step 1
+                                    setCurrentStep(getStepIdx('Proveedor')); // Redirect to Step 1
                                     return;
                                 }
                                 setCurrentStep(stepNum);

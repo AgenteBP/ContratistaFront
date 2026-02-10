@@ -10,10 +10,10 @@
 
     /* --- SEMÁNTICOS --- */
     /* Success */
-    --green-500: #10b981 !important;
-    /* Tu success.DEFAULT */
-    --green-100: #d1fae5 !important;
-    /* Tu success.light */
+    --green-500: #84cc16 !important;
+    /* Tu success.DEFAULT (LIME) */
+    --green-100: #ecfccb !important;
+    /* Tu success.light (LIME) */
 
     /* Info */
     --blue-500: #0ea5e9 !important;
@@ -151,4 +151,177 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
     /* Chrome, Safari and Opera */
+}
+
+/* --- PREMIUM PRIME-REACT TOAST OVERRIDES (Clean Industrial) --- */
+.p-toast.p-toast-top-right {
+    top: 24px !important;
+    right: 24px !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+.p-toast .p-toast-message {
+    background: #ffffff !important;
+    border-radius: 8px !important;
+    /* Sharper corners */
+    border: 1px solid #e2e8f0 !important;
+    /* Slate-200 subtle border */
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.05),
+        0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+    /* Cleaner shadow */
+    margin-bottom: 1rem !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.p-toast .p-toast-message:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Success Toast */
+.p-toast .p-toast-message.p-toast-message-success {
+    /* Solid Lime Border */
+    border-left: 6px solid var(--green-500) !important;
+}
+
+.p-toast .p-toast-message.p-toast-message-success .p-toast-message-icon {
+    color: var(--green-500) !important;
+    background-color: transparent !important;
+    /* Clean Icon */
+    font-size: 1.5rem !important;
+}
+
+/* Error Toast */
+.p-toast .p-toast-message.p-toast-message-error {
+    /* Solid Red Border */
+    border-left: 6px solid var(--red-500) !important;
+}
+
+.p-toast .p-toast-message.p-toast-message-error .p-toast-message-icon {
+    color: var(--red-500) !important;
+    background-color: transparent !important;
+    /* Clean Icon */
+    font-size: 1.5rem !important;
+}
+
+/* Info Toast */
+.p-toast .p-toast-message.p-toast-message-info {
+    /* Solid Blue Border */
+    border-left: 6px solid var(--blue-500) !important;
+}
+
+.p-toast .p-toast-message.p-toast-message-info .p-toast-message-icon {
+    color: var(--blue-500) !important;
+    background-color: transparent !important;
+    /* Clean Icon */
+    font-size: 1.5rem !important;
+}
+
+/* Content Layout */
+.p-toast .p-toast-message .p-toast-message-content {
+    padding: 1rem 1.25rem !important;
+    /* Tighter padding */
+    gap: 1rem !important;
+    align-items: center !important;
+}
+
+/* Typography */
+.p-toast .p-toast-message .p-toast-summary {
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    /* Slate-800 Darker text */
+    font-size: 0.95rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.p-toast .p-toast-message .p-toast-detail {
+    color: #64748b !important;
+    /* Slate-500 Muted text */
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+}
+
+/* Close Button */
+.p-toast .p-toast-icon-close {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    transition: all 0.2s !important;
+}
+
+.p-toast .p-toast-icon-close:hover {
+    background: #f1f5f9 !important;
+    /* Light gray hover */
+    color: #475569 !important;
+}
+
+/* --- FORCE MULTISELECT CHECKBOX VISIBILITY --- */
+/* Esta regla asegura que los checkboxes de los MultiSelect sean siempre visibles y estéticos. */
+.p-multiselect-item .p-checkbox .p-checkbox-box {
+    border: 2px solid rgba(99, 102, 241, 0.4) !important;
+    /* Borde primario sutil */
+    background-color: #eef2ff !important;
+    /* Fondo Indigo-50 suave pero MUY visible sobre blanco */
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease-in-out !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Estado SELECCIONADO */
+.p-multiselect-item.p-highlight .p-checkbox .p-checkbox-box {
+    background-color: #6366f1 !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Icono del check */
+.p-multiselect-item .p-checkbox .p-checkbox-box .p-checkbox-icon {
+    color: #ffffff !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+}
+
+/* Hover sobre item */
+.p-multiselect-item:not(.p-highlight):hover .p-checkbox .p-checkbox-box {
+    background-color: #ffffff !important;
+    border-color: #6366f1 !important;
+    transform: scale(1.05);
+    /* Micro-interacción premium */
+}
+
+/* --- FIX SELECT ALL CHECKBOX (HEADER) --- */
+/* Esta regla asegura que el checkbox de "Seleccionar Todo" sea igual de visible que los de los items */
+.p-multiselect-header .p-checkbox .p-checkbox-box {
+    border: 2px solid rgba(99, 102, 241, 0.4) !important;
+    background-color: #eef2ff !important;
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.p-multiselect-header .p-checkbox .p-checkbox-box.p-highlight {
+    background-color: #6366f1 !important;
+    border-color: #6366f1 !important;
+}
+
+.p-multiselect-header .p-checkbox .p-checkbox-box .p-checkbox-icon {
+    color: #ffffff !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+}
+
+.p-multiselect-header .p-checkbox:not(.p-checkbox-disabled):hover .p-checkbox-box {
+    border-color: #6366f1 !important;
+    background-color: #ffffff !important;
 }

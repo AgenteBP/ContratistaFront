@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { TbBackhoe } from 'react-icons/tb';
+import { useAuth } from '../../context/AuthContext';
 
 // Helper for rendering icons
 const renderIcon = (iconClassOrComponent, className = "") => {
@@ -163,19 +164,21 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
     };
 
     // --- Dynamic Menu Logic ---
-    const [userRole, setUserRole] = useState(null);
+    // 1. PASO A PASO: Ahora usamos los helpers booleanos que creamos en el AuthContext
+    // Esto hace que la lógica de "quién ve qué" sea mucho más legible.
+    const {
+        currentRole,
+        isAdmin,
+        isAuditor,
+        isAuditorTecnico,
+        isAuditorLegal,
+        isEmpresa,
+        isProveedor
+    } = useAuth();
 
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem('currentRole');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                setUserRole(parsed.role);
-            }
-        } catch (e) {
-            console.error("Error reading role", e);
-        }
-    }, []);
+    // El rol string sigue siendo útil para el switch de menús, 
+    // pero los booleanos son mejores para filtros granulares.
+    const userRole = currentRole?.role;
 
     const getMenuItems = (role) => {
         // Base items reusable across roles
@@ -222,7 +225,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
 
         // --- Role Configurations ---
 
-        if (role === 'PROVEEDOR') {
+        if (isProveedor) {
             return [
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/proveedor', badge: '!', badgeColor: 'danger' },
@@ -232,18 +235,21 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
             ];
         }
 
-        if (role === 'AUDITOR') {
+        if (isAuditor) {
             return [
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
                 SUBMENU_RECURSOS_STD,
-                { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' },
+                // FILTRADO DINÁMICO: Solo mostramos Auditoría Técnica si el rol lo es.
+                // En el futuro podrías añadir el item de Auditoría Legal aquí.
+                isAuditorTecnico ? { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' } : null,
+                isAuditorLegal ? { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' } : null,
                 SUBMENU_DOCUMENTOS,
                 ITEM_REPORTES
-            ];
+            ].filter(Boolean); // Limpiamos los nulls
         }
 
-        if (role === 'EMPRESA') {
+        if (isEmpresa) {
             // "Recursos" renamed to "Datos" excluding "Proveedores" as first item
             return [
                 ITEM_INICIO,
@@ -264,7 +270,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
             ];
         }
 
-        if (role === 'ADMIN') {
+        if (isAdmin) {
             return [
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-users', label: 'Usuarios', to: '/usuarios', end: true, badge: '7' },

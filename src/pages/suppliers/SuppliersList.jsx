@@ -45,20 +45,39 @@ const SuppliersList = () => {
             setLoading(true);
             // --- INTEGRACIÓN CON API (DESHABILITADA TEMPORALMENTE) ---
             // console.log("Iniciando fetch de proveedores...");
-            // const response = await supplierService.getAll();
-            // console.log("Respuesta API GetAll:", response);
+            const response = await supplierService.getAll();
+            console.log("Respuesta API GetAll:", response);
 
-            // if (!response || !Array.isArray(response)) {
-            //     console.error("Respuesta inválida API:", response);
-            //     throw new Error("La API no devolvió una lista válida de proveedores.");
-            // }
+            if (!response || !Array.isArray(response)) {
+                console.error("Respuesta inválida API:", response);
+                throw new Error("La API no devolvió una lista válida de proveedores.");
+            }
 
             // --- MOCK DATA ---
-            const data = MOCK_SUPPLIERS;
+            //const data = MOCK_SUPPLIERS;
 
-            // Map API data to Table structure (Mantenemos la lógica por si acaso, pero usando mock directo es más simple)
-            // Si usamos MOCK directo, ya tiene la estructura esperada por la tabla.
-            // const data = response.map(s => ({ ... }));
+            // Map API data to Table structure
+            const data = response.map(s => ({
+                id: s.cuit,
+                internalId: s.id_supplier,
+                razonSocial: s.company_name,
+                cuit: s.cuit,
+                nombreFantasia: s.fantasy_name,
+                tipoPersona: s.type_person || 'N/A',
+                clasificacionAFIP: s.classification_afip,
+                servicio: s.category_service || 'N/A',
+                email: s.email_corporate,
+                telefono: s.phone,
+                empleadorAFIP: s.is_an_afip_employer,
+                esTemporal: s.is_temporary_hiring,
+                estatus: s.active === 1 ? 'ACTIVO' : 'INACTIVO',
+                provincia: s.province,
+                localidad: s.city,
+                motivo: s.document_supplier?.observaciones,
+                accesoHabilitado: s.user?.active,
+                facturasAPOC: 'No', // Default for now
+                altaSistema: 'N/A' // Default for now
+            }));
 
             // Para debug
             console.log("Proveedores cargados:", data);
@@ -97,6 +116,15 @@ const SuppliersList = () => {
             }
         },
         {
+            label: 'Asociar Empresa',
+            icon: 'pi pi-link',
+            command: () => {
+                if (selectedRow) {
+                    navigate(`/proveedores/${selectedRow.id}/asociar-empresa`);
+                }
+            }
+        },
+        {
             label: 'Editar',
             icon: 'pi pi-pencil',
             command: () => {
@@ -105,10 +133,11 @@ const SuppliersList = () => {
         },
         { separator: true },
         {
-            label: 'Borrar',
-            icon: 'pi pi-trash',
+            label: 'Suspender',
+            icon: 'pi pi-ban',
             className: 'text-red-500',
             command: () => {
+                console.log("Suspendiendo a:", selectedRow?.razonSocial);
             }
         }
     ];
@@ -128,7 +157,7 @@ const SuppliersList = () => {
         <div className="bg-secondary-light border-t border-secondary/20 p-4 shadow-inner animate-fade-in text-sm">
             <div className="flex items-center gap-2 mb-3">
                 <i className="pi pi-id-card text-primary text-lg"></i>
-                <h5 className="font-bold text-secondary-dark">Ficha del Proveedor #{data.id}</h5>
+                <h5 className="font-bold text-secondary-dark">Ficha del Proveedor</h5>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-2">
@@ -257,9 +286,13 @@ const SuppliersList = () => {
 
                     <div className="relative">
                         <Dropdown
-                            value={filters?.servicio}
+                            value={filters?.servicio?.value}
                             options={servicios.map(s => ({ label: s, value: s }))}
-                            onChange={(e) => setFilters({ ...filters, servicio: e.value })}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['servicio'].value = e.value;
+                                setFilters(_filters);
+                            }}
                             placeholder="SERVICIO"
                             className="w-full md:w-48"
                         />
@@ -278,9 +311,13 @@ const SuppliersList = () => {
 
                     <div className="relative">
                         <Dropdown
-                            value={filters?.estado}
+                            value={filters?.estatus?.value}
                             options={estatusOptions.map(s => ({ label: s, value: s }))}
-                            onChange={(e) => setFilters({ ...filters, estado: e.value })}
+                            onChange={(e) => {
+                                let _filters = { ...filters };
+                                _filters['estatus'].value = e.value;
+                                setFilters(_filters);
+                            }}
                             placeholder="ESTADO"
                             className="w-full md:w-48"
                         />
@@ -372,8 +409,8 @@ const SuppliersList = () => {
                 {/* Expander Column: Visible (Spacer on Mobile due to global CSS hiding arrow) */}
                 <Column expander={true} style={{ width: '2rem' }} className="2xl:hidden" headerClassName="2xl:hidden" />
 
-                <Column field="id" header="#" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
-                <Column field="razonSocial" header="Razón Social" sortable className="font-bold text-secondary-dark"></Column>
+                {/* Column 'id' removed as requested */}
+                <Column field="razonSocial" header="Razón Social" sortable className="font-bold text-secondary-dark pl-6" headerClassName="pl-6"></Column>
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
                 <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>

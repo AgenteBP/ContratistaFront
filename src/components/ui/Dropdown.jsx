@@ -9,7 +9,7 @@ const Dropdown = ({ value, pt, className, placeholder, error, ...props }) => {
     // Standardized styles using PrimeReact PassThrough (pt)
     const defaultPt = {
         root: {
-            className: `w-full border ${error ? 'border-red-500' : 'border-secondary/30'} rounded-lg h-[42px] flex items-center hover:border-primary focus-within:border-primary transition-colors bg-white`
+            className: `w-full border ${error ? 'border-red-500' : 'border-secondary/40'} rounded-lg h-[42px] flex items-center hover:border-primary focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-white shadow-sm hover:shadow-md`
         },
         input: {
             className: `w-full text-sm px-3 uppercase font-sans ${hasValue ? 'text-secondary-dark' : 'text-gray-400'}`

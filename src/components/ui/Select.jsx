@@ -15,7 +15,7 @@ const Select = ({ label, options, size = 'md', ...props }) => {
       <div className="relative">
         <select
           {...props}
-          className={`appearance-none bg-white border border-secondary/30 outline-none transition-all block w-full uppercase
+          className={`appearance-none bg-white border border-secondary/40 outline-none transition-all block w-full uppercase shadow-sm hover:shadow-md
           focus:ring-2 focus:ring-primary/20 focus:border-primary
           ${sizeClasses[size] || sizeClasses.md}
           ${props.disabled ? 'bg-secondary-light cursor-not-allowed text-secondary border-secondary/10' : ''}
