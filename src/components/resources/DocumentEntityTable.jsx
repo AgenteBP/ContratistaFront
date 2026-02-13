@@ -12,6 +12,7 @@ import { StatusBadge } from '../ui/Badges';
 import PrimaryButton from '../ui/PrimaryButton';
 import ObservationModal from '../ui/ObservationModal';
 import AppTable from '../ui/AppTable';
+import TableFilters from '../ui/TableFilters';
 
 // --- Mocks ---
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
@@ -208,6 +209,18 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
         </div>
     );
 
+    const docTypeTemplate = (rowData) => (
+        <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${rowData.archivo ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
+                <i className={`pi ${rowData.archivo ? 'pi-file-pdf' : 'pi-file'} text-lg`}></i>
+            </div>
+            <div className="flex flex-col">
+                <span className="font-medium text-secondary-dark text-sm">{rowData.tipo.replace(/_/g, ' ')}</span>
+                <span className="text-[10px] text-secondary">{rowData.frecuencia}</span>
+            </div>
+        </div>
+    );
+
     const statusBodyTemplate = (rowData) => {
         const status = rowData.estado;
         return (
@@ -221,6 +234,11 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
         );
     };
 
+    const statusOptions = ['VIGENTE', 'VENCIDO', 'PENDIENTE', 'EN REVISIÓN', 'CON OBSERVACIÓN'];
+
+    // Extract unique document types for the filter (raw values)
+    const docTypes = [...new Set(data.map(item => item.tipo))];
+
     const getEntityHeader = () => {
         switch (type) {
             case 'employees': return 'Empleado';
@@ -230,132 +248,37 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
         }
     };
 
-    const docTypeTemplate = (rowData) => (
-        <div className="flex items-center gap-3">
-            <div className="bg-secondary-light p-2.5 rounded-lg text-secondary group-hover:text-primary group-hover:bg-primary/5 transition-all shrink-0">
-                <i className="pi pi-file text-sm"></i>
-            </div>
-            <div className="max-w-[200px] flex flex-col">
-                <span className="font-bold text-xs text-secondary-dark uppercase block truncate" title={rowData.tipo.replace(/_/g, ' ')}>
-                    {rowData.tipo.replace(/_/g, ' ')}
-                </span>
-                {rowData.obligatorio !== undefined && (
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded w-fit mt-0.5 tracking-wider ${rowData.obligatorio ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-secondary-light/50 text-secondary border border-secondary/10'}`}>
-                        {rowData.obligatorio ? 'OBLIGATORIO' : 'OPCIONAL'}
-                    </span>
-                )}
-            </div>
-        </div>
-    );
+    const filterConfig = [
+        { label: 'Estado', value: 'estado', options: statusOptions.map(s => ({ label: s, value: s })) },
+        { label: 'Tipo de Documento', value: 'tipo', options: docTypes.map(t => ({ label: t.replace(/_/g, ' '), value: t })) }
+    ];
 
-    const statusOptions = ['VIGENTE', 'VENCIDO', 'PENDIENTE', 'EN REVISIÓN', 'CON OBSERVACIÓN'];
-
-    // Extract unique document types for the filter (raw values)
-    const docTypes = [...new Set(data.map(item => item.tipo))];
+    if (type !== 'suppliers') {
+        filterConfig.push({
+            label: getEntityHeader(),
+            value: 'entityName',
+            options: [...new Set(data.map(d => d.entityName))].map(n => ({ label: n, value: n }))
+        });
+    }
 
     const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-6 py-4 space-y-4">
-            {/* Top Row: Search and Actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="relative w-full md:w-[400px]">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <i className="pi pi-search text-secondary/50 text-sm"></i>
-                    </div>
-                    <input
-                        type="text"
-                        value={globalFilterValue}
-                        onChange={onGlobalFilterChange}
-                        className="bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-sm rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-10 p-2.5 outline-none transition-all placeholder:text-secondary/40"
-                        placeholder={`Buscar en ${type}...`}
-                    />
-                </div>
-
+        <TableFilters
+            filters={filters}
+            setFilters={setFilters}
+            globalFilterValue={globalFilterValue}
+            onGlobalFilterChange={onGlobalFilterChange}
+            config={filterConfig}
+            totalItems={data.length}
+            filteredItems={filteredData ? filteredData.length : null}
+            topRightContent={
                 <div className="flex items-center gap-3 shrink-0">
                     <button className="flex-1 md:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2.5 transition-all flex items-center justify-center gap-2 shadow-sm">
                         <i className="pi pi-file-excel text-success"></i> <span className="hidden lg:inline">Exportar Excel</span>
                     </button>
-
                 </div>
-            </div>
-
-            {/* Bottom Row: Filters */}
-            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-secondary/5">
-                <div className="flex items-center gap-2 text-secondary/50 text-[10px] uppercase font-bold tracking-wider mr-2">
-                    <i className="pi pi-filter"></i> Filtros:
-                </div>
-
-                <Dropdown
-                    value={filters.estado.value}
-                    options={statusOptions.map(s => ({ label: s, value: s }))}
-                    onChange={(e) => {
-                        let _filters = { ...filters };
-                        _filters['estado'].value = e.value;
-                        setFilters(_filters);
-                    }}
-                    placeholder="Estado"
-                    className="w-full sm:w-40"
-                    pt={{
-                        root: { className: 'w-full sm:w-40 bg-white border border-secondary/30 rounded-lg h-9 flex items-center focus-within:ring-2 focus-within:ring-primary/50 shadow-sm' },
-                        input: { className: 'text-xs px-3 text-secondary-dark font-medium' },
-                        trigger: { className: 'w-8 text-secondary flex items-center justify-center border-l border-secondary/10' },
-                        panel: { className: 'text-xs bg-white border border-secondary/10 shadow-xl rounded-lg mt-1' },
-                        item: { className: 'p-2.5 hover:bg-secondary-light text-secondary-dark transition-colors' }
-                    }}
-                />
-
-                <Dropdown
-                    value={filters.tipo.value}
-                    options={docTypes.map(t => ({ label: t.replace(/_/g, ' '), value: t }))}
-                    onChange={(e) => {
-                        let _filters = { ...filters };
-                        _filters['tipo'].value = e.value;
-                        setFilters(_filters);
-                    }}
-                    placeholder="Tipo de Documento"
-                    className="w-full sm:w-56"
-                    showClear={!!filters.tipo.value}
-                    pt={{
-                        root: { className: 'w-full sm:w-56 bg-white border border-secondary/30 rounded-lg h-9 flex items-center focus-within:ring-2 focus-within:ring-primary/50 shadow-sm' },
-                        input: { className: 'text-xs px-3 text-secondary-dark font-medium' },
-                        trigger: { className: 'w-8 text-secondary flex items-center justify-center border-l border-secondary/10' },
-                        panel: { className: 'text-xs bg-white border border-secondary/10 shadow-xl rounded-lg mt-1' },
-                        item: { className: 'p-2.5 hover:bg-secondary-light text-secondary-dark transition-colors' }
-                    }}
-                />
-
-                {type !== 'suppliers' && (
-                    <Dropdown
-                        value={filters.entityName.value}
-                        options={[...new Set(data.map(d => d.entityName))].map(n => ({ label: n, value: n }))}
-                        onChange={(e) => {
-                            let _filters = { ...filters };
-                            _filters['entityName'].value = e.value;
-                            setFilters(_filters);
-                        }}
-                        placeholder={getEntityHeader()}
-                        className="w-full sm:w-48"
-                        showClear={!!filters.entityName.value}
-                        pt={{
-                            root: { className: 'w-full sm:w-48 bg-white border border-secondary/30 rounded-lg h-9 flex items-center focus-within:ring-2 focus-within:ring-primary/50 shadow-sm' },
-                            input: { className: 'text-xs px-3 text-secondary-dark font-medium' },
-                            trigger: { className: 'w-8 text-secondary flex items-center justify-center border-l border-secondary/10' },
-                            panel: { className: 'text-xs bg-white border border-secondary/10 shadow-xl rounded-lg mt-1' },
-                            item: { className: 'p-2.5 hover:bg-secondary-light text-secondary-dark transition-colors' }
-                        }}
-                    />
-                )}
-
-                {(filters.estado.value || filters.entityName.value || filters.tipo.value) && (
-                    <button
-                        onClick={initFilters}
-                        className="ml-auto sm:ml-2 text-danger bg-danger/5 hover:bg-danger/10 border border-danger/10 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                    >
-                        <i className="pi pi-filter-slash"></i>
-                        Limpiar Filtros
-                    </button>
-                )}
-            </div>
-        </div>
+            }
+            itemName="DOCUMENTOS"
+        />
     );
 
     return (

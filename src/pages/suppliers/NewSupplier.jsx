@@ -5,11 +5,17 @@ import UserForm from '../../components/ui/UserForm';
 import RoleSelection from '../../components/ui/RoleSelection';
 import SupplierForm from './SupplierForm';
 import AuditorForm from '../auditors/AuditorForm';
+import CompanyForm from '../companies/CompanyForm';
 import SelectionToggle from '../../components/ui/SelectionToggle';
 import { userService } from '../../services/userService';
 import { supplierService } from '../../services/supplierService';
+import { auditorService } from '../../services/auditorService';
+import { companyService } from '../../services/companyService';
+import { groupService } from '../../services/groupService';
+import { companyClientService } from '../../services/companyClientService';
 import { MOCK_USERS } from '../../data/mockUsers';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
+import { formatCUIT } from '../../utils/formatUtils';
 import Dropdown from '../../components/ui/Dropdown';
 
 const NewSupplier = () => {
@@ -30,27 +36,96 @@ const NewSupplier = () => {
   const [createdUser, setCreatedUser] = useState(null);
   const [selectedExistingSupplier, setSelectedExistingSupplier] = useState(null);
 
+  // Real Data State
+  const [users, setUsers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [auditors, setAuditors] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [filteredCompanies, setFilteredCompanies] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Load Users and Suppliers on Mount
+  // Load Users and Suppliers on Mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+
+      // 1. Fetch Users (Critical)
+      try {
+        const usersData = await userService.getAll();
+        setUsers(usersData || []);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+
+      // 2. Fetch Suppliers (Critical)
+      try {
+        const suppliersData = await supplierService.getAll();
+        setSuppliers(suppliersData || []);
+      } catch (error) {
+        console.error("Error fetching suppliers:", error);
+      }
+
+      // 3. Fetch Auditors (Optional/New)
+      try {
+        const auditorsData = await auditorService.getAll();
+        setAuditors(auditorsData || []);
+      } catch (error) {
+        console.error("Error fetching auditors (Check Backend):", error);
+      }
+
+      // 4. Fetch Companies (Optional/New)
+      try {
+        const companiesData = await companyService.getAll();
+        setCompanies(companiesData || []);
+      } catch (error) {
+        console.error("Error fetching companies:", error);
+      }
+
+      setLoading(false);
+    };
+
+    const fetchGroups = async () => {
+      try {
+        const data = await groupService.getAll();
+        setGroups(data || []);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      }
+    };
+
+    fetchData();
+    fetchGroups();
+  }, []);
+
+
   // Efecto para cargar usuario existente si hay ID
   useEffect(() => {
     if (id) {
-      // Simular fetch de usuario
-      const existingUser = MOCK_USERS.find(u => u.id === parseInt(id));
-      if (existingUser) {
-        setUserData(existingUser);
-        setCreatedUser(existingUser);
+      const fetchExistingUser = async () => {
+        try {
+          const user = await userService.getById(id);
+          if (user) {
+            setUserData(user);
+            setCreatedUser(user);
 
-        // Check for preSelectedRole
-        if (preSelectedRole) {
-          // Validate if role exists/is valid could be done here, but let's assume valid for now
-          setSelectedRole(preSelectedRole);
-          setCurrentStep(3); // Jump directly to form
-        } else {
-          setCurrentStep(2); // Normal flow: Role Selection
+            if (preSelectedRole) {
+              setSelectedRole(preSelectedRole);
+              setCurrentStep(3);
+            } else {
+              setCurrentStep(2);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching user by ID:", error);
         }
-      } else {
-        alert("Usuario no encontrado");
-        navigate('/usuarios');
-      }
+      };
+
+      if (id) fetchExistingUser(); // Call API instead of Mock
+
+      // Fallback logic removed for cleaner implementation
     }
   }, [id, navigate, preSelectedRole]);
 
@@ -77,48 +152,174 @@ const NewSupplier = () => {
   // Paso 3: Entidad completada (Supplier)
   const handleSupplierSubmit = async (supplierFormData) => {
     try {
-      let userToUse = createdUser;
+      // 1. Prepare Data for Backend
+      // We need to send a SupplierInsertDTO which includes the user RegisterRequest
 
-      // 1. Crear Usuario (SOLO SI NO EXISTE)
-      if (!id) {
-        // --- INTEGRACIÓN CON API ---
-        // if (!createdUser) {
-        //   userToUse = await userService.create(userData);
-        //   setCreatedUser(userToUse);
-        // }
-        // --- MOCK ---
-        if (!createdUser) {
-          console.log("[MOCK] Creando usuario:", userData);
-          userToUse = { ...userData, id: Date.now() }; // ID temporal
-          setCreatedUser(userToUse);
-        }
+      // Map frontend role name to backend enum
+      let backendRole = selectedRole;
+      if (selectedRole === 'PROVEEDOR') {
+        backendRole = 'SUPPLIER';
+      } else if (selectedRole === 'EMPRESA') {
+        backendRole = 'CUSTOMER';
       }
 
-      // 2. Asignar Rol
-      // --- INTEGRACIÓN CON API ---
-      // await userService.assignRole(userToUse.id, selectedRole);
-      // --- MOCK ---
-      console.log(`[MOCK] Asignando rol ${selectedRole} a usuario ${userToUse.id}`);
+      // Construct RegisterRequest part
+      const registerRequest = {
+        userName: userData.username,
+        password: userData.password || 'default123', // Handle password if missing in existing
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        role: backendRole, // 'SUPPLIER', 'AUDITOR', 'CUSTOMER'
+        active: true
+      };
 
-      // 3. Crear O Asociar Supplier (si aplica)
+      // Construct Supplier part (Only if PROVEEDOR for now)
       if (selectedRole === 'PROVEEDOR') {
-        if (selectedExistingSupplier) {
-          console.log(`Asociando proveedor existente ID ${selectedExistingSupplier.id} a usuario ${userToUse.id}`);
-          // supplierService.associate(userToUse.id, selectedExistingSupplier.id);
+
+        let supplierPayload = {};
+
+        if (supplierMode === 'EXISTING' && selectedExistingSupplier) {
+          // LINKING EXISTING SUPPLIER
+          supplierPayload = {
+            registerRequest: registerRequest,
+            // Minimal data to identify supplier (Backend looks up by CUIT)
+            cuit: selectedExistingSupplier.cuit,
+            // We can pass other fields but they won't be updated by default logic
+            company_name: selectedExistingSupplier.company_name,
+            fantasy_name: selectedExistingSupplier.fantasy_name,
+            // ... other fields as needed to pass validation if strictly required, 
+            // but backend mainly needs CUIT for existing check.
+          };
         } else if (supplierFormData) {
-          console.log("Creando NUEVO proveedor asociado al usuario " + userToUse.id);
-          // --- INTEGRACIÓN CON API ---
-          // const finalSupplierData = { ...supplierFormData, userId: userToUse.id };
-          // await supplierService.create(finalSupplierData);
-          // --- MOCK ---
-          console.log("[MOCK] Datos proveedor create:", { ...supplierFormData, userId: userToUse.id });
+          // CREATING NEW SUPPLIER (or updating DTO struct)
+          supplierPayload = {
+            // User Data embedded
+            registerRequest: registerRequest,
+
+            // Supplier Data
+            company_name: supplierFormData.razonSocial,
+            cuit: Number(supplierFormData.cuit.replace(/-/g, '')), // Strip dashes if any
+            fantasy_name: supplierFormData.nombreFantasia,
+            type_person: supplierFormData.tipoPersona,
+            classification_afip: supplierFormData.clasificacionAFIP,
+            category_service: supplierFormData.servicio,
+            email_corporate: supplierFormData.email,
+            phone: supplierFormData.telefono ? Number(supplierFormData.telefono) : null,
+            is_an_afip_employer: supplierFormData.empleadorAFIP,
+            is_temporary_hiring: supplierFormData.esTemporal,
+
+            // Address
+            country: supplierFormData.pais,
+            province: supplierFormData.provincia,
+            city: supplierFormData.localidad,
+            postal_code: supplierFormData.codigoPostal ? Number(supplierFormData.codigoPostal) : null,
+            address_tax: supplierFormData.direccionFiscal,
+            address_real: supplierFormData.direccionReal,
+
+            // CONTACTS - APPLYING FIX HERE
+            contacts: supplierFormData.contactos ? {
+              list: supplierFormData.contactos.map(c => ({
+                ...c, // SPREAD ORIGINAL FIELDS TO PRESERVE DATA (Fix)
+                id: c.id,
+                nombre: c.nombre ? String(c.nombre).trim() : '',
+                tipo: c.tipo ? String(c.tipo).trim() : '',
+                dni: c.dni ? String(c.dni).trim() : '',
+                email: c.email ? String(c.email).trim() : '',
+                movil: c.movil ? String(c.movil).trim() : '',
+                telefono: c.telefono ? String(c.telefono).trim() : '',
+              }))
+            } : null,
+
+            // Documents
+            document_supplier: supplierFormData.documentacion ? {
+              list: supplierFormData.documentacion.map(d => ({
+                id: d.id,
+                tipo: d.tipo,
+                estado: d.estado,
+                archivo: d.archivo,
+                observacion: d.observacion,
+                fechaVencimiento: d.fechaVencimiento instanceof Date ? d.fechaVencimiento.toISOString().split('T')[0] : d.fechaVencimiento
+              }))
+            } : null
+          };
+        }
+
+        console.log("PAYLOAD FOR BACKEND:", supplierPayload);
+
+        // CALL API
+        const response = await supplierService.create(supplierPayload);
+        console.log("Response:", response);
+
+      } else if (selectedRole === 'AUDITOR') {
+        let auditorPayload = {};
+
+        if (supplierMode === 'EXISTING' && selectedExistingSupplier) {
+          // ...
+          console.warn("Linking existing auditor not yet fully implemented in backend DTO structure.");
+        } else if (supplierFormData) {
+          // CREATING NEW AUDITOR
+          // We need to match AuditsInsertDTO structure from AuditorsController
+
+          // Map auditor type to backend enum
+          let auditorType = supplierFormData.tipo;
+          if (auditorType === 'TECNICO') auditorType = 'TECHNICAL';
+          if (auditorType === 'LEGAL') auditorType = 'LEGAL';
+
+          auditorPayload = {
+            registerRequest: registerRequest,
+            registration_number: supplierFormData.matricula,
+            type_auditor: auditorType,
+            // Extracts the first company ID if any selected in AuditorForm
+            id_company: supplierFormData.empresas?.[0]?.idCompany || supplierFormData.empresas?.[0]?.id || null
+          };
+        }
+
+        console.log("AUDITOR PAYLOAD:", auditorPayload);
+        const response = await auditorService.create(auditorPayload);
+        console.log("Auditor Created:", response);
+
+      } else if (selectedRole === 'EMPRESA') {
+        let companyId = null;
+
+        if (supplierMode === 'NEW' && supplierFormData) {
+          // 1. Create the Company with Group (using new unified service method implicitly via controller)
+          const response = await companyService.create(supplierFormData);
+          companyId = response.idCompany;
+        } else if (selectedExistingSupplier) {
+          // Use ID from existing selection
+          companyId = selectedExistingSupplier.idCompany || selectedExistingSupplier.id;
+        }
+
+        if (companyId) {
+          // 2. Create the CompanyClient mapping
+          const companyClientPayload = {
+            id_company: companyId,
+            userName: userData.username,
+            password: userData.password || 'default123',
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            role: 'CUSTOMER',
+            active: true,
+            rank: 'Representante'
+          };
+
+          console.log("COMPANY CLIENT PAYLOAD:", companyClientPayload);
+          const response = await companyClientService.create(companyClientPayload);
+          console.log("Company Client Linked:", response);
+        } else {
+          throw new Error("No se pudo identificar o crear la empresa para asociar.");
+        }
+      } else {
+        // Default User creation without entity
+        if (!userData.id) {
+          // await userService.create(registerRequest);
         }
       }
 
       setCurrentStep(4);
     } catch (error) {
       console.error("Error en el wizard:", error);
-      alert("Hubo un error al crear los registros.");
+      alert("Hubo un error al crear los registros. Verifique consola.");
     }
   };
 
@@ -139,8 +340,14 @@ const NewSupplier = () => {
   // Helper para saber si el usuario ya tiene el rol
   const userHasRole = (role) => {
     if (!userData) return false;
-    // Chequeo simple basado en rolesDetails del mock
-    return userData.rolesDetails && userData.rolesDetails.some(r => r.roleName === role);
+    // Chequeo basado en rolesDetails o roles array
+    if (userData.roles) {
+      // API returns roles as array of strings or objects? Check MapToUserDTO
+      // DTO returns List<Role> which enum. So likely strings or objects depending on JSON serialization.
+      // Let's assume array of strings or objects with 'name'
+      return userData.roles.some(r => r === role || r.name === role || r.roleName === role);
+    }
+    return false;
   };
 
   // --- RENDERIZADO POR PASO ---
@@ -185,19 +392,24 @@ const NewSupplier = () => {
                     <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Buscar Usuario</label>
                     <Dropdown
                       value={userData}
-                      options={MOCK_USERS}
+                      options={users} // REAL DATA
                       onChange={(e) => setUserData(e.value)}
                       optionLabel="username"
                       itemTemplate={(option) => (
                         <div className="flex flex-col">
-                          <span className="font-bold">{option.firstName} {option.lastName}</span>
+                          <span className="font-bold">
+                            {(option.firstName || '')} {(option.lastName || '')}
+                            {(!option.firstName && !option.lastName) && <span className="text-gray-400">Sin Nombre</span>}
+                          </span>
                           <span className="text-xs text-secondary">@{option.username}</span>
                         </div>
                       )}
                       filter
                       filterBy="username,firstName,lastName"
-                      placeholder="Escriba para buscar..."
+                      placeholder={loading ? "Cargando..." : "Escriba para buscar..."}
                       className="w-full h-10"
+                      disabled={loading || users.length === 0}
+                      emptyMessage="No hay usuarios disponibles"
                     />
                   </div>
 
@@ -268,19 +480,20 @@ const NewSupplier = () => {
                       <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Buscar Empresa / Proveedor</label>
                       <Dropdown
                         value={selectedExistingSupplier}
-                        options={MOCK_SUPPLIERS}
-                        optionLabel="razonSocial"
+                        options={suppliers} // REAL DATA
+                        optionLabel="company_name" // DTO field name
                         onChange={(e) => setSelectedExistingSupplier(e.value)}
                         itemTemplate={(option) => (
                           <div className="flex flex-col">
-                            <span className="font-bold">{option.razonSocial}</span>
-                            <span className="text-xs text-secondary">CUIT: {option.cuit}</span>
+                            <span className="font-bold">{option.company_name}</span>
+                            <span className="text-xs text-secondary">CUIT: {formatCUIT(option.cuit)}</span>
                           </div>
                         )}
                         filter
-                        filterBy="razonSocial,cuit"
-                        placeholder="Buscar por Razón Social o CUIT..."
+                        filterBy="company_name,cuit"
+                        placeholder={loading ? "Cargando..." : "Buscar por Razón Social o CUIT..."}
                         className="w-full h-10"
+                        disabled={loading}
                       />
                     </div>
 
@@ -309,11 +522,215 @@ const NewSupplier = () => {
         }
         if (selectedRole === 'AUDITOR') {
           return (
-            <AuditorForm
-              initialData={{ nombre: userData?.firstName, apellido: userData?.lastName }}
-              onSubmit={handleSupplierSubmit}
-              onBack={handleBack}
-            />
+            <div className="bg-white p-6 rounded-xl border border-secondary/20 shadow-sm animate-fade-in">
+              <SelectionToggle
+                options={[
+                  { label: isExistingRole ? "Agregar Nuevo Rol Auditor" : "Crear Nuevo Auditor", value: 'NEW' },
+                  { label: "Asociar Auditor Existente", value: 'EXISTING' }
+                ]}
+                value={supplierMode}
+                onChange={setSupplierMode}
+              />
+
+              <div className="mt-6">
+                {supplierMode === 'NEW' ? (
+                  <AuditorForm
+                    initialData={{ nombre: userData?.firstName, apellido: userData?.lastName }}
+                    onSubmit={handleSupplierSubmit}
+                    onBack={handleBack}
+                    companies={companies}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-6 max-w-md mx-auto text-center py-4">
+                    <div className="bg-blue-50 text-blue-700 p-4 rounded-lg flex items-start gap-3 text-sm text-left">
+                      <i className="pi pi-info-circle text-lg mt-0.5"></i>
+                      <p>Seleccione un auditor ya registrado para vincularlo a este usuario.</p>
+                    </div>
+
+                    <div className="text-left">
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">Buscar Auditor</label>
+                      <Dropdown
+                        value={selectedExistingSupplier}
+                        options={auditors}
+                        optionLabel="registration_number"
+                        onChange={(e) => setSelectedExistingSupplier(e.value)}
+                        itemTemplate={(option) => (
+                          <div className="flex flex-col">
+                            <span className="font-bold">
+                              {option.user ? `${option.user.firstName || ''} ${option.user.lastName || ''}` : 'Sin Usuario'}
+                            </span>
+                            <span className="text-xs text-secondary">Matrícula: {option.registration_number || '-'} - {option.type_auditor || ''}</span>
+                          </div>
+                        )}
+                        filter
+                        filterBy="registration_number"
+                        placeholder={loading ? "Cargando..." : "Buscar por Matrícula..."}
+                        className="w-full h-10"
+                        disabled={loading || auditors.length === 0}
+                        emptyMessage="No hay auditores disponibles"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSupplierSubmit}
+                      disabled={!selectedExistingSupplier}
+                      className={`w-full py-3 rounded-lg font-bold text-white transition-all shadow-lg
+                                            ${selectedExistingSupplier ? 'bg-primary hover:bg-primary-hover shadow-primary/30' : 'bg-gray-300 cursor-not-allowed'}
+                                        `}
+                    >
+                      Vincular Auditor <i className="pi pi-check ml-2"></i>
+                    </button>
+                    <div className="mt-4 flex justify-start">
+                      <button
+                        onClick={handleBack}
+                        className="text-secondary hover:text-black font-medium flex items-center gap-2"
+                      >
+                        <i className="pi pi-arrow-left"></i> Volver
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        if (selectedRole === 'EMPRESA') {
+          return (
+            <div className="bg-white p-6 rounded-xl border border-secondary/20 shadow-sm animate-fade-in">
+              <SelectionToggle
+                options={[
+                  { label: "Crear Nueva Empresa", value: 'NEW' },
+                  { label: "Asociar Empresa Existente", value: 'EXISTING' }
+                ]}
+                value={supplierMode}
+                onChange={(mode) => {
+                  setSupplierMode(mode);
+                  setSelectedExistingSupplier(null);
+                  setSelectedGroup(null);
+                  setFilteredCompanies([]);
+                }}
+              />
+
+              <div className="mt-6">
+                {supplierMode === 'NEW' ? (
+                  <CompanyForm
+                    title="Nueva Empresa"
+                    subtitle="Registre una nueva empresa en el sistema."
+                    onSubmit={handleSupplierSubmit}
+                    onBack={handleBack}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-6 max-w-md mx-auto text-center py-4">
+                    <div className="bg-blue-50 text-blue-700 p-4 rounded-lg flex items-start gap-3 text-sm text-left">
+                      <i className="pi pi-info-circle text-lg mt-0.5"></i>
+                      <p>Seleccione primero el grupo para filtrar las empresas disponibles.</p>
+                    </div>
+
+                    {/* Grupo Selection */}
+                    <div className="text-left">
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">1. Seleccionar Grupo</label>
+                      <Dropdown
+                        value={selectedGroup}
+                        options={groups}
+                        optionLabel="description"
+                        onChange={async (e) => {
+                          setSelectedGroup(e.value);
+                          setSelectedExistingSupplier(null);
+                          if (e.value) {
+                            setLoading(true);
+                            try {
+                              const results = await companyService.getByGroup(e.value.idGroup);
+                              setFilteredCompanies(results || []);
+                            } catch (err) {
+                              console.error("Error filtering companies:", err);
+                              setFilteredCompanies([]);
+                            } finally {
+                              setLoading(false);
+                            }
+                          } else {
+                            setFilteredCompanies([]);
+                          }
+                        }}
+                        itemTemplate={(option) => {
+                          const desc = option.description ? option.description.toUpperCase() : '';
+                          const isEdesal = desc.includes('EDESAL');
+                          return (
+                            <div className="flex items-center gap-2">
+                              {isEdesal ?
+                                <i className="pi pi-bolt text-primary"></i> :
+                                <i className="pi pi-building text-secondary"></i>
+                              }
+                              <span>{option.description}</span>
+                            </div>
+                          );
+                        }}
+                        valueTemplate={(option, props) => {
+                          if (option) {
+                            const desc = option.description ? option.description.toUpperCase() : '';
+                            const isEdesal = desc.includes('EDESAL');
+                            return (
+                              <div className="flex items-center gap-2">
+                                {isEdesal ?
+                                  <i className="pi pi-bolt text-primary"></i> :
+                                  <i className="pi pi-building text-secondary"></i>
+                                }
+                                <span>{option.description}</span>
+                              </div>
+                            );
+                          }
+                          return <span>{props.placeholder}</span>;
+                        }}
+                        placeholder="Seleccione un grupo..."
+                        className="w-full h-10"
+                        filter
+                      />
+                    </div>
+
+                    {/* Empresa Selection */}
+                    <div className="text-left">
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2">2. Buscar Empresa</label>
+                      <Dropdown
+                        value={selectedExistingSupplier}
+                        options={filteredCompanies}
+                        optionLabel="description"
+                        onChange={(e) => setSelectedExistingSupplier(e.value)}
+                        itemTemplate={(option) => (
+                          <div className="flex flex-col">
+                            <span className="font-bold">{option.description}</span>
+                            {option.requiredTechnical && <span className="text-xs text-secondary">Requiere Técnico</span>}
+                          </div>
+                        )}
+                        filter
+                        filterBy="description"
+                        placeholder={loading ? "Cargando..." : (selectedGroup ? "Seleccione una empresa..." : "Primero elija un grupo")}
+                        className="w-full h-10"
+                        disabled={loading || !selectedGroup || filteredCompanies.length === 0}
+                        emptyMessage={selectedGroup ? "No hay empresas en este grupo" : "Seleccione un grupo primero"}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSupplierSubmit}
+                      disabled={!selectedExistingSupplier}
+                      className={`w-full py-3 rounded-lg font-bold text-white transition-all shadow-lg
+                                        ${selectedExistingSupplier ? 'bg-primary hover:bg-primary-hover shadow-primary/30' : 'bg-gray-300 cursor-not-allowed'}
+                                    `}
+                    >
+                      Vincular Empresa <i className="pi pi-check ml-2"></i>
+                    </button>
+                    <div className="mt-4 flex justify-start">
+                      <button
+                        onClick={handleBack}
+                        className="text-secondary hover:text-black font-medium flex items-center gap-2"
+                      >
+                        <i className="pi pi-arrow-left"></i> Volver
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           );
         }
 

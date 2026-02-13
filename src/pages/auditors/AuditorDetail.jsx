@@ -4,6 +4,7 @@ import { MOCK_AUDITORES } from '../../data/mockAuditors';
 import { StatusBadge } from '../../components/ui/Badges';
 import AuditorForm from './AuditorForm';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
+import { formatCUIT } from '../../utils/formatUtils';
 
 const AuditorDetail = () => {
     const { id } = useParams();
@@ -53,7 +54,7 @@ const AuditorDetail = () => {
                                 {auditor.razonSocial}
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
-                                <StatusBadge status={auditor.estatus} />
+                                <StatusBadge status={auditor.estado} />
                                 <span className="text-xs text-secondary bg-secondary-light px-2 py-0.5 rounded-full font-mono">ID: {auditor.id}</span>
                                 <span className="text-xs font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-full border border-primary/20">{auditor.servicio}</span>
                             </div>
@@ -176,7 +177,7 @@ const AuditorDetail = () => {
                                             >
                                                 <div className="flex-1">
                                                     <p className="font-bold text-secondary-dark text-sm truncate">{company.razonSocial}</p>
-                                                    <p className="text-xs text-secondary mt-1">CUIT: {company.cuit}</p>
+                                                    <p className="text-xs text-secondary mt-1">CUIT: {formatCUIT(company.cuit)}</p>
                                                     <a href="#" className="text-[10px] font-bold text-primary hover:underline mt-2 inline-block">
                                                         Ver ficha completa <i className="pi pi-external-link text-[8px] ml-0.5"></i>
                                                     </a>
@@ -219,7 +220,7 @@ const AuditorDetail = () => {
                                             >
                                                 <div className="flex-1">
                                                     <p className="font-bold text-primary-dark text-sm truncate">{company.razonSocial}</p>
-                                                    <p className="text-xs text-secondary mt-1">CUIT: {company.cuit}</p>
+                                                    <p className="text-xs text-secondary mt-1">CUIT: {formatCUIT(company.cuit)}</p>
                                                     <a href="#" className="text-[10px] font-bold text-primary hover:underline mt-2 inline-block">
                                                         Ver ficha completa <i className="pi pi-external-link text-[8px] ml-0.5"></i>
                                                     </a>

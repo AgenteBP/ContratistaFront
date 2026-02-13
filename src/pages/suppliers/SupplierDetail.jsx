@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SupplierForm from './SupplierForm';
 import { supplierService } from '../../services/supplierService';
 import { StatusBadge } from '../../components/ui/Badges';
+import { formatCUIT } from '../../utils/formatUtils';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -23,7 +24,7 @@ const SupplierDetail = () => {
             id: response.cuit, // Keeping id as CUIT for consistency with list logic if needed, or just use s.id_supplier if that was intended.
             internalId: response.id_supplier,
             razonSocial: response.company_name,
-            cuit: response.cuit,
+            cuit: formatCUIT(response.cuit),
             nombreFantasia: response.fantasy_name,
             tipoPersona: response.type_person || 'JURIDICA',
             clasificacionAFIP: response.classification_afip || 'Responsable Inscripto',
@@ -32,7 +33,7 @@ const SupplierDetail = () => {
             telefono: response.phone,
             empleadorAFIP: response.is_an_afip_employer,
             esTemporal: response.is_temporary_hiring,
-            estatus: response.active === 1 ? 'ACTIVO' : 'INACTIVO',
+            estado: response.active === 1 ? 'ACTIVO' : 'INACTIVO',
             pais: response.country,
             provincia: response.province,
             localidad: response.city,
@@ -90,7 +91,7 @@ const SupplierDetail = () => {
             <h1 className="text-3xl font-extrabold text-secondary-dark tracking-tight">
               {proveedor.razonSocial}
             </h1>
-            <StatusBadge status={proveedor.estatus} />
+            <StatusBadge status={proveedor.estado} />
           </div>
           <p className="text-secondary mt-1">{proveedor.servicio}</p>
         </div>

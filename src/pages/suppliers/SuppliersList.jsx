@@ -13,10 +13,11 @@ import { Menu } from 'primereact/menu';
 import { RiskBadge, BooleanBadge, StatusBadge } from '../../components/ui/Badges';
 import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
+import TableFilters from '../../components/ui/TableFilters';
 
 // --- DATOS MOCK ---
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
-
+import { formatCUIT } from '../../utils/formatUtils';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 
 const SuppliersList = () => {
@@ -33,7 +34,7 @@ const SuppliersList = () => {
     const [expandedRows, setExpandedRows] = useState(null);
 
     const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
-    const estatusOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
+    const estadoOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
 
     useEffect(() => {
         initFilters();
@@ -43,49 +44,44 @@ const SuppliersList = () => {
     const loadSuppliers = async () => {
         try {
             setLoading(true);
-            // --- INTEGRACIÓN CON API (DESHABILITADA TEMPORALMENTE) ---
-            // console.log("Iniciando fetch de proveedores...");
+            console.log("Fetching suppliers...");
             const response = await supplierService.getAll();
-            console.log("Respuesta API GetAll:", response);
+            console.log("API Response:", response);
 
             if (!response || !Array.isArray(response)) {
-                console.error("Respuesta inválida API:", response);
-                throw new Error("La API no devolvió una lista válida de proveedores.");
+                console.warn("Invalid API response format:", response);
+                throw new Error("Invalid response");
             }
 
-            // --- MOCK DATA ---
-            //const data = MOCK_SUPPLIERS;
-
             // Map API data to Table structure
-            const data = response.map(s => ({
-                id: s.cuit,
+            const mappedData = response.map(s => ({
+                id: s.id_supplier || s.cuit || Math.random(),
                 internalId: s.id_supplier,
-                razonSocial: s.company_name,
-                cuit: s.cuit,
-                nombreFantasia: s.fantasy_name,
-                tipoPersona: s.type_person || 'N/A',
-                clasificacionAFIP: s.classification_afip,
+                rawCuit: s.cuit, // Added for navigation
+                razonSocial: s.company_name || 'Sin Razón Social',
+                cuit: formatCUIT(s.cuit) || 'N/A',
+                nombreFantasia: s.fantasy_name || s.company_name || '-',
+                tipoPersona: (s.type_person || 'N/A').toUpperCase(),
+                clasificacionAFIP: s.classification_afip || 'N/A',
                 servicio: s.category_service || 'N/A',
-                email: s.email_corporate,
-                telefono: s.phone,
-                empleadorAFIP: s.is_an_afip_employer,
-                esTemporal: s.is_temporary_hiring,
-                estatus: s.active === 1 ? 'ACTIVO' : 'INACTIVO',
-                provincia: s.province,
-                localidad: s.city,
-                motivo: s.document_supplier?.observaciones,
-                accesoHabilitado: s.user?.active,
-                facturasAPOC: 'No', // Default for now
-                altaSistema: 'N/A' // Default for now
+                email: s.email_corporate || '-',
+                telefono: s.phone || '-',
+                empleadorAFIP: !!s.is_an_afip_employer,
+                esTemporal: !!s.is_temporary_hiring,
+                estado: s.active === 0 ? 'ACTIVO' : (s.active === 1 ? 'DADO DE BAJA' : 'INACTIVO'),
+                provincia: s.province || '-',
+                localidad: s.city || '-',
+                motivo: s.document_supplier?.observaciones || null,
+                accesoHabilitado: s.user?.active || false,
+                facturasAPOC: 'No',
+                altaSistema: 'N/A'
             }));
 
-            // Para debug
-            console.log("Proveedores cargados:", data);
-
-            setProveedores(data);
+            setProveedores(mappedData);
+            setFilteredProveedores(null);
         } catch (error) {
-            console.error("Error al cargar proveedores:", error);
-            // Fallback a mock vacio o mensaje
+            console.error("Error loading suppliers:", error);
+            // Fallback to empty but log it
             setProveedores([]);
         } finally {
             setLoading(false);
@@ -99,7 +95,7 @@ const SuppliersList = () => {
             cuit: { value: null, matchMode: FilterMatchMode.CONTAINS },
             servicio: { value: null, matchMode: FilterMatchMode.EQUALS },
             tipoPersona: { value: null, matchMode: FilterMatchMode.EQUALS },
-            estatus: { value: null, matchMode: FilterMatchMode.EQUALS },
+            estado: { value: null, matchMode: FilterMatchMode.EQUALS },
             accesoHabilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
@@ -110,8 +106,10 @@ const SuppliersList = () => {
             label: 'Ver Detalles',
             icon: 'pi pi-eye',
             command: () => {
-                if (selectedRow) {
-                    navigate(`/proveedores/${selectedRow.id}`);
+                if (selectedRow?.rawCuit) {
+                    navigate(`/proveedores/${selectedRow.rawCuit}`);
+                } else {
+                    console.error("No CUIT available for navigation", selectedRow);
                 }
             }
         },
@@ -119,8 +117,10 @@ const SuppliersList = () => {
             label: 'Asociar Empresa',
             icon: 'pi pi-link',
             command: () => {
-                if (selectedRow) {
-                    navigate(`/proveedores/${selectedRow.id}/asociar-empresa`);
+                if (selectedRow?.rawCuit) {
+                    navigate(`/proveedores/${selectedRow.rawCuit}/asociar-empresa`);
+                } else {
+                    console.error("No CUIT available for navigation", selectedRow);
                 }
             }
         },
@@ -237,118 +237,23 @@ const SuppliersList = () => {
         list: { className: 'p-1' }
     };
 
+    const filterConfig = [
+        { label: 'Tipo', value: 'tipoPersona', options: ['JURIDICA', 'FISICA'].map(t => ({ label: t, value: t })) },
+        { label: 'Servicio', value: 'servicio', options: servicios.map(s => ({ label: s, value: s })) },
+        { label: 'Estado', value: 'estado', options: estadoOptions.map(s => ({ label: s, value: s })) }
+    ];
+
     const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
-            {/* Top Row: Search and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative w-full sm:w-[450px]">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <i className="pi pi-search text-secondary/50 text-xs"></i>
-                    </div>
-                    <input
-                        type="text"
-                        value={globalFilterValue}
-                        onChange={onGlobalFilterChange}
-                        disabled={loading}
-                        className={`bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9 ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                        placeholder="Buscar proveedor..."
-                    />
-                </div>
-            </div>
-
-            {/* Bottom Row: Filters & Stats */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.tipoPersona?.value}
-                            options={['JURIDICA', 'FISICA'].map(t => ({ label: t, value: t }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['tipoPersona'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="Tipo"
-                            pt={dropdownPt}
-                        />
-                        {filters?.tipoPersona?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['tipoPersona'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.servicio?.value}
-                            options={servicios.map(s => ({ label: s, value: s }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['servicio'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="SERVICIO"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.servicio?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['servicio'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.estatus?.value}
-                            options={estatusOptions.map(s => ({ label: s, value: s }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['estatus'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="ESTADO"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.estatus?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['estatus'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs ml-auto">
-                    <button
-                        onClick={initFilters}
-                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
-                    >
-                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
-                    </button>
-                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
-                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
-                        {filteredProveedores ? filteredProveedores.length : proveedores.length} Proveedores
-                    </span>
-                </div>
-            </div>
-        </div>
+        <TableFilters
+            filters={filters}
+            setFilters={setFilters}
+            globalFilterValue={globalFilterValue}
+            onGlobalFilterChange={onGlobalFilterChange}
+            config={filterConfig}
+            totalItems={proveedores.length}
+            filteredItems={filteredProveedores ? filteredProveedores.length : null}
+            itemName="PROVEEDORES"
+        />
     );
 
     const customSortIcon = (options) => {
@@ -395,7 +300,7 @@ const SuppliersList = () => {
                 loading={loading}
                 header={header}
                 filters={filters}
-                globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estatus']}
+                globalFilterFields={['razonSocial', 'cuit', 'servicio', 'estado']}
                 onValueChange={(data) => setFilteredProveedores(data)}
                 emptyMessage="No se encontraron datos."
                 sortMode="multiple"
@@ -414,7 +319,7 @@ const SuppliersList = () => {
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
                 <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
-                <Column field="estatus" header="Estatus" sortable body={(d) => <StatusBadge status={d.estatus} />}></Column>
+                <Column field="estado" header="Estado" sortable body={(d) => <StatusBadge status={d.estado} />}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
 

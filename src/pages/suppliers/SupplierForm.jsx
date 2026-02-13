@@ -13,6 +13,8 @@ import MultiSelect from '../../components/ui/MultiSelect';
 import { Calendar } from 'primereact/calendar';
 import { Dialog } from 'primereact/dialog';
 import { StatusBadge } from '../../components/ui/Badges';
+import { InputMask } from 'primereact/inputmask';
+import { classNames } from 'primereact/utils';
 
 const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
     // Wizard Mode: Alta de Usuario (Not ReadOnly, Not PartialEdit)
@@ -637,24 +639,27 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             <Input
                                 label="Razón Social"
                                 name="razonSocial"
-                                value={formData.razonSocial}
+                                value={formData.razonSocial || ''}
                                 onChange={handleChange}
                                 placeholder="Ingrese Razón Social"
                                 disabled={isFiscalDataLocked}
                             />
-                            <Input
-                                label="CUIT"
-                                name="cuit"
-                                icon="pi-id-card"
-                                value={formData.cuit}
-                                onChange={handleChange}
-                                placeholder="XX-XXXXXXXX-X"
-                                disabled={isFiscalDataLocked}
-                            />
+                            <div className="w-full">
+                                <Label>CUIT</Label>
+                                <InputMask
+                                    name="cuit"
+                                    mask="99-99999999-9"
+                                    value={formData.cuit || ''}
+                                    onChange={handleChange}
+                                    placeholder="XX-XXXXXXXX-X"
+                                    disabled={isFiscalDataLocked}
+                                    className={classNames('w-full border border-secondary/40 text-secondary-dark outline-none transition-all block shadow-sm hover:shadow-md focus:ring-2 focus:ring-primary/20 focus:border-primary p-2.5 text-sm rounded-lg', { 'bg-gray-50 opacity-90 cursor-not-allowed': isFiscalDataLocked })}
+                                />
+                            </div>
                             <Input
                                 label="Nombre de Fantasía"
                                 name="nombreFantasia"
-                                value={formData.nombreFantasia}
+                                value={formData.nombreFantasia || ''}
                                 onChange={handleChange}
                                 placeholder="Nombre comercial"
                                 disabled={isFiscalDataLocked}
@@ -693,7 +698,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 label="Email Corporativo"
                                 name="email"
                                 icon="pi-envelope"
-                                value={formData.email}
+                                value={formData.email || ''}
                                 onChange={handleChange}
                                 placeholder="contacto@empresa.com"
                                 disabled={isStep1Disabled} // Este SÍ se habilita con Edit
@@ -702,7 +707,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 label="Teléfono"
                                 name="telefono"
                                 icon="pi-phone"
-                                value={formData.telefono}
+                                value={formData.telefono || ''}
                                 onChange={handleChange}
                                 placeholder="+54 11 ..."
                                 disabled={isStep1Disabled} // Este SÍ se habilita con Edit

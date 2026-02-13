@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Input from './Input';
 import SectionTitle from './SectionTitle';
 
@@ -10,6 +10,19 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
         lastName: initialData.lastName || '',
         email: initialData.email || ''
     });
+
+    useEffect(() => {
+        if (initialData) {
+            setFormData(prev => ({
+                ...prev,
+                username: initialData.username || '',
+                password: initialData.password || '',
+                firstName: initialData.firstName || '',
+                lastName: initialData.lastName || '',
+                email: initialData.email || ''
+            }));
+        }
+    }, [initialData]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -30,7 +43,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
                     <Input
                         label="Nombre de Usuario"
                         name="username"
-                        value={formData.username}
+                        value={formData.username || ''}
                         onChange={handleChange}
                         placeholder="ej. jdoe"
                         disabled={readOnly}
@@ -40,7 +53,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
                         label="Contraseña"
                         name="password"
                         type="password"
-                        value={formData.password}
+                        value={formData.password || ''}
                         onChange={handleChange}
                         placeholder="********"
                         disabled={readOnly}
@@ -49,7 +62,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
                     <Input
                         label="Nombre"
                         name="firstName"
-                        value={formData.firstName}
+                        value={formData.firstName || ''}
                         onChange={handleChange}
                         placeholder="Juan"
                         disabled={readOnly}
@@ -57,7 +70,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
                     <Input
                         label="Apellido"
                         name="lastName"
-                        value={formData.lastName}
+                        value={formData.lastName || ''}
                         onChange={handleChange}
                         placeholder="Pérez"
                         disabled={readOnly}
@@ -66,7 +79,7 @@ const UserForm = ({ initialData = {}, onSubmit, readOnly = false }) => {
                         label="Email"
                         name="email"
                         type="email"
-                        value={formData.email}
+                        value={formData.email || ''}
                         onChange={handleChange}
                         placeholder="juan.perez@email.com"
                         disabled={readOnly}

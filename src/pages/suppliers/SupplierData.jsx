@@ -4,6 +4,7 @@ import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { useAuth } from '../../context/AuthContext';
 import { supplierService } from '../../services/supplierService';
 import { useNotification } from '../../context/NotificationContext';
+import { formatCUIT } from '../../utils/formatUtils';
 
 const SupplierData = () => {
     const { user } = useAuth();
@@ -47,7 +48,7 @@ const SupplierData = () => {
                         telefono: response.phone,
                         empleadorAFIP: response.is_an_afip_employer,
                         esTemporal: response.is_temporary_hiring,
-                        estatus: response.active === 1 ? 'ACTIVO' : 'INACTIVO',
+                        estado: response.active === 0 ? 'ACTIVO' : 'INACTIVO',
                         pais: response.country,
                         provincia: response.province,
                         localidad: response.city,
@@ -121,6 +122,7 @@ const SupplierData = () => {
             // Sanitizamos 'contacts' para evitar problemas de tipos
             contacts: updatedData.contactos ? {
                 list: updatedData.contactos.map(c => ({
+                    ...c, // Spread original fields to ensure nothing is lost
                     id: c.id,
                     nombre: c.nombre ? String(c.nombre).trim() : '',
                     tipo: c.tipo ? String(c.tipo).trim() : '',
@@ -186,8 +188,8 @@ const SupplierData = () => {
                 subtitle="Complete su legajo y mantenga sus datos actualizados."
                 headerInfo={{
                     name: supplierData.razonSocial,
-                    cuit: supplierData.cuit,
-                    status: supplierData.estatus, // 'ACTIVO', 'PENDIENTE', etc.
+                    cuit: formatCUIT(supplierData.cuit),
+                    status: supplierData.estado, // 'ACTIVO', 'PENDIENTE', etc.
                     docStatus: (() => {
                         const docs = supplierData.documentacion || [];
                         if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';

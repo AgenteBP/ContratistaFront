@@ -22,7 +22,7 @@ export const NotificationProvider = ({ children }) => {
     const showWarn = (summary, detail) => showNotification({ severity: 'warn', summary, detail });
 
     return (
-        <NotificationContext.Provider value={{ showSuccess, showError, showInfo, showWarn }}>
+        <NotificationContext.Provider value={{ showNotification, showSuccess, showError, showInfo, showWarn }}>
             <Toast ref={toast} position="top-right" className="custom-toast" />
             {children}
         </NotificationContext.Provider>

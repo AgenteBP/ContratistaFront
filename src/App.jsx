@@ -23,7 +23,7 @@ import AuditorsList from './pages/auditors/AuditorsList';
 import AuditorDetail from './pages/auditors/AuditorDetail';
 import TechnicalAudit from './pages/auditors/TechnicalAudit';
 import CompanyList from './pages/companies/CompanyList';
-import CompanyForm from './pages/companies/CompanyForm';
+import NewCompany from './pages/companies/NewCompany';
 
 // 4. Recursos
 import ResourcesDashboard from './pages/resources/ResourcesDashboard';
@@ -64,7 +64,7 @@ const router = createBrowserRouter(
 
                 {/* Empresas */}
                 <Route path="/empresas" element={<CompanyList />} />
-                <Route path="/empresas/nueva" element={<CompanyForm />} />
+                <Route path="/empresas/nueva" element={<NewCompany />} />
 
                 {/* Recursos */}
                 <Route path="/recursos" element={<ResourcesDashboard />} />

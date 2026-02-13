@@ -5,6 +5,7 @@ import Dropdown from '../../../components/ui/Dropdown';
 
 import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
+import TableFilters from '../../../components/ui/TableFilters';
 import { StatusBadge } from '../../../components/ui/Badges';
 import { MOCK_EMPLOYEES } from '../../../data/mockResources';
 
@@ -101,113 +102,42 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
         </div>
     );
 
-    const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
-            {/* Top Row: Search and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative w-full sm:w-[450px]">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <i className="pi pi-search text-secondary/50 text-xs"></i>
-                    </div>
-                    <input
-                        type="text"
-                        value={globalFilterValue}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setGlobalFilterValue(val);
-                            let _filters = { ...filters };
-                            _filters['global'].value = val;
-                            setFilters(_filters);
-                        }}
-                        className="bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9"
-                        placeholder="Buscar empleado..."
-                    />
-                </div>
+    const filterConfig = [
+        { label: 'Habilitación', value: 'habilitado', options: [{ label: 'Habilitado', value: true }, { label: 'No Habilitado', value: false }] },
+        { label: 'Estado', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
+    ];
 
-                <div className="flex items-center gap-2">
-                    <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
-                        <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
-                    </button>
-                    {isEmbedded && (
-                        <PrimaryButton
-                            label="Nuevo Empleado"
-                            onClick={() => navigate('/recursos/empleados/nuevo')}
-                        />
-                    )}
-                </div>
-            </div>
-
-            {/* Bottom Row: Filters & Stats */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.habilitado?.value}
-                            options={[
-                                { label: 'Habilitado', value: true },
-                                { label: 'No Habilitado', value: false }
-                            ]}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['habilitado'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="HABILITACIÓN"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.habilitado?.value !== null && filters?.habilitado?.value !== undefined && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['habilitado'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.estado?.value}
-                            options={['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['estado'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="ESTADO"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.estado?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['estado'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs ml-auto">
-                    <button
-                        onClick={initFilters}
-                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
-                    >
-                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
-                    </button>
-                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
-                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
-                        {filteredEmployees ? filteredEmployees.length : employees.length} Legajos
-                    </span>
-                </div>
-            </div>
+    const topActions = (
+        <div className="flex items-center gap-2">
+            <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
+                <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
+            </button>
+            {isEmbedded && (
+                <PrimaryButton
+                    label="Nuevo Empleado"
+                    onClick={() => navigate('/recursos/empleados/nuevo')}
+                />
+            )}
         </div>
+    );
+
+    const renderHeader = () => (
+        <TableFilters
+            filters={filters}
+            setFilters={setFilters}
+            globalFilterValue={globalFilterValue}
+            onGlobalFilterChange={(e) => {
+                const val = e.target.value;
+                setGlobalFilterValue(val);
+                let _filters = { ...filters };
+                _filters['global'].value = val;
+                setFilters(_filters);
+            }}
+            config={filterConfig}
+            totalItems={employees.length}
+            filteredItems={filteredEmployees ? filteredEmployees.length : null}
+            topRightContent={topActions}
+        />
     );
 
     return (

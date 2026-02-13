@@ -46,7 +46,7 @@ const Navbar = ({ onToggleSidebar }) => {
         'vehiculos': 'Vehículos',
         'maquinaria': 'Maquinaria',
         'tecnica': 'Técnica',
-        'configuracion': 'Configuración',
+
         'auditoria': 'Auditoría',
     };
 

@@ -4,7 +4,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { MultiSelect } from 'primereact/multiselect';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 
-const AuditorForm = ({ onSubmit, onBack, initialData = {}, readOnly = false }) => {
+const AuditorForm = ({ onSubmit, onBack, initialData = {}, readOnly = false, companies = [] }) => {
     const [formData, setFormData] = useState({
         nombre: initialData.nombre || '',
         apellido: initialData.apellido || '',
@@ -95,9 +95,9 @@ const AuditorForm = ({ onSubmit, onBack, initialData = {}, readOnly = false }) =
                         <label className="block text-xs font-bold text-secondary uppercase tracking-wider">Empresas Asignadas (Opcional)</label>
                         <MultiSelect
                             value={formData.empresas}
-                            options={MOCK_SUPPLIERS}
+                            options={companies}
                             onChange={(e) => setFormData({ ...formData, empresas: e.value })}
-                            optionLabel="razonSocial"
+                            optionLabel="description"
                             placeholder="Seleccione empresas a auditar..."
                             display="chip"
                             filter
