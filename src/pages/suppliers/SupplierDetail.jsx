@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SupplierForm from './SupplierForm';
 import { supplierService } from '../../services/supplierService';
+import { requirementService } from '../../services/requirementService';
 import { StatusBadge } from '../../components/ui/Badges';
 import { formatCUIT } from '../../utils/formatUtils';
 
@@ -15,8 +16,9 @@ const SupplierDetail = () => {
     const fetchSupplier = async () => {
       try {
         setLoading(true);
-        const response = await supplierService.getById(id);
-        console.log("Respuesta API GetById:", response);
+        // Use requirementService to get full context (Elements)
+        const response = await requirementService.getSupplierDocuments(id);
+        console.log("Respuesta API Detailed Supplier:", response);
 
         if (response) {
           // Map API response to SupplierForm structure
@@ -44,12 +46,16 @@ const SupplierDetail = () => {
               nombre: response.contacts.nombre_contacto || '',
               tipo: response.contacts.puesto || 'OPERATIVO - LEGAJO'
             }] : [],
-            documentacion: response.document_supplier ? [{
-              tipo: 'OBSERVACIONES',
-              estado: 'INFO',
-              archivo: null,
-              observacion: response.document_supplier.observaciones
-            }] : []
+            documentacion: response.elements ? response.elements.map(el => ({
+              id: el.id_elements,
+              id_active: el.active?.idActive,
+              tipo: el.active?.description || 'DOCUMENTO',
+              estado: el.data?.estado || 'PENDIENTE',
+              archivo: el.data?.archivo || null,
+              observacion: el.data?.observacion || null,
+              fechaVencimiento: el.data?.fechaVencimiento || null,
+              frecuencia: el.data?.frecuencia || 'Mensual'
+            })) : []
           };
           setProveedor(mappedData);
         }

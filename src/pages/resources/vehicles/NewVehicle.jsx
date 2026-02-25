@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import VehicleData from '../../../components/resources/forms/VehicleData';
 import AssignmentData from '../../../components/resources/forms/AssignmentData';
 import DocumentsData from '../../../components/resources/forms/DocumentsData';
+import { useAuth } from '../../../context/AuthContext';
 
 const NewVehicle = () => {
     const navigate = useNavigate();
+    const { user, currentRole } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
 
     // Global form state
@@ -43,12 +45,44 @@ const NewVehicle = () => {
         setCurrentStep(3);
     };
 
-    const handleFinalSubmit = (step3Data) => {
-        const finalData = { ...formData, ...step3Data };
-        console.log('FINAL VEHICLE DATA:', finalData);
-        // Here we would call the service to save
-        // navigate('/recursos/vehiculos'); 
-        setCurrentStep(4); // Success step
+    const handleFinalSubmit = async (step3Data) => {
+        try {
+            const finalData = { ...formData, ...step3Data };
+            console.log('FINAL VEHICLE DATA:', finalData);
+
+            // Prepare payload
+            // Prefer currentRole.id_entity if available and role is PROVEEDOR
+            const idSupplier = currentRole?.role === 'PROVEEDOR'
+                ? currentRole.id_entity
+                : user?.suppliers?.[0]?.id_supplier;
+
+            if (!idSupplier) {
+                console.error("No supplier found for user");
+                return;
+            }
+
+            const payload = {
+                id_supplier: idSupplier,
+                id_active: finalData.idActive, // Set in VehicleData
+                data: {
+                    ...finalData,
+                    // Remove internal fields if necessary, or backend ignores them
+                    // Documents are usually handled separately or included if backend supports it
+                }
+            };
+
+            // Remove non-data fields from data payload if strictly needed, 
+            // but map<String, Object> usually accepts extra fields.
+            // However, idActive should not be inside 'data' again if not needed.
+
+            import('../../../services/elementService').then(m => m.default.save(payload)).then(() => {
+                setCurrentStep(4); // Success step
+            });
+
+        } catch (error) {
+            console.error("Error saving vehicle:", error);
+            // Handle error UI
+        }
     };
 
     const handleBack = () => {
@@ -58,10 +92,13 @@ const NewVehicle = () => {
     const renderStep = () => {
         switch (currentStep) {
             case 1:
+                // Calculate idSupplier
+                const idSupplier = currentRole?.role === 'PROVEEDOR' ? currentRole.id_entity : user?.suppliers?.[0]?.id_supplier;
                 return (
                     <VehicleData
                         data={formData}
                         onNext={handleStep1Submit}
+                        idSupplier={idSupplier}
                     />
                 );
             case 2:

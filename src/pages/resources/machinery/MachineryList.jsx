@@ -7,35 +7,24 @@ import Dropdown from '../../../components/ui/Dropdown';
 import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
 import { StatusBadge } from '../../../components/ui/Badges';
-import { MOCK_MACHINERY } from '../../../data/mockResources';
 import TableFilters from '../../../components/ui/TableFilters';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useMachinery } from '../../../hooks/useMachinery';
 
 const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
+    const { machinery, loading, marcas, modelos } = useMachinery();
+
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [machinery, setMachinery] = useState([]);
     const [filteredMachinery, setFilteredMachinery] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState(null);
-
-    const [marcas, setMarcas] = useState([]);
-    const [modelos, setModelos] = useState([]);
+    const [selectedMachinery, setSelectedMachinery] = useState(null);
 
     useEffect(() => {
         initFilters();
-        setMachinery(MOCK_MACHINERY);
-
-        const uniqueMarcas = [...new Set(MOCK_MACHINERY.map(m => m.marca))].sort();
-        const uniqueModelos = [...new Set(MOCK_MACHINERY.map(m => m.modelo))].sort();
-
-        setMarcas(uniqueMarcas.map(m => ({ label: m, value: m })));
-        setModelos(uniqueModelos.map(m => ({ label: m, value: m })));
-
-        setLoading(false);
     }, []);
 
     const initFilters = () => {
@@ -186,7 +175,7 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
                     loading={loading}
                     header={renderHeader()}
                     filters={filters}
-                    globalFilterFields={['codigo', 'tipo', 'marca', 'modelo', 'numeroSerie']}
+                    globalFilterFields={['codigo', 'tipo', 'marca', 'modelo', 'serie']}
                     emptyMessage="No se encontraron equipos."
                     dataKey="id"
                     expandedRows={expandedRows}

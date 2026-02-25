@@ -6,7 +6,7 @@ import Select from '../../ui/Select';
 import Dropdown from '../../ui/Dropdown';
 import { MOCK_EMPLOYEES } from '../../../data/mockResources';
 
-const VehicleData = ({ data, onChange, onNext }) => {
+const VehicleData = ({ data, onChange, onNext, idSupplier }) => {
     const [formData, setFormData] = useState({
         codigo: '',
         marca: '',
@@ -24,16 +24,61 @@ const VehicleData = ({ data, onChange, onNext }) => {
 
     const [errors, setErrors] = useState({});
 
-    // Mocks
-    const types = [
-        { label: 'Camioneta', value: 'Camioneta' },
-        { label: 'Auto', value: 'Auto' },
-        { label: 'Camión', value: 'Camión' }
-    ];
+    // State for vehicle types
+    const [types, setTypes] = useState([]);
+    // State for drivers
+    const [drivers, setDrivers] = useState([]);
 
-    // Filter employees - Assuming for now all are candidates, or filter by 'puesto' if reliable
-    // In a real scenario, filtering by esChofer: true would be consistent
-    const driverCandidates = MOCK_EMPLOYEES;
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                // ID 2 corresponds to Vehicles in ActiveTypes
+                const activeTypes = await import('../../../services/elementService').then(m => m.default.getActivesByType(2));
+                const mappedTypes = activeTypes.map(t => ({
+                    label: t.description.toUpperCase(),
+                    value: t.id_active // We store the ID directly
+                }));
+                setTypes(mappedTypes);
+            } catch (error) {
+                console.error('Error fetching vehicle types:', error);
+            }
+        };
+        fetchTypes();
+    }, []);
+
+    useEffect(() => {
+        const fetchDrivers = async () => {
+            if (!idSupplier) return;
+            try {
+                // ID 1 corresponds to Employees
+                const employees = await import('../../../services/elementService').then(m => m.default.getBySupplierAndActiveType(idSupplier, 1));
+
+                // Filter where data.esChofer is true
+                // Note: Check if esChofer is boolean or string "true" in DB. Usually JSON boolean if saved as such.
+                // Safest check: boolean true or string "true"
+                const driverList = employees
+                    .filter(e => e.data && (e.data.esChofer === true || e.data.esChofer === 'true'))
+                    .map(e => ({
+                        id: e.id_elements,
+                        nombre: `${e.data.nombre} ${e.data.apellido || ''}`.trim(), // Combine name/surname
+                        // store full object or just ID? Dropdown usually takes value.
+                        // But mock used full object in value? No, handle change sets value.
+                        // Let's check Dropdown usage.
+                        // value={formData.choferAsignado} which is likely an object or ID? 
+                        // In MOCK it was object. Let's stick to object for now to be safe with MOCK structure.
+                        ...e.data,
+                        id_element: e.id_elements
+                    }));
+
+                setDrivers(driverList);
+            } catch (error) {
+                console.error('Error fetching drivers:', error);
+            }
+        };
+        fetchDrivers();
+    }, [idSupplier]);
+
+    const driverCandidates = drivers;
 
     useEffect(() => {
         setFormData(prev => ({ ...prev, ...data }));
@@ -75,7 +120,7 @@ const VehicleData = ({ data, onChange, onNext }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <Input label="Código" value={formData.codigo} onChange={(e) => handleChange('codigo', e.target.value)} placeholder="000001" error={errors.codigo} />
                 <Input label="Marca" value={formData.marca} onChange={(e) => handleChange('marca', e.target.value)} placeholder="Toyota" />
                 <Input label="Modelo" value={formData.modelo} onChange={(e) => handleChange('modelo', e.target.value)} placeholder="Hilux" />
@@ -86,34 +131,41 @@ const VehicleData = ({ data, onChange, onNext }) => {
 
                 <Input label="Año" value={formData.anio} onChange={(e) => handleChange('anio', e.target.value)} placeholder="2026" />
 
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="w-full">
-                        <Label>Tipo de Vehículo</Label>
-                        <Select options={types} value={formData.tipoVehiculo} onChange={(e) => handleChange('tipoVehiculo', e.target.value)} placeholder="SELECCIONE TIPO DE VEHICULO" />
-                    </div>
+                <div className="w-full">
+                    <Label>Tipo de Vehículo</Label>
+                    <Select
+                        options={types}
+                        value={formData.tipoVehiculo}
+                        onChange={(e) => {
+                            handleChange('tipoVehiculo', e.target.value); // Keep for display if needed? Or just use ID?
+                            // e.target.value is the ID now
+                            handleChange('idActive', parseInt(e.target.value));
+                        }}
+                        placeholder="SELECCIONE TIPO DE VEHICULO"
+                    />
+                </div>
 
-                    <div>
-                        <Label className="mb-2 block">¿Tiene chofer?</Label>
-                        <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-                            <button
-                                onClick={() => handleChange('tieneChofer', true)}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                            >
-                                Si
-                            </button>
-                            <button
-                                onClick={() => handleChange('tieneChofer', false)}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                            >
-                                No
-                            </button>
-                        </div>
+                <div>
+                    <Label className="mb-2 block">¿Tiene chofer?</Label>
+                    <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
+                        <button
+                            onClick={() => handleChange('tieneChofer', true)}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                        >
+                            Si
+                        </button>
+                        <button
+                            onClick={() => handleChange('tieneChofer', false)}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                        >
+                            No
+                        </button>
                     </div>
                 </div>
 
                 {/* Conditional Driver Select */}
                 {formData.tieneChofer && (
-                    <div className="md:col-span-1 animate-fade-in">
+                    <div className="animate-fade-in">
                         <Label>Nombre del chofer</Label>
                         <Dropdown
                             value={formData.choferAsignado}

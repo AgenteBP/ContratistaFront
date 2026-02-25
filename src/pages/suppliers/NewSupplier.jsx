@@ -11,8 +11,10 @@ import { userService } from '../../services/userService';
 import { supplierService } from '../../services/supplierService';
 import { auditorService } from '../../services/auditorService';
 import { companyService } from '../../services/companyService';
+import { activeService } from '../../services/activeService';
 import { groupService } from '../../services/groupService';
 import { companyClientService } from '../../services/companyClientService';
+import { requirementService } from '../../services/requirementService';
 import { MOCK_USERS } from '../../data/mockUsers';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { formatCUIT } from '../../utils/formatUtils';
@@ -45,6 +47,7 @@ const NewSupplier = () => {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [availableRequirements, setAvailableRequirements] = useState([]);
 
   // Load Users and Suppliers on Mount
   // Load Users and Suppliers on Mount
@@ -96,10 +99,41 @@ const NewSupplier = () => {
       }
     };
 
+    const fetchAvailableRequirements = async () => {
+      try {
+        const data = await activeService.getByType(5); // Activo Legajo Proveedor
+        setAvailableRequirements(data || []);
+      } catch (error) {
+        console.error("Error fetching available requirements:", error);
+      }
+    };
+
     fetchData();
     fetchGroups();
   }, []);
 
+  // NEW: Fetch requirements by group
+  const fetchRequirementsByGroup = async (idGroup) => {
+    if (!idGroup) return;
+    setLoading(true);
+    try {
+      console.log("Fetching requirements for group:", idGroup);
+      const data = await requirementService.getListRequirements({ idGroup });
+      setAvailableRequirements(data || []);
+    } catch (error) {
+      console.error("Error fetching group requirements:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("NewSupplier - Groups Loaded:", groups);
+  }, [groups]);
+
+  useEffect(() => {
+    console.log("NewSupplier - Companies Loaded:", companies);
+  }, [companies]);
 
   // Efecto para cargar usuario existente si hay ID
   useEffect(() => {
@@ -215,6 +249,22 @@ const NewSupplier = () => {
             postal_code: supplierFormData.codigoPostal ? Number(supplierFormData.codigoPostal) : null,
             address_tax: supplierFormData.direccionFiscal,
             address_real: supplierFormData.direccionReal,
+
+            // COMPANY AND GROUP ASSOCIATION (Fix)
+            id_company: supplierFormData.empresas?.[0] || null,
+            groupRequirements: supplierFormData.id_group ? [{
+              id_group: supplierFormData.id_group,
+              list_requirements: {
+                description: 'Legajo Inicial',
+                id_type_requirements: 1, // General
+                id_active: 5, // Legajo Proveedor
+                attributes: {
+                  description: 'Documentación de Respaldo',
+                  extension: 'ALFA_NUM',
+                  id_periodicity: 1 // Anual o Única (según DB)
+                }
+              }
+            }] : null,
 
             // CONTACTS - APPLYING FIX HERE
             contacts: supplierFormData.contactos ? {
@@ -468,6 +518,10 @@ const NewSupplier = () => {
                       : `Configurando el primer perfil de proveedor para ${userData?.username}`}
                     onSubmit={handleSupplierSubmit}
                     onBack={handleBack}
+                    groups={groups}
+                    availableCompanies={filteredCompanies.length > 0 ? filteredCompanies : companies}
+                    availableRequirements={availableRequirements}
+                    onGroupChange={fetchRequirementsByGroup}
                   />
                 ) : (
                   <div className="flex flex-col gap-6 max-w-md mx-auto text-center py-4">

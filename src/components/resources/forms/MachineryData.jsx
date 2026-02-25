@@ -6,7 +6,7 @@ import Select from '../../ui/Select';
 import Dropdown from '../../ui/Dropdown';
 import { MOCK_EMPLOYEES } from '../../../data/mockResources';
 
-const MachineryData = ({ data, onChange, onNext }) => {
+const MachineryData = ({ data, onChange, onNext, idSupplier }) => {
     const [formData, setFormData] = useState({
         codigo: '',
         marca: '',
@@ -24,15 +24,56 @@ const MachineryData = ({ data, onChange, onNext }) => {
 
     const [errors, setErrors] = useState({});
 
-    // Mocks
-    const types = [
-        { label: 'Excavadora', value: 'Excavadora' },
-        { label: 'Motoniveladora', value: 'Motoniveladora' },
-        { label: 'Montacargas', value: 'Montacargas' },
-        { label: 'Generador', value: 'Generador' }
-    ];
+    // State for machinery types
+    const [types, setTypes] = useState([]);
 
-    const driverCandidates = MOCK_EMPLOYEES;
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                // ID 4 corresponds to Machinery in ActiveTypes (Assumption based on plan/previous knowledge)
+                // If it fails, we might need to verify this ID or fetch all active types to find the ID.
+                const activeTypes = await import('../../../services/elementService').then(m => m.default.getActivesByType(4));
+                const mappedTypes = activeTypes.map(t => ({
+                    label: t.description.toUpperCase(),
+                    value: t.id_active // We store the ID directly
+                }));
+                setTypes(mappedTypes);
+            } catch (error) {
+                console.error('Error fetching machinery types:', error);
+            }
+        };
+        fetchTypes();
+    }, []);
+
+    // State for drivers
+    const [drivers, setDrivers] = useState([]);
+
+    useEffect(() => {
+        const fetchDrivers = async () => {
+            if (!idSupplier) return;
+            try {
+                // ID 1 corresponds to Employees
+                const employees = await import('../../../services/elementService').then(m => m.default.getBySupplierAndActiveType(idSupplier, 1));
+
+                // Filter where data.esChofer is true
+                const driverList = employees
+                    .filter(e => e.data && (e.data.esChofer === true || e.data.esChofer === 'true'))
+                    .map(e => ({
+                        id: e.id_elements,
+                        nombre: `${e.data.nombre} ${e.data.apellido || ''}`.trim(),
+                        ...e.data,
+                        id_element: e.id_elements
+                    }));
+
+                setDrivers(driverList);
+            } catch (error) {
+                console.error('Error fetching drivers:', error);
+            }
+        };
+        fetchDrivers();
+    }, [idSupplier]);
+
+    const driverCandidates = drivers;
 
     useEffect(() => {
         setFormData(prev => ({ ...prev, ...data }));
@@ -41,6 +82,32 @@ const MachineryData = ({ data, onChange, onNext }) => {
     const handleChange = (name, value) => {
         setFormData(prev => ({ ...prev, [name]: value }));
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
+    };
+
+    const handleDatosChange = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            datos: {
+                ...(prev.datos || {}),
+                [field]: value
+            }
+        }));
+    };
+
+    const requiresTons = (typeId) => {
+        // Use loose equality (==) because Select might return a string while typeId might be a number
+        const selectedType = types.find(t => t.value == typeId);
+        if (!selectedType) return false;
+
+        const description = selectedType.label.toUpperCase();
+
+        // Ensure accents match. We check both 'GRÚA' and 'GRUA' just in case.
+        const tonTypes = [
+            'AUTOELEVADORA', 'COMPACTADORA', 'DRAGALINAS', 'ELEVADORA MÓVIL', 'ELEVADORA MOVIL',
+            'EXCAVADORA', 'GRÚA', 'GRUA', 'HIDROGRÚA', 'HIDROGRUA', 'MINICARGADORA',
+            'PALAS DE CADENA', 'TIJERA ELEVAPERSONONAS'
+        ];
+        return tonTypes.includes(description);
     };
 
     const validate = () => {
@@ -75,7 +142,7 @@ const MachineryData = ({ data, onChange, onNext }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <Input label="Código" value={formData.codigo} onChange={(e) => handleChange('codigo', e.target.value)} placeholder="0001" error={errors.codigo} />
                 <Input label="Marca" value={formData.marca} onChange={(e) => handleChange('marca', e.target.value)} placeholder="CAT" />
                 <Input label="Modelo" value={formData.modelo} onChange={(e) => handleChange('modelo', e.target.value)} placeholder="320" />
@@ -86,34 +153,53 @@ const MachineryData = ({ data, onChange, onNext }) => {
 
                 <Input label="Año" value={formData.anio} onChange={(e) => handleChange('anio', e.target.value)} placeholder="2023" />
 
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="w-full">
-                        <Label>Tipo de Maquinaria</Label>
-                        <Select options={types} value={formData.tipoMaquinaria} onChange={(e) => handleChange('tipoMaquinaria', e.target.value)} placeholder="Seleccione" />
-                    </div>
+                <div className="w-full">
+                    <Label>Tipo de Maquinaria</Label>
+                    <Select
+                        options={types}
+                        value={formData.tipoMaquinaria}
+                        onChange={(e) => {
+                            handleChange('tipoMaquinaria', e.target.value);
+                            // e.target.value is the ID now
+                            handleChange('idActive', parseInt(e.target.value));
+                        }}
+                        placeholder="Seleccione"
+                    />
+                </div>
 
-                    <div>
-                        <Label className="mb-2 block">¿Tiene chofer?</Label>
-                        <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-                            <button
-                                onClick={() => handleChange('tieneChofer', true)}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                            >
-                                Si
-                            </button>
-                            <button
-                                onClick={() => handleChange('tieneChofer', false)}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                            >
-                                No
-                            </button>
-                        </div>
+                {requiresTons(formData.tipoMaquinaria) && (
+                    <div className="animate-fade-in">
+                        <Input
+                            label="Toneladas (Carga/Peso)"
+                            value={formData.datos?.toneladas || ''}
+                            onChange={(e) => handleDatosChange('toneladas', e.target.value)}
+                            placeholder="Ej: 5"
+                            type="number"
+                        />
+                    </div>
+                )}
+
+                <div>
+                    <Label className="mb-2 block">¿Tiene chofer?</Label>
+                    <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
+                        <button
+                            onClick={() => handleChange('tieneChofer', true)}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                        >
+                            Si
+                        </button>
+                        <button
+                            onClick={() => handleChange('tieneChofer', false)}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneChofer ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                        >
+                            No
+                        </button>
                     </div>
                 </div>
 
                 {/* Conditional Driver Select */}
                 {formData.tieneChofer && (
-                    <div className="md:col-span-1 animate-fade-in">
+                    <div className="animate-fade-in">
                         <Label>Nombre del chofer</Label>
                         <Dropdown
                             value={formData.choferAsignado}

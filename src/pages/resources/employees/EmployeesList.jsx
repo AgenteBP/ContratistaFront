@@ -7,24 +7,22 @@ import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
 import TableFilters from '../../../components/ui/TableFilters';
 import { StatusBadge } from '../../../components/ui/Badges';
-import { MOCK_EMPLOYEES } from '../../../data/mockResources';
-
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useEmployees } from '../../../hooks/useEmployees';
 
 const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
+    const { employees, loading } = useEmployees();
+
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [employees, setEmployees] = useState([]);
     const [filteredEmployees, setFilteredEmployees] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState(null);
+    const [selectedEmployees, setSelectedEmployees] = useState(null);
 
     useEffect(() => {
         initFilters();
-        setEmployees(MOCK_EMPLOYEES);
-        setLoading(false);
     }, []);
 
     const initFilters = () => {

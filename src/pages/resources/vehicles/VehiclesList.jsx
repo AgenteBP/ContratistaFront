@@ -6,35 +6,26 @@ import Dropdown from '../../../components/ui/Dropdown';
 import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
 import { StatusBadge } from '../../../components/ui/Badges';
-import { MOCK_VEHICLES } from '../../../data/mockResources';
+import { useAuth } from '../../../context/AuthContext';
+import elementService from '../../../services/elementService';
+// import { MOCK_VEHICLES } from '../../../data/mockResources';
 import TableFilters from '../../../components/ui/TableFilters';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useVehicles } from '../../../hooks/useVehicles';
 
 const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
+    const { vehicles, loading, marcas, modelos } = useVehicles();
+
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [vehicles, setVehicles] = useState([]);
     const [filteredVehicles, setFilteredVehicles] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState(null);
-
-    const [marcas, setMarcas] = useState([]);
-    const [modelos, setModelos] = useState([]);
 
     useEffect(() => {
         initFilters();
-        setVehicles(MOCK_VEHICLES);
-
-        const uniqueMarcas = [...new Set(MOCK_VEHICLES.map(v => v.marca))].sort();
-        const uniqueModelos = [...new Set(MOCK_VEHICLES.map(v => v.modelo))].sort();
-
-        setMarcas(uniqueMarcas.map(m => ({ label: m, value: m })));
-        setModelos(uniqueModelos.map(m => ({ label: m, value: m })));
-
-        setLoading(false);
     }, []);
 
     const initFilters = () => {
@@ -74,6 +65,9 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{data.marca} {data.modelo}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Año fabricación</span><span className="text-sm font-medium text-secondary-dark">{data.anio}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de unidad</span><span className="text-sm font-medium text-secondary-dark">{data.tipo}</span></div>
+                    {/* New Technical Fields */}
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Color</span><span className="text-sm font-medium text-secondary-dark">{data.color}</span></div>
+                    {data.peso && <div><span className="block text-[10px] text-secondary font-bold uppercase">Peso</span><span className="text-sm font-medium text-secondary-dark">{data.peso}</span></div>}
                 </div>
 
                 <div className="space-y-3">
@@ -108,6 +102,16 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     {showProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Proveedor Dueño</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">VEH-{data.id.toString().padStart(4, '0')}</span></div>
                 </div>
+
+                {/* Additional Technical Details Column */}
+                {(data.detalles_tecnicos && Object.keys(data.detalles_tecnicos).length > 0) && (
+                    <div className="space-y-3">
+                        <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Detalle Técnico</h6>
+                        {data.detalles_tecnicos.motor && <div><span className="block text-[10px] text-secondary font-bold uppercase">Motor</span><span className="text-sm font-medium text-secondary-dark">{data.detalles_tecnicos.motor}</span></div>}
+                        {data.detalles_tecnicos.combustible && <div><span className="block text-[10px] text-secondary font-bold uppercase">Combustible</span><span className="text-sm font-medium text-secondary-dark">{data.detalles_tecnicos.combustible}</span></div>}
+                        {data.detalles_tecnicos.cabina && <div><span className="block text-[10px] text-secondary font-bold uppercase">Cabina</span><span className="text-sm font-medium text-secondary-dark capitalize">{data.detalles_tecnicos.cabina}</span></div>}
+                    </div>
+                )}
 
                 <div className="flex flex-col justify-end gap-2">
                     <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">

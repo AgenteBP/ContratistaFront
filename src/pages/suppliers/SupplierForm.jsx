@@ -16,7 +16,9 @@ import { StatusBadge } from '../../components/ui/Badges';
 import { InputMask } from 'primereact/inputmask';
 import { classNames } from 'primereact/utils';
 
-const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo }) => {
+const EMPTY_ARRAY = [];
+
+const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo, groups = EMPTY_ARRAY, availableCompanies = EMPTY_ARRAY, availableRequirements = EMPTY_ARRAY, onGroupChange }) => {
     // Wizard Mode: Alta de Usuario (Not ReadOnly, Not PartialEdit)
     const isWizardMode = !readOnly && !partialEdit;
 
@@ -35,8 +37,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         esTemporal: false,
 
         // Paso 2: Grupo y Empresa (Solo para Alta)
-        grupo: '',
-        empresas: [],
+        grupo: '', // Usado para reglas de documentos (Nombre)
+        id_group: null, // ID numérico para el backend
+        empresas: [], // Lista de IDs de empresas
 
         // Paso 3: Ubicación
         pais: '',
@@ -60,9 +63,81 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         ? ['Proveedor', 'Grupo y Empresa', 'Ubicación', 'Contactos', 'Documentos']
         : ['Proveedor', 'Ubicación', 'Contactos', 'Documentos'];
 
-    // Helper para obtener el índice "real" de un paso por su nombre
     const getStepIdx = (label) => steps.indexOf(label) + 1;
     const [validationError, setValidationError] = useState(null);
+
+    // Dynamic definitions for Group and Companies
+    // Use useMemo for stability if possible, but for now let's just be very careful
+    const groupDefinitions = React.useMemo(() => {
+        if (groups && groups.length > 0) {
+            return groups.map(g => ({
+                id: g.idGroup || g.id,
+                name: g.description,
+                icon: g.icon || (g.description?.toUpperCase()?.includes('BOLT') || g.description?.toUpperCase()?.includes('EDESAL') ? 'pi-bolt' : (g.description?.toUpperCase()?.includes('BUILD') || g.description?.toUpperCase()?.includes('ROVELLA') ? 'pi-building' : 'pi-shield'))
+            }));
+        }
+        return [
+            { id: 'EDESAL', name: 'EDESAL', icon: 'pi-bolt' },
+            { id: 'ROVELLA', name: 'ROVELLA', icon: 'pi-building' },
+            { id: 'SEGURIDAD', name: 'SEGURIDAD', icon: 'pi-shield' }
+        ];
+    }, [groups]);
+
+    const empresasByGrupo = React.useMemo(() => {
+        const mapping = {};
+        if (availableCompanies && availableCompanies.length > 0) {
+            groupDefinitions.forEach(g => {
+                const groupCompanies = availableCompanies.filter(c =>
+                    String(c.idGroup) === String(g.id) ||
+                    (typeof g.id === 'string' && c.description?.toUpperCase()?.includes(g.id.toUpperCase()))
+                );
+
+                if (groupCompanies.length > 0) {
+                    mapping[g.id] = groupCompanies.map(c => ({
+                        label: c.description,
+                        value: c.idCompany || c.id,
+                        idGroup: c.idGroup
+                    }));
+                }
+            });
+        }
+
+        // Ensure static keys also work if groups haven't loaded yet but companies have
+        if (Object.keys(mapping).length === 0 && availableCompanies?.length > 0) {
+            // Try a greedy mapping for fallback IDs
+            ['EDESAL', 'ROVELLA', 'SEGURIDAD'].forEach(fallbackId => {
+                const matches = availableCompanies.filter(c => c.description?.toUpperCase()?.includes(fallbackId));
+                if (matches.length > 0) {
+                    mapping[fallbackId] = matches.map(c => ({
+                        label: c.description,
+                        value: c.idCompany || c.id,
+                        idGroup: c.idGroup
+                    }));
+                }
+            });
+        }
+
+        return mapping;
+    }, [availableCompanies, groupDefinitions]);
+
+    // Debug logs
+    useEffect(() => {
+        console.log("SupplierForm - Groups Prop:", groups);
+        console.log("SupplierForm - Companies Prop:", availableCompanies);
+        console.log("SupplierForm - Computed groupDefinitions:", groupDefinitions);
+        console.log("SupplierForm - Computed empresasByGrupo:", empresasByGrupo);
+    }, [groups, availableCompanies, groupDefinitions, empresasByGrupo]);
+
+    // --- SYNC GROUP ID ON ASYNC LOAD ---
+    useEffect(() => {
+        if (groups && groups.length > 0 && formData.grupo && !formData.id_group) {
+            console.log("Syncing group ID from description:", formData.grupo);
+            const matchedGroup = groups.find(g => (g.description || '').toUpperCase() === (formData.grupo || '').toUpperCase());
+            if (matchedGroup) {
+                setFormData(prev => ({ ...prev, id_group: matchedGroup.idGroup }));
+            }
+        }
+    }, [groups, formData.grupo, formData.id_group]);
 
     // State para tracking de cambios sin guardar
     const [dirtySteps, setDirtySteps] = useState(new Set());
@@ -297,23 +372,32 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         setFormData(finalData);
 
         if (scope) {
-            // PARTIAL SAVE: Only submit fields for this step
-            const label = steps[scope - 1];
-            const fieldsToSave = STEP_FIELDS[label] || [];
+            // CUMULATIVE PARTIAL SAVE: Include current step + all other dirty steps
             const partialPayload = {};
-            fieldsToSave.forEach(field => {
-                partialPayload[field] = finalData[field];
-            });
-            // Preserve ID if needed
-            if (finalData.id) partialPayload.id = finalData.id;
 
-            console.log(`FINAL DATA TO SUBMIT (PARTIAL STEP ${scope}):`, partialPayload);
+            // Gather indices of steps to include: current scope + any previous dirty ones
+            const stepsToInclude = new Set(dirtySteps);
+            stepsToInclude.add(scope);
+
+            stepsToInclude.forEach(sIdx => {
+                const label = steps[sIdx - 1];
+                const fields = STEP_FIELDS[label] || [];
+                fields.forEach(field => {
+                    partialPayload[field] = finalData[field];
+                });
+            });
+
+            // Preserve ID if needed
+            if (formData.internalId) partialPayload.internalId = formData.internalId;
+            if (formData.id) partialPayload.id = formData.id;
+
+            console.log(`FINAL DATA TO SUBMIT (ACCUMULATIVE PARTIAL):`, partialPayload);
             onSubmit(partialPayload);
 
-            // Clear dirty flag ONLY for this step
+            // Clear dirty flags for all steps included in this payload
             setDirtySteps(prev => {
                 const newSet = new Set(prev);
-                newSet.delete(scope);
+                stepsToInclude.forEach(sIdx => newSet.delete(sIdx));
                 return newSet;
             });
         } else {
@@ -501,25 +585,83 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     ];
 
     const [requiredDocs, setRequiredDocs] = useState([]);
-    const [isCustomConfig, setIsCustomConfig] = useState(false);
+    const [isCustomConfig, setIsCustomConfig] = useState(isWizardMode); // If Wizard, start customized (empty)
     const [editDocMode, setEditDocMode] = useState(!readOnly && !partialEdit); // En Wizard Mode, editamos configuración por defecto
     const [showDocModal, setShowDocModal] = useState(false);
     const [isStepperOpen, setIsStepperOpen] = useState(false); // Mobile Accordion State
 
-    // Recalcular requisitos automáticamente SI NO está personalizado
+    // Recalcular requisitos automáticamente SI NO está personalizado Y NO es Wizard (Alta)
     useEffect(() => {
-        if (!isCustomConfig) {
-            const defaults = ALL_DOCS_RULES.filter(rule => rule.defaultFor(formData));
+        // En ALTA (isWizardMode), usamos availableRequirements si están disponibles
+        if (isWizardMode && !isCustomConfig) {
+            if (availableRequirements && availableRequirements.length > 0) {
+                const requirementsFromApi = availableRequirements.map(req => {
+                    const id = req.id_active || req.idActive || req.id;
+                    return {
+                        id: id,
+                        id_active: id,
+                        tipo: id,
+                        label: req.description,
+                        helpText: req.help_text,
+                        frecuencia: 'Mensual',
+                        obligatoriedad: 'Requerido'
+                    };
+                });
 
-            // Si ya tenemos documentación cargada (caso de edición), asegurar que esos tipos estén en la lista
-            const existingTypes = formData.documentacion?.map(d => d.tipo) || [];
-            const additionalFromData = ALL_DOCS_RULES.filter(rule =>
-                existingTypes.includes(rule.id) && !defaults.find(d => d.id === rule.id)
-            );
-
-            setRequiredDocs([...defaults, ...additionalFromData]);
+                // Breaking potential loops by checking if content actually changed
+                setRequiredDocs(prev => {
+                    const changed = JSON.stringify(prev) !== JSON.stringify(requirementsFromApi);
+                    if (changed) console.log("SupplierForm: Initializing with availableRequirements", availableRequirements);
+                    return changed ? requirementsFromApi : prev;
+                });
+            } else {
+                setRequiredDocs(prev => prev.length > 0 ? [] : prev);
+            }
+            return;
         }
-    }, [formData, isCustomConfig]);
+
+        if (!isCustomConfig) {
+            // Si ya tenemos documentación cargada del backend (flujo dinámico), 
+            // esa debe ser nuestra fuente única de verdad para evitar mezclar con reglas sugeridas
+            const existingDocs = formData.documentacion || [];
+
+            if (existingDocs.length > 0 && partialEdit) {
+                // If any document has a "real" ID (not from Date.now() used during wizard/edit), 
+                // it means it came from the backend and we should trust the backend's required list.
+                const hasBackendDocs = existingDocs.some(doc => doc.id && String(doc.id).length > 10 && !String(doc.id).includes('.'));
+
+                if (hasBackendDocs) {
+                    const dynamicRequirements = existingDocs.map(doc => ({
+                        // IMPORTANT: ID must match "tipo" for card mapping to work
+                        id: doc.tipo || doc.id_active || doc.idActive || doc.id,
+                        id_active: doc.id_active || doc.idActive,
+                        tipo: doc.tipo,
+                        label: doc.tipoDescripcion || doc.label || 'Documento',
+                        frecuencia: doc.frecuencia || 'N/A',
+                        obligatoriedad: 'Requerido'
+                    }));
+                    // Remove duplicates by id or id_active
+                    const uniqueReqs = dynamicRequirements.filter((v, i, a) =>
+                        a.findIndex(t => (t.id_active && t.id_active === v.id_active) || t.id === v.id) === i
+                    );
+
+                    setRequiredDocs(prev => {
+                        const changed = JSON.stringify(prev) !== JSON.stringify(uniqueReqs);
+                        if (changed) console.log("Using backend-provided documentation requirements exclusively", uniqueReqs);
+                        return changed ? uniqueReqs : prev;
+                    });
+                    return;
+                }
+            }
+
+            // Default suggested rules (Legacy/Static)
+            const calculated = ALL_DOCS_RULES.filter(rule => rule.defaultFor(formData));
+            setRequiredDocs(prev => {
+                const changed = JSON.stringify(prev) !== JSON.stringify(calculated);
+                return changed ? calculated : prev;
+            });
+        }
+    }, [isWizardMode, formData.grupo, formData.tipoPersona, formData.empleadorAFIP, formData.servicio, formData.clasificacionAFIP, isCustomConfig, partialEdit, formData.documentacion, availableRequirements]);
 
     // En modo lectura o edición inicial, cargar desde initialData si existe (simulado)
     useEffect(() => {
@@ -612,15 +754,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
         const currentLabel = steps[currentStep - 1];
 
-        const empresasByGrupo = {
-            'EDESAL': [{ label: 'Edesal', value: 'Edesal' }],
-            'ROVELLA': [
-                { label: 'Semisa', value: 'Semisa' },
-                { label: 'Nativo', value: 'Nativo' },
-                { label: 'Alubry', value: 'Alubry' },
-                { label: 'Limay', value: 'Limay' }
-            ]
-        };
+        // groupDefinitions and empresasByGrupo moved to component scope for clarity and logic
 
         switch (currentLabel) {
             case 'Proveedor':
@@ -744,18 +878,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     </div>
                 );
             case 'Grupo y Empresa':
-                const groupDefinitions = [
-                    {
-                        id: 'EDESAL',
-                        name: 'EDESAL',
-                        icon: 'pi-bolt'
-                    },
-                    {
-                        id: 'ROVELLA',
-                        name: 'ROVELLA',
-                        icon: 'pi-building'
-                    }
-                ];
+                // Using groupDefinitions from outer scope
 
                 return (
                     <div className="p-0 md:p-8">
@@ -774,13 +897,15 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             <div
                                                 key={item.id}
                                                 onClick={() => {
-                                                    setFormData(prev => ({ ...prev, grupo: item.id, empresas: [] }));
+                                                    const groupName = (item.name || '').toUpperCase();
+                                                    setFormData(prev => ({ ...prev, grupo: groupName, id_group: item.id, empresas: [] }));
                                                     setIsCustomConfig(false); // Reset docs config when group changes
                                                     markStepDirty(currentStep);
+                                                    if (onGroupChange) onGroupChange(item.id);
                                                 }}
                                                 className={`
                                                 group relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 transition-all duration-300 cursor-pointer overflow-hidden
-                                                ${formData.grupo === item.id
+                                                ${(formData.id_group === item.id || formData.grupo === item.id)
                                                         ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.03] ring-1 ring-primary'
                                                         : 'border-secondary/20 bg-white hover:border-primary/40 hover:shadow-lg hover:scale-[1.01]'
                                                     }
@@ -797,7 +922,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     {item.name}
                                                 </h3>
 
-                                                {formData.grupo === item.id && (
+                                                {(formData.id_group === item.id || formData.grupo === item.id) && (
                                                     <div className="absolute top-4 right-4 animate-scale-in">
                                                         <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white shadow-sm ring-4 ring-white">
                                                             <i className="pi pi-check text-[10px] font-bold"></i>
@@ -822,7 +947,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                 <MultiSelect
                                                     name="empresas"
                                                     value={formData.empresas}
-                                                    options={empresasByGrupo[formData.grupo] || []}
+                                                    options={empresasByGrupo[formData.id_group] || empresasByGrupo[formData.grupo] || []}
                                                     onChange={(e) => {
                                                         setFormData(prev => ({ ...prev, empresas: e.value }));
                                                         markStepDirty(currentStep);
@@ -1079,7 +1204,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 return (
                     <div className="p-8 animate-fade-in relative">
                         <StepHeader
-                            title={isWizardMode ? "Configuración de Documentación" : "Documentación"}
+                            title={`${isWizardMode ? "Configuración de Documentación" : "Documentación"}${formData.isMock ? " (MOCK)" : ""}`}
                             subtitle={isWizardMode ? "Defina qué documentos se solicitarán al proveedor." : "Estado de la documentación."}
                             extra={!isWizardMode && (
                                 <div className="flex bg-secondary-light/50 p-1 rounded-xl border border-secondary/10">
@@ -1183,6 +1308,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         ...newDocs[docIndex],
                                                         archivo: file.name,
                                                         fileUrl: fileUrl,
+                                                        fileObject: file, // Store the File object
+                                                        tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
+                                                        label: doc.label,
                                                         // Mark as modified so we know to update status on save
                                                         modified: true,
                                                         fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
@@ -1192,9 +1320,13 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     newDocs = [...currentDocs, {
                                                         id: Date.now(),
                                                         tipo: doc.id,
+                                                        id_active: doc.id_active,
+                                                        tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                        label: doc.label,
                                                         estado: 'PENDIENTE',
                                                         archivo: file.name,
                                                         fileUrl: fileUrl,
+                                                        fileObject: file, // Store the File object
                                                         modified: true, // New docs are modified by definition
                                                         fechaVencimiento: null
                                                     }];
@@ -1230,6 +1362,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     newDocs = [...currentDocs, {
                                                         id: Date.now(),
                                                         tipo: docId,
+                                                        id_active: doc.id_active,
+                                                        tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                        label: doc.label,
                                                         estado: 'PENDIENTE',
                                                         archivo: null,
                                                         modified: true,
@@ -1264,12 +1399,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                 status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
                                                                     status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
                                                                         'bg-secondary/10 border-secondary/20 text-secondary')}`}>
-                                                        <i className={`pi ${doc.id.includes('AFIP') ? 'pi-verified' : doc.id.includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
+                                                        <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={doc.label}>{doc.label}</h4>
                                                         </div>
+                                                        {doc.helpText && (
+                                                            <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
+                                                                {doc.helpText}
+                                                            </p>
+                                                        )}
                                                         {!isWizardMode && (
                                                             <div className="flex flex-wrap gap-1">
                                                                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
@@ -1500,9 +1640,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         let newDocs;
                                                         if (docIndex >= 0) {
                                                             newDocs = [...currentDocs];
-                                                            newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
+                                                            newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
                                                         } else {
-                                                            newDocs = [...currentDocs, { id: Date.now(), tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, modified: true, fechaVencimiento: null }];
+                                                            newDocs = [...currentDocs, { id: Date.now(), tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
                                                         }
                                                         return { ...prev, documentacion: newDocs };
                                                     });
@@ -1541,7 +1681,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="bg-secondary-light p-2 rounded-lg text-secondary group-hover:text-primary group-hover:bg-primary/5 transition-all">
-                                                                <i className={`pi ${doc.id.includes('AFIP') ? 'pi-verified' : doc.id.includes('SEGURO') ? 'pi-shield' : 'pi-file'} text-sm`}></i>
+                                                                <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file'} text-sm`}></i>
                                                             </div>
                                                             <div>
                                                                 <p className="font-bold text-secondary-dark text-xs">{doc.label}</p>
@@ -1670,22 +1810,66 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             </button>
                                         </div>
                                         <div className="p-2 max-h-[60vh] overflow-y-auto">
-                                            {ALL_DOCS_RULES.filter(rule => !requiredDocs.find(r => r.id === rule.id)).map(rule => (
-                                                <button
-                                                    key={rule.id}
-                                                    onClick={() => { toggleDocRequirement(rule.id); setShowDocModal(false); }}
-                                                    className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
-                                                >
-                                                    <div>
-                                                        <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{rule.label}</p>
-                                                        <p className="text-[10px] text-secondary">{rule.frecuencia} — {rule.obligatoriedad}</p>
-                                                    </div>
-                                                    <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
-                                                </button>
-                                            ))}
-                                            {ALL_DOCS_RULES.filter(rule => !requiredDocs.find(r => r.id === rule.id)).length === 0 && (
-                                                <p className="text-center text-sm text-secondary py-8 italic">No hay más documentos disponibles.</p>
+                                            {/* Si tenemos requisitos disponibles de la API, usarlos. Si no, fallback a reglas estáticas */}
+                                            {(availableRequirements && availableRequirements.length > 0) ? (
+                                                availableRequirements.filter(active => {
+                                                    const activeId = active.id_active || active.idActive || active.id;
+                                                    // Buscamos si ya existe en requiredDocs por ID o por ID de activo
+                                                    return !requiredDocs.some(r =>
+                                                        String(r.id) === String(activeId) ||
+                                                        String(r.id_active) === String(activeId) ||
+                                                        String(r.id) === String(active.description) // Por si acaso se usa el label como ID
+                                                    );
+                                                }).map(active => {
+                                                    const activeId = active.id_active || active.idActive || active.id;
+                                                    return (
+                                                        <button
+                                                            key={activeId}
+                                                            onClick={() => {
+                                                                const newReq = {
+                                                                    id: activeId,
+                                                                    id_active: activeId,
+                                                                    label: active.description,
+                                                                    frecuencia: 'Con Vencimiento',
+                                                                    obligatoriedad: 'Manual'
+                                                                };
+                                                                setIsCustomConfig(true); // Mark as custom to prevent auto-reset
+                                                                setRequiredDocs(prev => [...prev, newReq]);
+                                                                setShowDocModal(false);
+                                                                markStepDirty(currentStep);
+                                                            }}
+                                                            className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
+                                                        >
+                                                            <div>
+                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{active.description}</p>
+                                                                <p className="text-[10px] text-secondary">Tipo: Legajo Proveedor</p>
+                                                            </div>
+                                                            <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
+                                                        </button>
+                                                    );
+                                                })
+                                            ) : (
+                                                ALL_DOCS_RULES.filter(rule => !requiredDocs.some(r => String(r.id) === String(rule.id) || String(r.id_active) === String(rule.id))).map(rule => (
+                                                    <button
+                                                        key={rule.id}
+                                                        onClick={() => { toggleDocRequirement(rule.id); setShowDocModal(false); }}
+                                                        className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
+                                                    >
+                                                        <div>
+                                                            <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{rule.label}</p>
+                                                            <p className="text-[10px] text-secondary">{rule.frecuencia} — {rule.obligatoriedad}</p>
+                                                        </div>
+                                                        <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
+                                                    </button>
+                                                ))
                                             )}
+
+                                            {((availableRequirements?.length > 0 ? availableRequirements : ALL_DOCS_RULES).filter(rule => {
+                                                const ruleId = rule.id_active || rule.idActive || rule.id;
+                                                return !requiredDocs.some(r => String(r.id) === String(ruleId) || String(r.id_active) === String(ruleId));
+                                            }).length === 0) && (
+                                                    <p className="text-center text-sm text-secondary py-8 italic">No hay más documentos disponibles.</p>
+                                                )}
                                         </div>
                                     </div>
                                 </div>
@@ -1707,7 +1891,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     {headerInfo ? (
                         <div>
                             <div className="flex flex-wrap items-center gap-3">
-                                <h1 className="text-3xl font-extrabold text-secondary-dark tracking-tight">{headerInfo.name}</h1>
+                                <h1 className="text-3xl font-extrabold text-secondary-dark tracking-tight">{headerInfo.name}{formData.isMock ? " (MOCK)" : ""}</h1>
                                 {headerInfo.status && <StatusBadge status={headerInfo.status} />}
                                 {headerInfo.docStatus && (
                                     <div className="flex items-center gap-2">
@@ -1720,7 +1904,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         </div>
                     ) : (
                         <div>
-                            {title && <h1 className="text-2xl md:text-3xl font-extrabold text-secondary-dark tracking-tight">{title}</h1>}
+                            {title && <h1 className="text-2xl md:text-3xl font-extrabold text-secondary-dark tracking-tight">{title}{formData.isMock ? " (MOCK)" : ""}</h1>}
                             {subtitle && <p className="text-secondary mt-1 text-xs">{subtitle}</p>}
                         </div>
                     )}

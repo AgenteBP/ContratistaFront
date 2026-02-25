@@ -66,6 +66,7 @@ const TableFilters = ({
     };
 
     const displayCount = filteredItems !== null && filteredItems !== undefined ? filteredItems : totalItems;
+    const isMultiRow = config.length > 3;
 
     return (
         <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3 animate-fade-in relative z-20">
@@ -117,29 +118,29 @@ const TableFilters = ({
             </div>
 
             {/* Desktop Filters (Hidden on Mobile) */}
-            <div className="hidden lg:grid grid-cols-[80px_1fr_auto] border border-secondary/10 rounded-xl overflow-hidden mt-4 bg-white shadow-sm">
+            <div className="hidden lg:grid grid-cols-[80px_1fr_auto] border border-secondary/20 rounded-xl overflow-hidden mt-4 bg-white shadow-sm">
                 {/* 1. Label Section - Centered unified vertical block */}
-                <div className="bg-secondary-light/20 border-r border-secondary/10 flex flex-col items-center justify-center p-3 w-20">
+                <div className="bg-secondary-light/20 border-r border-secondary/20 flex flex-col items-center justify-center p-3 w-20">
                     <i className="pi pi-filter text-[12px] text-primary/60 mb-1.5"></i>
-                    <span className="text-[9px] text-secondary/60 font-black uppercase tracking-[0.2em] leading-none text-center">Filtros</span>
+                    <span className="text-[9px] text-secondary/70 font-black uppercase tracking-[0.2em] leading-none text-center">Filtros</span>
                 </div>
 
                 {/* 2. Filters Grid (Ultra-Fluid Flex Layout - Aesthetic & Stable) */}
-                <div className="flex flex-wrap items-stretch bg-white min-w-0 flex-1 border-r border-secondary/10">
+                <div className="flex flex-wrap items-stretch bg-white min-w-0 flex-1 border-r border-secondary/20">
                     {config.map((c) => (
-                        <div key={c.value} className="flex-1 basis-1/3 min-w-[200px] p-3 border-r border-b border-secondary/10 group/filter relative hover:bg-secondary-light/10 transition-colors flex flex-col justify-center h-14">
+                        <div key={c.value} className="flex-1 basis-1/3 min-w-[200px] p-3 border-r border-b border-secondary/20 group/filter relative hover:bg-secondary-light/10 transition-colors flex flex-col justify-center h-14">
                             <div className="flex items-center justify-between mb-1">
-                                <label className="text-[10px] text-secondary/40 font-bold uppercase tracking-wider leading-none">
+                                <label className="text-[10px] text-secondary/60 font-bold uppercase tracking-wider leading-none">
                                     {c.label}
                                 </label>
-                                <div className="w-4 h-4 flex items-center justify-end -mr-1">
+                                <div className="w-4 h-4 flex items-center justify-center">
                                     {isFilterActive(c.value) && (
                                         <button
-                                            className="text-primary hover:text-red-600 transition-all duration-200 p-0.5"
+                                            className="text-primary hover:text-red-700 font-bold transition-all duration-200 p-0.5"
                                             onClick={() => clearFilter(c.value)}
                                             title={`Limpiar ${c.label}`}
                                         >
-                                            <i className="pi pi-times text-[10px] font-bold"></i>
+                                            <i className="pi pi-times text-[10px]"></i>
                                         </button>
                                     )}
                                 </div>
@@ -162,7 +163,7 @@ const TableFilters = ({
                                     input: {
                                         className: `text-[11px] px-0 uppercase leading-none transition-all duration-200 truncate ${isFilterActive(c.value)
                                             ? 'text-secondary-dark font-black underline decoration-primary/30 underline-offset-4'
-                                            : 'text-secondary-dark/40 font-bold'}`
+                                            : 'text-secondary-dark/60 font-bold'}`
                                     },
                                     trigger: { className: 'w-4 text-secondary/40 flex items-center justify-center' },
                                     panel: { className: 'text-xs bg-white border border-secondary/10 shadow-2xl rounded-xl mt-1' }
@@ -172,33 +173,61 @@ const TableFilters = ({
                     ))}
                 </div>
 
-                {/* 3. Global Actions Section - Integrated & Minimalist */}
-                <div className="bg-secondary-light/5 flex items-center justify-center px-8 min-w-[150px] relative">
+                {/* 3. Global Actions Section - Refined Adaptive Layout */}
+                <div className="bg-secondary-light/5 flex items-center justify-center px-6 min-w-[200px] relative h-full">
                     {/* Subtle left divider indicator */}
-                    <div className="absolute left-0 top-3 bottom-3 w-px bg-secondary/10"></div>
+                    <div className="absolute left-0 top-3 bottom-3 w-px bg-secondary/20"></div>
 
-                    <div className="flex flex-col items-center py-2">
-                        <div className="flex flex-col items-center mb-1">
-                            <span className="text-[15px] font-black text-secondary-dark tracking-widest leading-none">
-                                {displayCount}
-                            </span>
-                            <span className="text-[8px] text-secondary/40 font-bold uppercase tracking-[0.2em] mt-1 whitespace-nowrap">
-                                {itemName}
-                            </span>
+                    {!isMultiRow ? (
+                        /* Case A: Single Row - Horizontal (Clear | Divider | Counter) */
+                        <div className="flex items-center justify-center gap-5 h-full">
+                            {(areFiltersActive() || globalFilterValue) && (
+                                <>
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="text-danger hover:text-red-700 font-bold transition-all flex flex-col items-center justify-center gap-1 uppercase group/clear active:scale-95"
+                                        title="Limpiar todos los filtros"
+                                    >
+                                        <i className="pi pi-filter-slash text-[10px]"></i>
+                                        <span className="text-[7px] tracking-[0.1em]">Limpiar</span>
+                                    </button>
+                                    <div className="w-px h-6 bg-secondary/20"></div>
+                                </>
+                            )}
+                            <div className="flex flex-col items-center">
+                                <span className="text-[14px] font-black text-secondary-dark tracking-widest leading-none">
+                                    {displayCount}
+                                </span>
+                                <span className="text-[7px] text-secondary/50 font-bold uppercase tracking-[0.2em] mt-1.5 whitespace-nowrap">
+                                    {itemName}
+                                </span>
+                            </div>
                         </div>
+                    ) : (
+                        /* Case B: Multi Row - Vertical (Counter / Divider / Clear Filtros) */
+                        <div className="flex flex-col items-center justify-center h-full py-2">
+                            <div className="flex flex-col items-center mb-1">
+                                <span className="text-[15px] font-black text-secondary-dark tracking-widest leading-none">
+                                    {displayCount}
+                                </span>
+                                <span className="text-[8px] text-secondary/40 font-bold uppercase tracking-[0.2em] mt-1 whitespace-nowrap">
+                                    {itemName}
+                                </span>
+                            </div>
 
-                        {(areFiltersActive() || globalFilterValue) && (
-                            <button
-                                onClick={clearAllFilters}
-                                className="mt-1 pt-2 border-t border-secondary/10 w-full text-danger hover:text-red-700 font-bold transition-all flex items-center justify-center gap-1.5 uppercase text-[8px] tracking-[0.15em] group/clear active:scale-95"
-                                title="Limpiar todos los filtros"
-                            >
-                                <i className="pi pi-filter-slash text-[9px]"></i>
-                                <span className="hidden xl:inline">Limpiar Filtros</span>
-                                <span className="xl:hidden">Limpiar</span>
-                            </button>
-                        )}
-                    </div>
+                            {(areFiltersActive() || globalFilterValue) && (
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="mt-1 pt-2 border-t border-secondary/10 w-full text-danger hover:text-red-700 font-bold transition-all flex items-center justify-center gap-1.5 uppercase text-[8px] tracking-[0.15em] group/clear active:scale-95"
+                                    title="Limpiar todos los filtros"
+                                >
+                                    <i className="pi pi-filter-slash text-[9px]"></i>
+                                    <span className="hidden xl:inline">Limpiar Filtros</span>
+                                    <span className="xl:hidden">Limpiar</span>
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

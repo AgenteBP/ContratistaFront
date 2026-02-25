@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import EmployeeData from '../../../components/resources/forms/EmployeeData';
 import AssignmentData from '../../../components/resources/forms/AssignmentData';
 import DocumentsData from '../../../components/resources/forms/DocumentsData';
+import { useAuth } from '../../../context/AuthContext';
 
 const NewEmployee = () => {
     const navigate = useNavigate();
+    const { user, currentRole } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
 
     // Global form state
@@ -45,12 +47,37 @@ const NewEmployee = () => {
         setCurrentStep(3);
     };
 
-    const handleFinalSubmit = (step3Data) => {
-        const finalData = { ...formData, ...step3Data };
-        console.log('FINAL EMPLOYEE DATA:', finalData);
-        // Here we would call the service to save
-        // navigate('/recursos/empleados'); 
-        setCurrentStep(4); // Success step
+    const handleFinalSubmit = async (step3Data) => {
+        try {
+            const finalData = { ...formData, ...step3Data };
+            console.log('FINAL EMPLOYEE DATA:', finalData);
+
+            // Prepare payload
+            const idSupplier = currentRole?.role === 'PROVEEDOR'
+                ? currentRole.id_entity
+                : user?.suppliers?.[0]?.id_supplier;
+
+            if (!idSupplier) {
+                console.error("No supplier found for user");
+                return;
+            }
+
+            const payload = {
+                id_supplier: idSupplier,
+                id_active: finalData.idActive, // Set in EmployeeData
+                data: {
+                    ...finalData,
+                    nombre: `${finalData.nombre} ${finalData.apellido}`.trim()
+                }
+            };
+
+            const elementService = await import('../../../services/elementService').then(m => m.default);
+            await elementService.save(payload);
+            setCurrentStep(4); // Success step
+
+        } catch (error) {
+            console.error("Error saving employee:", error);
+        }
     };
 
     const handleBack = () => {

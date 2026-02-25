@@ -1,170 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
-import { FilterMatchMode } from 'primereact/api';
-import { Tag } from 'primereact/tag';
-import { Dialog } from 'primereact/dialog';
-
-// --- UI Components ---
-import Dropdown from '../ui/Dropdown';
-import { StatusBadge } from '../ui/Badges';
-import PrimaryButton from '../ui/PrimaryButton';
-import ObservationModal from '../ui/ObservationModal';
-import AppTable from '../ui/AppTable';
-import TableFilters from '../ui/TableFilters';
-
-// --- Mocks ---
-import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
-import { MOCK_EMPLOYEES, MOCK_VEHICLES, MOCK_MACHINERY } from '../../data/mockResources';
+import { requirementService } from '../../services/requirementService';
 
 const DocumentEntityTable = ({ type, filterStatus }) => {
     const navigate = useNavigate();
     const [data, setData] = useState([]);
     const [filteredData, setFilteredData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({
-        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        entityName: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        tipo: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        estado: { value: null, matchMode: FilterMatchMode.EQUALS },
-    });
-    const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [observationModalVisible, setObservationModalVisible] = useState(false);
-    const [selectedObservation, setSelectedObservation] = useState(null);
+    // ... filters state and other state vars ...
 
-
-    // --- Mock Document Generators for Resources ---
-    const generateDocsForResource = (item, type) => {
-        const docs = [];
-        const status = item.docStatus || 'PENDIENTE';
-
-        // Ensure ID is String for consistency
-        const entityIdStr = String(item.id);
-
-        const createDoc = (id, tipo, estado, vencimiento = null, obs = null) => {
-            // Determine frequency based on type (Mock logic)
-            const isOneTime = ['TITULO', 'ALTA_AFIP', 'DNI', 'DOCUMENTACION_GENERAL', 'MANUAL_USO'].includes(tipo);
-
-            return {
-                id: `${entityIdStr}-${id}`,
-                entityId: entityIdStr, // Enforce String
-                entityName: item.nombre || item.razonSocial || item.patente || `Equipo ${item.id}`,
-                entityType: type,
-                tipo: tipo,
-                estado: estado,
-                fechaVencimiento: vencimiento,
-                observacion: obs,
-                frecuencia: isOneTime ? 'Única vez' : 'Periódica',
-                archivo: estado === 'VIGENTE' ? 'archivo.pdf' : null,
-                obligatorio: true // Default to true for generated core docs
-            };
-        };
-
-        if (type === 'employees') {
-            if (status === 'INCOMPLETA') docs.push(createDoc(1, 'DNI', 'PENDIENTE'));
-            if (status === 'VENCIDA') docs.push(createDoc(2, 'ALTA_AFIP', 'VIGENTE', null)); // One time, clean status
-            if (status === 'COMPLETA') docs.push(createDoc(3, 'ART_NOMINA', 'VIGENTE', '2025-12-31'));
-            if (docs.length === 0) docs.push(createDoc(4, 'DOCUMENTACION_GENERAL', status));
-        } else if (type === 'vehicles') {
-            if (status === 'INCOMPLETA') docs.push(createDoc(1, 'TITULO', 'PENDIENTE'));
-            if (status === 'PENDIENTE') docs.push(createDoc(2, 'VTV', 'PENDIENTE'));
-            if (status === 'VENCIDA') docs.push(createDoc(3, 'SEGURO', 'VENCIDO', '2024-02-01'));
-            if (status === 'COMPLETA') docs.push(createDoc(4, 'CEDULA_VERDE', 'VIGENTE', null));
-            if (docs.length === 0) docs.push(createDoc(5, 'DOCUMENTACION_VEHIC', status));
-        } else if (type === 'machinery') {
-            if (status === 'PENDIENTE') docs.push(createDoc(1, 'CERT_OPERATIVIDAD', 'PENDIENTE'));
-            if (status === 'VENCIDA') docs.push(createDoc(2, 'SEGURO_TECNICO', 'VENCIDO', '2024-01-15'));
-            if (status === 'COMPLETA') docs.push(createDoc(3, 'MANUAL_USO', 'VIGENTE', null));
-            if (docs.length === 0) docs.push(createDoc(4, 'DOCUMENTACION_MAQ', status));
-        }
-        return docs;
-    };
+    // ... generator helper ...
 
     useEffect(() => {
         initFilters();
         loadData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [type, filterStatus]);
 
-    const initFilters = () => {
-        setFilters({
-            global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-            entityName: { value: null, matchMode: FilterMatchMode.CONTAINS },
-            tipo: { value: null, matchMode: FilterMatchMode.CONTAINS },
-            estado: { value: null, matchMode: FilterMatchMode.EQUALS },
-        });
-        setGlobalFilterValue('');
-    };
-
-    const loadData = () => {
+    const loadData = async () => {
         setLoading(true);
 
-        // --- HARDCODED CONTEXT FOR DEMO ---
-        // In real app, get this from AuthContext
-        const CURRENT_PROVIDER_ID = 1;
-        const CURRENT_PROVIDER_NAME = 'PAEZ BRAIAN ANDRES';
+        // --- CONTEXT ---
+        // In real app, this comes from the logged-in user session
+        const CURRENT_PROVIDER_CUIT = '30712345678'; // Example CUIT for supplier 1
 
-        let validEntities = [];
-        switch (type) {
-            case 'suppliers':
-                validEntities = MOCK_SUPPLIERS.filter(s => s.id === CURRENT_PROVIDER_ID);
-                break;
-            case 'employees':
-                validEntities = MOCK_EMPLOYEES.filter(e => e.proveedor === CURRENT_PROVIDER_NAME);
-                break;
-            case 'vehicles':
-                validEntities = MOCK_VEHICLES.filter(v => v.proveedor === CURRENT_PROVIDER_NAME);
-                break;
-            case 'machinery':
-                validEntities = MOCK_MACHINERY.filter(m => m.proveedor === CURRENT_PROVIDER_NAME);
-                break;
-            default: validEntities = [];
-        }
+        try {
+            let allDocuments = [];
 
-        let allDocuments = [];
-        if (type === 'suppliers') {
-            allDocuments = validEntities.flatMap(sup => {
-                const docs = sup.documentacion || [];
-                // Ensure ID is String for consistency
-                const entityIdStr = String(sup.id);
-                return docs.map(doc => ({
-                    ...doc,
-                    id: `${entityIdStr}-${doc.id}`,
-                    entityId: entityIdStr, // Enforce String
-                    entityName: sup.razonSocial,
-                    entityType: 'Proveedor'
-                }));
-            });
-        } else {
-            allDocuments = validEntities.flatMap(item => generateDocsForResource(item, type));
-        }
+            if (type === 'suppliers') {
+                // Fetch real data from backend
+                const response = await requirementService.getSupplierDocuments(CURRENT_PROVIDER_CUIT);
+                console.log("DocumentEntityTable: Fetching real supplier docs", response);
 
-        const filteredDocs = allDocuments.filter(doc => {
-            if (filterStatus === 'general') return true;
-            const s = doc.estado || 'PENDIENTE';
-            switch (filterStatus) {
-                case 'pending_upload': return s === 'PENDIENTE' || s === 'INCOMPLETA';
-                case 'expiring': return s === 'VENCIDO' || s === 'POR VENCER';
-                case 'observed': return s === 'CON OBSERVACIÓN' || s === 'RECHAZADO' || s === 'OBSERVADO';
-                case 'in_review': return s === 'EN REVISIÓN';
-                case 'valid': return s === 'VIGENTE' || s === 'COMPLETA';
-                default: return true;
+                if (response && response.elements) {
+                    allDocuments = response.elements.map(el => ({
+                        id: el.id_elements,
+                        entityId: String(response.id_supplier),
+                        entityName: response.company_name,
+                        entityType: 'Proveedor',
+                        tipo: el.active?.description || 'DOCUMENTO',
+                        estado: el.data?.estado || 'PENDIENTE',
+                        fechaVencimiento: el.data?.fechaVencimiento || null,
+                        observacion: el.data?.observacion || null,
+                        frecuencia: el.data?.frecuencia || 'Mensual',
+                        archivo: el.data?.archivo || null,
+                        obligatorio: true
+                    }));
+                }
+            } else {
+                // Keep resources with mock data for now, or update if endpoints exist
+                let validEntities = [];
+                const CURRENT_PROVIDER_NAME = 'PAEZ BRAIAN ANDRES';
+
+                switch (type) {
+                    case 'employees':
+                        validEntities = MOCK_EMPLOYEES.filter(e => e.proveedor === CURRENT_PROVIDER_NAME);
+                        break;
+                    case 'vehicles':
+                        validEntities = MOCK_VEHICLES.filter(v => v.proveedor === CURRENT_PROVIDER_NAME);
+                        break;
+                    case 'machinery':
+                        validEntities = MOCK_MACHINERY.filter(m => m.proveedor === CURRENT_PROVIDER_NAME);
+                        break;
+                    default: validEntities = [];
+                }
+                allDocuments = validEntities.flatMap(item => generateDocsForResource(item, type));
             }
-        });
 
-        // Enforce sort by entityId to ensure grouping works
-        filteredDocs.sort((a, b) => {
-            // String comparison for entityId
-            if (a.entityId < b.entityId) return -1;
-            if (a.entityId > b.entityId) return 1;
-            return 0;
-        });
+            const filteredDocs = allDocuments.filter(doc => {
+                if (filterStatus === 'general') return true;
+                const s = doc.estado || 'PENDIENTE';
+                switch (filterStatus) {
+                    case 'pending_upload': return s === 'PENDIENTE' || s === 'INCOMPLETA';
+                    case 'expiring': return s === 'VENCIDO' || s === 'POR VENCER';
+                    case 'observed': return s === 'CON OBSERVACIÓN' || s === 'RECHAZADO' || s === 'OBSERVADO';
+                    case 'in_review': return s === 'EN REVISIÓN';
+                    case 'valid': return s === 'VIGENTE' || s === 'COMPLETA';
+                    default: return true;
+                }
+            });
 
-        console.log("Data Loaded (Sorted):", filteredDocs);
-        setData(filteredDocs);
-        setLoading(false);
+            filteredDocs.sort((a, b) => {
+                if (a.entityId < b.entityId) return -1;
+                if (a.entityId > b.entityId) return 1;
+                return 0;
+            });
+
+            setData(filteredDocs);
+        } catch (error) {
+            console.error("DocumentEntityTable: Error loading data", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const onGlobalFilterChange = (e) => {

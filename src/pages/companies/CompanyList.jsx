@@ -154,13 +154,13 @@ const CompanyList = () => {
     // Dynamic Options derived from loaded companies
     const rubroOptions = getUniqueOptions(companies, 'rubro');
     const grupoOptions = getUniqueOptions(companies, 'grupo');
+    const companyOptions = getUniqueOptions(companies, 'razonSocial');
 
     const filterConfig = [
         { label: 'Rubro', value: 'rubro', options: rubroOptions },
         { label: 'Grupo', value: 'grupo', options: grupoOptions },
         { label: 'Estado', value: 'estado', options: estadoOptions.map(s => ({ label: s, value: s })) },
-        { label: 'Sector', value: 'sector', options: [{ label: 'INDUSTRIAL', value: 'INDUSTRIAL' }, { label: 'SERVICIOS', value: 'SERVICIOS' }] },
-        { label: 'País', value: 'pais', options: [{ label: 'ARGENTINA', value: 'ARGENTINA' }, { label: 'CHILE', value: 'CHILE' }] }
+        { label: 'Empresa', value: 'razonSocial', options: companyOptions },
     ];
 
     const renderHeader = () => (

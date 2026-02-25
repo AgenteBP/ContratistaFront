@@ -5,10 +5,11 @@ import { Password } from 'primereact/password';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { useAuth } from '../../context/AuthContext';
+import { getAvailableRoles } from '../../utils/authUtils';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, selectRole } = useAuth();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [error, setError] = useState(null);
@@ -21,7 +22,34 @@ const LoginPage = () => {
         try {
             const userData = await login(formData.email, formData.password);
             setLoading(false);
-            navigate('/select-role', { state: { userProfile: userData } });
+
+            // Verificar si el usuario tiene un solo rol y una sola entidad
+            const roles = getAvailableRoles(userData);
+
+            if (roles.length === 1 && roles[0].entities?.length === 1) {
+                const singleRole = roles[0];
+                const singleEntity = singleRole.entities[0];
+
+                // Definimos el tipo especializado (replicando lógica de RoleSelectionPage)
+                let specializedType = singleRole.role;
+                if (singleRole.role === 'AUDITOR') {
+                    specializedType = singleEntity.type;
+                }
+
+                // Autoseleccionar el rol
+                selectRole({
+                    role: singleRole.role,
+                    roleId: singleRole.id,
+                    type: specializedType,
+                    id_entity: singleEntity.id,
+                    entity_name: singleEntity.name,
+                    ...singleEntity
+                });
+
+                navigate('/dashboard');
+            } else {
+                navigate('/select-role', { state: { userProfile: userData } });
+            }
         } catch (error) {
             setLoading(false);
             setError("Usuario o contraseña incorrectos");
