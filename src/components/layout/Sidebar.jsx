@@ -225,6 +225,16 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
 
         // --- Role Configurations ---
 
+        const SUBMENU_AUDITORIA_TECNICA = {
+            type: 'submenu',
+            icon: 'pi-chart-bar',
+            label: 'Auditoría Técnica',
+            items: [
+                { label: 'Auditar', to: '/auditores/tecnica', icon: 'pi-sitemap', end: true },
+                { label: 'Historial', to: '/auditores/tecnica/historial', icon: 'pi-history' }
+            ]
+        };
+
         if (isProveedor) {
             return [
                 ITEM_INICIO,
@@ -240,10 +250,9 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
                 SUBMENU_RECURSOS_STD,
-                // FILTRADO DINÁMICO: Solo mostramos Auditoría Técnica si el rol lo es.
-                // En el futuro podrías añadir el item de Auditoría Legal aquí.
-                isAuditorTecnico ? { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' } : null,
-                isAuditorLegal ? { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' } : null,
+                // FILTRADO DINÁMICO: Mostramos los items según la especialidad del auditor.
+                isAuditorTecnico && SUBMENU_AUDITORIA_TECNICA,
+                isAuditorLegal && { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' },
                 SUBMENU_DOCUMENTOS,
                 ITEM_REPORTES
             ].filter(Boolean); // Limpiamos los nulls
@@ -278,7 +287,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-shield', label: 'Auditores', to: '/auditores', end: true, badge: '5' },
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
-                { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' },
+                SUBMENU_AUDITORIA_TECNICA,
                 SUBMENU_DOCUMENTOS,
                 ITEM_REPORTES
             ];

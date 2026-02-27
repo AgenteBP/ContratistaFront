@@ -1,13 +1,35 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { requirementService } from '../../services/requirementService';
+import { Column } from 'primereact/column';
+import AppTable from '../ui/AppTable';
+import TableFilters from '../ui/TableFilters';
+import ObservationModal from '../ui/ObservationModal';
 
 const DocumentEntityTable = ({ type, filterStatus }) => {
     const navigate = useNavigate();
     const [data, setData] = useState([]);
     const [filteredData, setFilteredData] = useState(null);
     const [loading, setLoading] = useState(true);
-    // ... filters state and other state vars ...
+    const [observationModalVisible, setObservationModalVisible] = useState(false);
+    const [selectedObservation, setSelectedObservation] = useState(null);
+    const [filters, setFilters] = useState(null);
+    const [globalFilterValue, setGlobalFilterValue] = useState('');
 
-    // ... generator helper ...
+    const initFilters = () => {
+        setFilters({
+            global: { value: null, matchMode: 'contains' },
+            estado: { value: null, matchMode: 'in' },
+            tipo: { value: null, matchMode: 'in' },
+            entityName: { value: null, matchMode: 'in' }
+        });
+        setGlobalFilterValue('');
+    };
+
+    const MOCK_EMPLOYEES = [];
+    const MOCK_VEHICLES = [];
+    const MOCK_MACHINERY = [];
+    const generateDocsForResource = () => [];
 
     useEffect(() => {
         initFilters();

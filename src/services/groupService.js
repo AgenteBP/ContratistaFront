@@ -11,10 +11,15 @@ export const groupService = {
         return response.data;
     },
 
-    getDetails: async (idSupplier, idGroup, idActiveType = 5) => {
+    getDetails: async (idSupplier, idGroup) => {
         const params = { idSupplier, idGroup };
-        if (idActiveType) params.idActiveType = idActiveType;
         const response = await api.get('/group_requirements/details', { params });
+        return response.data;
+    },
+
+    getSpecific: async (idSupplier, idGroup) => {
+        const params = { idSupplier, idGroup };
+        const response = await api.get('/group_requirements/specific', { params });
         return response.data;
     }
 };

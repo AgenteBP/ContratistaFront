@@ -42,7 +42,15 @@ const RoleCard = ({ roleData, onSelect }) => {
   const confirmSelection = (e) => {
     e?.stopPropagation?.();
     const val = selectedOption ?? (options[0]?.value);
-    const selectedEntity = typeof val === 'string' ? { name: val } : { id: val?.id, name: val?.name || val?.entity };
+
+    // IMPORTANTE: Preservar todas las propiedades de la entidad (como 'type' para auditores)
+    const selectedEntity = typeof val === 'string' ? { name: val } : { ...val };
+
+    // Si no tiene nombre amigable pero tiene 'entity', lo normalizamos
+    if (!selectedEntity.name && selectedEntity.entity) {
+      selectedEntity.name = selectedEntity.entity;
+    }
+
     onSelect({ role: roleData.role, roleId: roleData.id, selectedEntity });
   };
 

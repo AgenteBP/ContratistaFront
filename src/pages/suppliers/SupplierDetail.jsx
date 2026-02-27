@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SupplierForm from './SupplierForm';
 import { supplierService } from '../../services/supplierService';
 import { requirementService } from '../../services/requirementService';
+import { groupService } from '../../services/groupService';
 import { StatusBadge } from '../../components/ui/Badges';
 import { formatCUIT } from '../../utils/formatUtils';
+import { base64ToBlobUrl } from '../../utils/fileUtils';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -20,11 +22,111 @@ const SupplierDetail = () => {
         const response = await requirementService.getSupplierDocuments(id);
         console.log("Respuesta API Detailed Supplier:", response);
 
+        // 2. Fetch Group Requirements for dynamic Legajo (Consistent with useSupplier)
+        let dynamicDocs = [];
+        if (response.id_group) {
+          try {
+            console.log("SupplierDetail: Fetching specific group requirements for group", response.id_group);
+            const groupReqs = await groupService.getSpecific(response.id_supplier, response.id_group);
+
+            if (groupReqs && groupReqs.length > 0) {
+              const DOC_TYPE_LABELS = {
+                'CONSTANCIA_AFIP': 'Constancia de Inscripción AFIP',
+                'ESTATUTO': 'Estatuto Social',
+                'FORM_931': 'Formulario 931',
+                'HABILITACION_SEGURIDAD': 'Habilitación Comercial / Seguridad',
+                'SEGURO_ACCIDENTES': 'Seguro de Accidentes Personales',
+                'ART_CERTIFICADO': 'Certificado de Cobertura ART',
+                'SEGURO_VIDA': 'Seguro de Vida Obligatorio',
+                'HABILITACION_VEHICULOS': 'Habilitación de Vehículos / VTV',
+                'SOLICITUD_USUARIOS': 'Solicitud de Usuarios de Sistema',
+                'CERT_NO_DEUDA_EDESAL': 'Certificado de No Deuda (Edesal)',
+                'EMR_MANUAL_EDESAL': 'Manual de Inducción Seguridad EMR (Edesal)',
+                'DDJJ_ETICA_EDESAL': 'Declaración Jurada Ética (Edesal)',
+                'HABILITACION_VIGILANCIA_EDESAL': 'Habilitación Provincial de Seguridad (Edesal)',
+                'ANEXO_SH_ROVELLA': 'Anexo Seguridad e Higiene (Rovella)',
+                'FICHA_ALTA_ROVELLA': 'Ficha Alta de Proveedor (Rovella)',
+                'POLIZA_OBRA_ROVELLA': 'Póliza de Seguro de Obra (Rovella)',
+                'SAP_ROVELLA': 'Seguro ACC Personales - Cláusula Rovella'
+              };
+
+              // Use a Map to ensure absolute uniqueness of Requirements
+              const docMap = new Map();
+
+              groupReqs.forEach(req => {
+                const listReq = req.listRequirements;
+                if (!listReq) return;
+
+                const attrTempl = listReq.attributeTemplate;
+                const attrs = attrTempl?.attributes;
+                const folderMeta = listReq.folder_metadata?.data;
+                const files = listReq.files || [];
+                const submittedFile = files.length > 0 ? files[0] : null;
+                const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf;
+
+                const requirementId = listReq.id_list_requirements;
+                const key = `R${requirementId}`;
+
+                if (!docMap.has(key)) {
+                  const label = listReq.description || attrs?.description || 'Documento';
+
+                  let docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
+                    DOC_TYPE_LABELS[k].toLowerCase() === label.toLowerCase()
+                  );
+
+                  if (!docKey) {
+                    const cleanDesc = label.replace(/ obligatorio/i, '').trim();
+                    docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
+                      DOC_TYPE_LABELS[k].toLowerCase().includes(cleanDesc.toLowerCase())
+                    ) || label.toUpperCase().replace(/\s+/g, '_');
+                  }
+
+                  const isFile = !!submittedFile;
+                  const cleanLabel = label.replace(/ obligatorio/i, '').trim();
+
+                  // New DB schema fields vs Old DB schema `data_pdf`
+                  const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf || {};
+                  const directFileName = submittedFile?.file_name || submittedFile?.fileName;
+                  const directFileUrl = submittedFile?.file_url || submittedFile?.url;
+                  const directContent = submittedFile?.content || submittedFile?.file_content;
+
+                  const finalStatus = folderMeta?.estado || (isFile ? 'EN REVISIÓN' : 'PENDIENTE');
+                  const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
+                  const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
+                  const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+
+                  docMap.set(key, {
+                    id: `req-${key}`,
+                    id_group_req: req.id_group_requirements,
+                    id_list_req: listReq.id_list_requirements,
+                    id_attribute: attrs?.id_attributes || attrs?.idAttributes,
+                    id_element: listReq.folder_metadata?.id_elements,
+                    id_active: attrTempl?.id_active || attrTempl?.idActive,
+                    tipo: docKey,
+                    label: cleanLabel,
+                    frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
+                    estado: finalStatus,
+                    archivo: finalFileName,
+                    observacion: finalObs,
+                    fechaVencimiento: finalVenc,
+                    fileUrl: directFileUrl || fileData?.url || null // Blob URL generation happens on demand now
+                  });
+                }
+              });
+
+              dynamicDocs = Array.from(docMap.values());
+            }
+          } catch (err) {
+            console.warn("SupplierDetail: Failed to fetch group requirements", err);
+          }
+        }
+
         if (response) {
           // Map API response to SupplierForm structure
           const mappedData = {
-            id: response.cuit, // Keeping id as CUIT for consistency with list logic if needed, or just use s.id_supplier if that was intended.
+            id: response.cuit,
             internalId: response.id_supplier,
+            idGroup: response.id_group, // Ensure idGroup is passed
             razonSocial: response.company_name,
             cuit: formatCUIT(response.cuit),
             nombreFantasia: response.fantasy_name,
@@ -46,7 +148,7 @@ const SupplierDetail = () => {
               nombre: response.contacts.nombre_contacto || '',
               tipo: response.contacts.puesto || 'OPERATIVO - LEGAJO'
             }] : [],
-            documentacion: response.elements ? response.elements.map(el => ({
+            documentacion: dynamicDocs.length > 0 ? dynamicDocs : (response.elements ? response.elements.map(el => ({
               id: el.id_elements,
               id_active: el.active?.idActive,
               tipo: el.active?.description || 'DOCUMENTO',
@@ -55,7 +157,7 @@ const SupplierDetail = () => {
               observacion: el.data?.observacion || null,
               fechaVencimiento: el.data?.fechaVencimiento || null,
               frecuencia: el.data?.frecuencia || 'Mensual'
-            })) : []
+            })) : [])
           };
           setProveedor(mappedData);
         }

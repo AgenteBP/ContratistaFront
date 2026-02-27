@@ -15,6 +15,8 @@ import { Dialog } from 'primereact/dialog';
 import { StatusBadge } from '../../components/ui/Badges';
 import { InputMask } from 'primereact/inputmask';
 import { classNames } from 'primereact/utils';
+import { base64ToBlobUrl } from '../../utils/fileUtils';
+import { fileService } from '../../services/fileService';
 
 const EMPTY_ARRAY = [];
 
@@ -153,8 +155,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [docToDelete, setDocToDelete] = useState(null);
 
-    // 4. Expanded Observations State
     const [expandedObservations, setExpandedObservations] = useState({});
+
+    // 5. File Download Loading State
+    const [loadingDocs, setLoadingDocs] = useState({});
 
     const toggleObservation = (id) => {
         setExpandedObservations(prev => ({
@@ -408,8 +412,55 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
     };
 
+    // --- LOGICA DE DESCARGA DE ARCHIVOS BAJO DEMANDA ---
+    const handleViewFile = async (docData) => {
+        if (!docData) return;
+
+        // If it already has a local fileUrl (e.g. newly uploaded file), use it instantly
+        if (docData.fileUrl && docData.fileUrl.startsWith('blob:')) {
+            window.open(docData.fileUrl, '_blank');
+            return;
+        }
+
+        // If we don't have id_file_submitted, it might be a mock or external link
+        if (!docData.id_file_submitted) {
+            if (docData.fileUrl) window.open(docData.fileUrl, '_blank');
+            else alert(`Visualización no disponible para: ${docData.archivo}`);
+            return;
+        }
+
+        try {
+            setLoadingDocs(prev => ({ ...prev, [docData.id]: true }));
+
+            // Fetch file via new endpoint (devuelve un Blob puro por la config de axios)
+            const fileBlob = await fileService.getFile(docData.id_file_submitted);
+
+            if (fileBlob && fileBlob.size > 0) {
+                const blobUrl = URL.createObjectURL(fileBlob);
+                if (blobUrl) {
+                    window.open(blobUrl, '_blank');
+                } else {
+                    alert('Error local: No se pudo generar la vista previa del archivo.');
+                }
+            } else if (docData.fileUrl) {
+                // Fallback a URL antigua
+                window.open(docData.fileUrl, '_blank');
+            } else {
+                alert('El archivo no tiene contenido para visualizar.');
+            }
+        } catch (error) {
+            console.error('Error descargando documento:', error);
+            if (docData.fileUrl) {
+                window.open(docData.fileUrl, '_blank');
+            } else {
+                alert('Error al descargar el archivo del servidor.');
+            }
+        } finally {
+            setLoadingDocs(prev => ({ ...prev, [docData.id]: false }));
+        }
+    };
+
     // --- LOGICA DE UBICACION (Country-State-City) ---
-    // Mover hooks al nivel superior para no romper reglas de Hooks
     const regionNames = new Intl.DisplayNames(['es'], { type: 'region' });
     const countries = Country.getAllCountries().map(c => {
         let label = c.name;
@@ -621,37 +672,27 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
 
         if (!isCustomConfig) {
-            // Si ya tenemos documentación cargada del backend (flujo dinámico), 
-            // esa debe ser nuestra fuente única de verdad para evitar mezclar con reglas sugeridas
-            const existingDocs = formData.documentacion || [];
+            // Si estemos en modo Edición Parcial (Mis Datos / Detalle),
+            // la documentación cargada DEBE ser nuestra fuente única de verdad.
+            if (partialEdit) {
+                const existingDocs = formData.documentacion || [];
+                const dynamicRequirements = existingDocs.map(doc => ({
+                    id: doc.id,
+                    id_active: doc.id_active,
+                    tipo: doc.tipo,
+                    label: doc.label || doc.tipoDescripcion || 'Documento',
+                    frecuencia: doc.frecuencia || 'N/A',
+                    obligatoriedad: 'Requerido',
+                    estado: doc.estado || 'PENDIENTE',
+                    archivo: doc.archivo
+                }));
 
-            if (existingDocs.length > 0 && partialEdit) {
-                // If any document has a "real" ID (not from Date.now() used during wizard/edit), 
-                // it means it came from the backend and we should trust the backend's required list.
-                const hasBackendDocs = existingDocs.some(doc => doc.id && String(doc.id).length > 10 && !String(doc.id).includes('.'));
-
-                if (hasBackendDocs) {
-                    const dynamicRequirements = existingDocs.map(doc => ({
-                        // IMPORTANT: ID must match "tipo" for card mapping to work
-                        id: doc.tipo || doc.id_active || doc.idActive || doc.id,
-                        id_active: doc.id_active || doc.idActive,
-                        tipo: doc.tipo,
-                        label: doc.tipoDescripcion || doc.label || 'Documento',
-                        frecuencia: doc.frecuencia || 'N/A',
-                        obligatoriedad: 'Requerido'
-                    }));
-                    // Remove duplicates by id or id_active
-                    const uniqueReqs = dynamicRequirements.filter((v, i, a) =>
-                        a.findIndex(t => (t.id_active && t.id_active === v.id_active) || t.id === v.id) === i
-                    );
-
-                    setRequiredDocs(prev => {
-                        const changed = JSON.stringify(prev) !== JSON.stringify(uniqueReqs);
-                        if (changed) console.log("Using backend-provided documentation requirements exclusively", uniqueReqs);
-                        return changed ? uniqueReqs : prev;
-                    });
-                    return;
-                }
+                setRequiredDocs(prev => {
+                    const changed = JSON.stringify(prev) !== JSON.stringify(dynamicRequirements);
+                    if (changed) console.log("SupplierForm: Derived requiredDocs from formData.documentacion (PartialEdit):", dynamicRequirements);
+                    return changed ? dynamicRequirements : prev;
+                });
+                return;
             }
 
             // Default suggested rules (Legacy/Static)
@@ -1201,6 +1242,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 const isStep4ConfigReadOnly = !isWizardMode;
                 const isStep4ActionsEnabled = partialEdit && isEditingStep;
 
+                console.log("SupplierForm - formData:", formData);
                 return (
                     <div className="p-8 animate-fade-in relative">
                         <StepHeader
@@ -1274,9 +1316,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         <span className="text-xs font-bold">Agregar Requisito</span>
                                     </button>
                                 )}
-
                                 {requiredDocs.map(doc => {
-                                    const docData = formData.documentacion ? formData.documentacion.find(d => d.tipo === doc.id) : null;
+                                    const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
+
                                     const status = docData ? docData.estado : 'PENDIENTE';
                                     const getStatusColor = (s) => {
                                         switch (s) {
@@ -1298,7 +1340,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
                                             setFormData(prev => {
                                                 const currentDocs = prev.documentacion || [];
-                                                const docIndex = currentDocs.findIndex(d => d.tipo === doc.id);
+                                                const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
 
                                                 let newDocs;
                                                 if (docIndex >= 0) {
@@ -1318,9 +1360,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                 } else {
                                                     // Add new - Status PENDING until save
                                                     newDocs = [...currentDocs, {
-                                                        id: Date.now(),
+                                                        id: doc.id,
                                                         tipo: doc.id,
                                                         id_active: doc.id_active,
+                                                        id_attribute: doc.id_attribute,
                                                         tipoDescripcion: doc.label || doc.tipoDescripcion,
                                                         label: doc.label,
                                                         estado: 'PENDIENTE',
@@ -1346,7 +1389,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                             setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
                                             setFormData(prev => {
                                                 const currentDocs = prev.documentacion || [];
-                                                const docIndex = currentDocs.findIndex(d => d.tipo === docId);
+                                                const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
                                                 let newDocs;
 
                                                 // Format YYYY-MM-DD for consistency
@@ -1360,9 +1403,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
                                                 } else {
                                                     newDocs = [...currentDocs, {
-                                                        id: Date.now(),
+                                                        id: docId,
                                                         tipo: docId,
                                                         id_active: doc.id_active,
+                                                        id_attribute: doc.id_attribute,
                                                         tipoDescripcion: doc.label || doc.tipoDescripcion,
                                                         label: doc.label,
                                                         estado: 'PENDIENTE',
@@ -1403,7 +1447,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={doc.label}>{doc.label}</h4>
+                                                            <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={docData?.label || doc.label}>{docData?.label || doc.label}</h4>
                                                         </div>
                                                         {doc.helpText && (
                                                             <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
@@ -1437,7 +1481,6 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     <div className="w-[90%] h-px bg-secondary/10 mx-auto mb-4"></div>
                                                 )}
 
-                                                {/* Observation Alert (Card Mode) */}
                                                 {/* Observation Alert (Card Mode) */}
                                                 {docData?.observacion && (
                                                     expandedObservations[doc.id] ? (
@@ -1510,10 +1553,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     <div className="space-y-3">
                                                         <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
                                                             <i className="pi pi-clock text-primary text-[11px]"></i>
-                                                            <span className="text-xs font-medium text-secondary-dark">{doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</span>
+                                                            <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</span>
                                                         </div>
 
-                                                        {((docData?.fechaVencimiento || isStep4ActionsEnabled) && doc.frecuencia !== 'Única vez') && (
+                                                        {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
                                                             <div className="flex flex-col w-full">
                                                                 <div className="flex items-center gap-2">
                                                                     <i className="pi pi-calendar text-secondary/50 text-base"></i>
@@ -1542,7 +1585,6 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
                                                         {/* ACTION AREA: Placeholder / Upload / File Info */}
                                                         {/* 1. Pending + No File => Placeholder or Upload Zone */}
-                                                        {/* 1. Pending + No File => Placeholder or Upload Zone */}
                                                         {!docData?.archivo && (
                                                             isStep4ActionsEnabled ? (
                                                                 <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
@@ -1564,7 +1606,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
                                                         {(docData?.archivo && isStep4ActionsEnabled) && (
                                                             <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
-                                                                onClick={() => docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización: ${docData.archivo}`)}
+                                                                onClick={() => handleViewFile(docData)}
                                                             >
                                                                 <div className="flex items-center gap-2 overflow-hidden flex-1">
                                                                     <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
@@ -1584,7 +1626,11 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                         <i className="pi pi-trash text-xs"></i>
                                                                     </button>
                                                                 ) : (
-                                                                    <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
+                                                                    loadingDocs[docData?.id] ? (
+                                                                        <i className="pi pi-spin pi-spinner text-primary text-xs mr-1"></i>
+                                                                    ) : (
+                                                                        <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
+                                                                    )
                                                                 )}
                                                             </div>
                                                         )}
@@ -1594,12 +1640,16 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización: ${docData.archivo}`);
+                                                                    handleViewFile(docData);
                                                                 }}
                                                                 className="absolute bottom-3 right-3 text-secondary/40 hover:text-primary hover:scale-110 transition-all z-10 p-2"
                                                                 title="Ver Documento"
                                                             >
-                                                                <i className="pi pi-external-link text-lg"></i>
+                                                                {loadingDocs[docData?.id] ? (
+                                                                    <i className="pi pi-spin pi-spinner text-lg text-primary"></i>
+                                                                ) : (
+                                                                    <i className="pi pi-external-link text-lg"></i>
+                                                                )}
                                                             </button>
                                                         )}
 
@@ -1626,7 +1676,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     </thead>
                                     <tbody className="divide-y divide-secondary/5">
                                         {requiredDocs.map(doc => {
-                                            const docData = formData.documentacion ? formData.documentacion.find(d => d.tipo === doc.id) : null;
+                                            const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
                                             const status = docData ? docData.estado : 'PENDIENTE';
 
                                             const handleFileUpload = (e) => {
@@ -1636,7 +1686,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     setDirtySteps(prev => new Set(prev).add(4));
                                                     setFormData(prev => {
                                                         const currentDocs = prev.documentacion || [];
-                                                        const docIndex = currentDocs.findIndex(d => d.tipo === doc.id);
+                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
                                                         let newDocs;
                                                         if (docIndex >= 0) {
                                                             newDocs = [...currentDocs];
@@ -1659,7 +1709,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     setDirtySteps(prev => new Set(prev).add(4));
                                                     setFormData(prev => {
                                                         const currentDocs = prev.documentacion || [];
-                                                        const docIndex = currentDocs.findIndex(d => d.tipo === docId);
+                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
                                                         const year = date.getFullYear();
                                                         const month = String(date.getMonth() + 1).padStart(2, '0');
                                                         const day = String(date.getDate()).padStart(2, '0');
@@ -1750,11 +1800,15 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                 docData?.archivo ? (
                                                                     <div className="flex items-center gap-1 bg-primary/5 rounded-lg p-1">
                                                                         <button
-                                                                            onClick={() => docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización`)}
-                                                                            className="p-1 text-primary hover:bg-white rounded shadow-sm transition-all"
+                                                                            onClick={() => handleViewFile(docData)}
+                                                                            className="p-1 text-primary hover:bg-white rounded shadow-sm transition-all flex items-center justify-center w-6 h-6"
                                                                             title="Ver archivo"
                                                                         >
-                                                                            <i className="pi pi-eye text-xs"></i>
+                                                                            {loadingDocs[docData?.id] ? (
+                                                                                <i className="pi pi-spin pi-spinner text-xs"></i>
+                                                                            ) : (
+                                                                                <i className="pi pi-eye text-xs"></i>
+                                                                            )}
                                                                         </button>
                                                                         <button
                                                                             onClick={() => handleRemoveFile(doc.id)}
@@ -1780,10 +1834,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                             ) : (
                                                                 docData?.archivo && (
                                                                     <button
-                                                                        onClick={() => docData.fileUrl ? window.open(docData.fileUrl, '_blank') : alert(`Visualización`)}
-                                                                        className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                                                                        onClick={() => handleViewFile(docData)}
+                                                                        className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all min-w-[50px] flex justify-center items-center"
                                                                     >
-                                                                        Ver
+                                                                        {loadingDocs[docData?.id] ? (
+                                                                            <i className="pi pi-spin pi-spinner text-xs"></i>
+                                                                        ) : "Ver"}
                                                                     </button>
                                                                 )
                                                             )}

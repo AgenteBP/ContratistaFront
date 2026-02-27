@@ -167,8 +167,8 @@ export const AuthProvider = ({ children }) => {
 
     // Normalizamos el tipo para los helpers de forma segura
     const normalizedType = type?.toString().toLowerCase() || '';
-    const isTecnico = normalizedType.includes('tecnic') || type === 'TECNICO';
-    const isLegal = normalizedType.includes('legal') || type === 'LEGAL';
+    const isTecnico = normalizedType.includes('tecnic') || normalizedType.includes('technic') || type === 'TECNICO' || type === 'TECHNICAL';
+    const isLegal = normalizedType.includes('legal');
 
     const authValues = {
         user,

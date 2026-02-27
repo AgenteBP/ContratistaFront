@@ -6,6 +6,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
 
+import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
+
+
 // Mapping for Document ID to Active Description
 const DOC_TYPE_LABELS = {
     'CONSTANCIA_AFIP': 'Constancia de Inscripción AFIP',
@@ -27,14 +30,6 @@ const DOC_TYPE_LABELS = {
     'SAP_ROVELLA': 'Seguro ACC Personales - Cláusula Rovella'
 };
 
-const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-};
 
 export const useSupplier = () => {
     const { user, currentRole } = useAuth();
@@ -78,55 +73,87 @@ export const useSupplier = () => {
                     // 3. If Group ID is present, fetch specific group requirements (DYNAMIC FLOW)
                     if (data.idGroup) {
                         try {
-                            console.log("Fetching group requirements for group", data.idGroup);
-                            const groupReqs = await groupService.getDetails(data.internalId, data.idGroup, 5);
+                            console.log("Fetching specific group requirements for group", data.idGroup);
+                            // CHANGED: Using getSpecific instead of getDetails
+                            const groupReqs = await groupService.getSpecific(data.internalId, data.idGroup);
 
                             if (groupReqs && groupReqs.length > 0) {
-                                // Map Requirements to UI Documentation format
-                                const dynamicDocs = groupReqs.map(req => {
+                                // Use a Map to ensure absolute uniqueness of Requirements
+                                const docMap = new Map();
+
+                                groupReqs.forEach(req => {
                                     const listReq = req.listRequirements;
-                                    const info = listReq?.elementInfo;
-                                    const active = listReq?.attributeTemplate?.active_description || info?.active?.description || listReq?.description;
+                                    if (!listReq) return;
 
-                                    // Find key from DOC_TYPE_LABELS or fallback to description
-                                    let docKey = Object.keys(DOC_TYPE_LABELS).find(key =>
-                                        DOC_TYPE_LABELS[key].toLowerCase() === active.toLowerCase()
-                                    );
+                                    const attrTempl = listReq.attributeTemplate;
+                                    const attrs = attrTempl?.attributes;
+                                    const folderMeta = listReq.folder_metadata?.data;
+                                    const files = listReq.files || [];
+                                    const submittedFile = files.length > 0 ? files[0] : null;
+                                    const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf;
 
-                                    if (!docKey) {
-                                        // Fallback cleaning: remove " obligatorio", etc
-                                        const cleanDesc = active.replace(/ obligatorio/i, '').trim();
-                                        docKey = Object.keys(DOC_TYPE_LABELS).find(key =>
-                                            DOC_TYPE_LABELS[key].toLowerCase().includes(cleanDesc.toLowerCase())
-                                        ) || active.toUpperCase().replace(/\s+/g, '_');
+                                    const requirementId = listReq.id_list_requirements;
+                                    const key = `R${requirementId}`;
+
+                                    if (!docMap.has(key)) {
+                                        const label = listReq.description || attrs?.description || 'Documento';
+
+                                        let docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
+                                            DOC_TYPE_LABELS[k].toLowerCase() === label.toLowerCase()
+                                        );
+
+                                        if (!docKey) {
+                                            const cleanDesc = label.replace(/ obligatorio/i, '').trim();
+                                            docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
+                                                DOC_TYPE_LABELS[k].toLowerCase().includes(cleanDesc.toLowerCase())
+                                            ) || label.toUpperCase().replace(/\s+/g, '_');
+                                        }
+
+                                        const isFile = !!submittedFile;
+                                        const cleanLabel = label.replace(/ obligatorio/i, '').trim();
+
+                                        // New DB schema fields vs Old DB schema `data_pdf`
+                                        const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf || {};
+                                        const directFileName = submittedFile?.file_name || submittedFile?.fileName;
+                                        const directFileUrl = submittedFile?.file_url || submittedFile?.url;
+                                        const directContent = submittedFile?.content || submittedFile?.file_content;
+
+                                        const finalStatus = folderMeta?.estado || (isFile ? 'EN REVISIÓN' : 'PENDIENTE');
+                                        const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
+                                        const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
+                                        const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+
+                                        docMap.set(key, {
+                                            id: `req-${key}`,
+                                            id_group_req: req.id_group_requirements,
+                                            id_list_req: listReq.id_list_requirements,
+                                            id_attribute: attrs?.id_attributes || attrs?.idAttributes,
+                                            id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
+                                            id_element: listReq.folder_metadata?.id_elements,
+                                            id_active: attrTempl?.id_active || attrTempl?.idActive,
+                                            tipo: docKey,
+                                            label: cleanLabel,
+                                            frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
+                                            estado: finalStatus,
+                                            archivo: finalFileName,
+                                            observacion: finalObs,
+                                            fechaVencimiento: finalVenc,
+                                            fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
+                                            modified: false
+                                        });
                                     }
-
-                                    const lastFile = info?.files_submitted?.[0];
-                                    const cleanLabel = active.replace(/ obligatorio/i, '').trim();
-
-                                    return {
-                                        id: info?.id_elements || `req-${listReq?.id_list_requirements || Math.random()}`,
-                                        id_active: info?.active?.idActive || info?.id_active, // Preservar ID de tipo de documento
-                                        tipo: docKey,
-                                        label: cleanLabel,
-                                        frecuencia: listReq?.attributeTemplate?.attributes?.periodicity_description || 'Única vez',
-                                        estado: lastFile ? 'EN REVISIÓN' : 'PENDIENTE',
-                                        archivo: lastFile?.data_pdf?.file_name || null,
-                                        observacion: lastFile?.observacion || null,
-                                        fechaVencimiento: lastFile?.date_submitted || null,
-                                        modified: false
-                                    };
                                 });
 
-                                console.log("Dynamic Documentation mapped:", dynamicDocs);
+                                const dynamicDocs = Array.from(docMap.values());
+                                console.log("Specific Documentation mapped:", dynamicDocs);
                                 data.documentacion = dynamicDocs;
                             } else {
-                                console.warn("No group requirements found, marking as MOCK for visibility");
+                                console.warn("No specific group requirements found, marking as MOCK for visibility");
                                 data.isMock = true;
                             }
                         } catch (err) {
-                            console.warn("Failed to fetch group requirements, falling back to basic documents", err);
-                            data.isMock = true; // Mark as mock if dynamic requirements failed
+                            console.warn("Failed to fetch specific group requirements, falling back to basic documents", err);
+                            data.isMock = true;
                         }
                     }
 
@@ -171,30 +198,36 @@ export const useSupplier = () => {
         if (mergedData.documentacion) {
             for (const doc of mergedData.documentacion) {
                 const docLabel = DOC_TYPE_LABELS[doc.tipo];
+                // Resolve active: prioritize doc.id_active, then fall back to matching legajoActives
                 const active = legajoActives.find(a =>
-                    String(a.id_active) === String(doc.tipo || doc.id_active) ||
+                    String(a.id_active) === String(doc.id_active || doc.tipo) ||
                     (docLabel && a.description === docLabel)
                 );
 
-                if (active && (doc.modified || doc.fileObject)) {
+                const finalIdActive = doc.id_active || active?.id_active;
+
+                if (finalIdActive && (doc.modified || doc.fileObject)) {
                     let fileDto = null;
                     if (doc.fileObject) {
                         const base64Data = await fileToBase64(doc.fileObject);
+                        const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+
+                        // New DB Architecture payload fields 
                         fileDto = {
-                            id_attribute: 1,
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
                             period: new Date().getFullYear().toString(),
-                            data_pdf: {
-                                fileName: doc.archivo,
-                                fileSize: doc.fileObject.size,
-                                fileType: doc.fileObject.type,
-                                content: base64Data
-                            },
+                            file_name: doc.archivo,
+                            file_size: doc.fileObject.size,
+                            file_type: doc.fileObject.type,
+                            file_content: pureBase64,
                             date_submitted: new Date().toISOString().split('T')[0]
                         };
                     }
 
                     elementsList.push({
-                        id_active: active.id_active,
+                        id_element: doc.id_element || null,
+                        id_active: finalIdActive,
                         element_data: {
                             tipo: doc.tipo,
                             estado: doc.estado,
@@ -230,7 +263,7 @@ export const useSupplier = () => {
             },
             document_supplier: {
                 list: (mergedData.documentacion || []).map(d => ({
-                    id: d.id,
+                    id: String(d.id).startsWith('req-') ? null : d.id, // Don't send string IDs if backend expects integers
                     tipo: d.tipo,
                     estado: d.estado,
                     archivo: d.archivo,
