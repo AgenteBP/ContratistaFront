@@ -645,29 +645,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     useEffect(() => {
         // En ALTA (isWizardMode), usamos availableRequirements si están disponibles
         if (isWizardMode && !isCustomConfig) {
-            if (availableRequirements && availableRequirements.length > 0) {
-                const requirementsFromApi = availableRequirements.map(req => {
-                    const id = req.id_active || req.idActive || req.id;
-                    return {
-                        id: id,
-                        id_active: id,
-                        tipo: id,
-                        label: req.description,
-                        helpText: req.help_text,
-                        frecuencia: 'Mensual',
-                        obligatoriedad: 'Requerido'
-                    };
-                });
-
-                // Breaking potential loops by checking if content actually changed
-                setRequiredDocs(prev => {
-                    const changed = JSON.stringify(prev) !== JSON.stringify(requirementsFromApi);
-                    if (changed) console.log("SupplierForm: Initializing with availableRequirements", availableRequirements);
-                    return changed ? requirementsFromApi : prev;
-                });
-            } else {
-                setRequiredDocs(prev => prev.length > 0 ? [] : prev);
-            }
+            // Requerimiento del usuario: NO poblar automáticamente, que el proveedor empiece sin requisitos
+            setRequiredDocs([]);
+            // Marcar como custom configuration para que no vuelva a intentar auto-generar
+            setIsCustomConfig(true);
             return;
         }
 
@@ -1317,352 +1298,357 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                     </button>
                                 )}
                                 {requiredDocs.map(doc => {
-                                    const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
-
-                                    const status = docData ? docData.estado : 'PENDIENTE';
-                                    const getStatusColor = (s) => {
-                                        switch (s) {
-                                            case 'VIGENTE': return 'border-success/50 bg-success-light/10';
-                                            case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
-                                            case 'PENDIENTE': return 'border-secondary/50 bg-secondary-light/10';
-                                            case 'EN REVISIÓN': return 'border-info/50 bg-info-light/10';
-                                            case 'CON OBSERVACIÓN': return 'border-orange-500/50 bg-orange-50';
-                                            default: return 'border-secondary/20 bg-secondary-light/10';
-                                        }
-                                    };
-
-
-                                    const handleFileUpload = (e) => {
-                                        const file = e.target.files[0];
-                                        if (file) {
-                                            const fileUrl = URL.createObjectURL(file);
-                                            setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
-
-                                            setFormData(prev => {
-                                                const currentDocs = prev.documentacion || [];
-                                                const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
-
-                                                let newDocs;
-                                                if (docIndex >= 0) {
-                                                    // Update existing - PRESERVE STATUS until save
-                                                    newDocs = [...currentDocs];
-                                                    newDocs[docIndex] = {
-                                                        ...newDocs[docIndex],
-                                                        archivo: file.name,
-                                                        fileUrl: fileUrl,
-                                                        fileObject: file, // Store the File object
-                                                        tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
-                                                        label: doc.label,
-                                                        // Mark as modified so we know to update status on save
-                                                        modified: true,
-                                                        fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
-                                                    };
-                                                } else {
-                                                    // Add new - Status PENDING until save
-                                                    newDocs = [...currentDocs, {
-                                                        id: doc.id,
-                                                        tipo: doc.id,
-                                                        id_active: doc.id_active,
-                                                        id_attribute: doc.id_attribute,
-                                                        tipoDescripcion: doc.label || doc.tipoDescripcion,
-                                                        label: doc.label,
-                                                        estado: 'PENDIENTE',
-                                                        archivo: file.name,
-                                                        fileUrl: fileUrl,
-                                                        fileObject: file, // Store the File object
-                                                        modified: true, // New docs are modified by definition
-                                                        fechaVencimiento: null
-                                                    }];
-                                                }
-                                                return { ...prev, documentacion: newDocs };
-                                            });
-                                        }
-                                    };
-
-                                    const handleRemoveFile = (docId) => {
-                                        setDocToDelete(docId);
-                                        setConfirmModalOpen(true);
-                                    };
-
-                                    const handleDateChange = (docId, date) => {
-                                        if (date) {
-                                            setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
-                                            setFormData(prev => {
-                                                const currentDocs = prev.documentacion || [];
-                                                const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
-                                                let newDocs;
-
-                                                // Format YYYY-MM-DD for consistency
-                                                const year = date.getFullYear();
-                                                const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                const day = String(date.getDate()).padStart(2, '0');
-                                                const formattedDate = `${year}-${month}-${day}`;
-
-                                                if (docIndex >= 0) {
-                                                    newDocs = [...currentDocs];
-                                                    newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
-                                                } else {
-                                                    newDocs = [...currentDocs, {
-                                                        id: docId,
-                                                        tipo: docId,
-                                                        id_active: doc.id_active,
-                                                        id_attribute: doc.id_attribute,
-                                                        tipoDescripcion: doc.label || doc.tipoDescripcion,
-                                                        label: doc.label,
-                                                        estado: 'PENDIENTE',
-                                                        archivo: null,
-                                                        modified: true,
-                                                        fechaVencimiento: formattedDate
-                                                    }];
-                                                }
-                                                return { ...prev, documentacion: newDocs };
-                                            });
-                                        }
-                                    };
-
                                     return (
-                                        <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status)} group relative h-full min-h-[150px]`}>
+                                        <div key={doc.id}>
+                                            {(() => {
+                                                const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
 
-                                            {/* Botón Eliminar (Solo edición config) */}
-                                            {!isStep4ConfigReadOnly && editDocMode && (
-                                                <button
-                                                    onClick={() => toggleDocRequirement(doc.id)}
-                                                    className="absolute -top-2 -right-2 bg-white text-red-500 shadow-md rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition-all z-10"
-                                                >
-                                                    <i className="pi pi-times text-[10px] font-bold"></i>
-                                                </button>
-                                            )}
-
-
-                                            <div className="flex-1 flex flex-col h-full">
-                                                {/* Header: Icon + Title */}
-                                                <div className="flex items-start gap-4 mb-3">
-                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
-                                                        (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
-                                                            status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
-                                                                status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
-                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
-                                                                        'bg-secondary/10 border-secondary/20 text-secondary')}`}>
-                                                        <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={docData?.label || doc.label}>{docData?.label || doc.label}</h4>
-                                                        </div>
-                                                        {doc.helpText && (
-                                                            <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
-                                                                {doc.helpText}
-                                                            </p>
-                                                        )}
-                                                        {!isWizardMode && (
-                                                            <div className="flex flex-wrap gap-1">
-                                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
-                                                                    status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
-                                                                        status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
-                                                                            status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                                'bg-secondary/10 text-secondary border-secondary/20'
-                                                                    }`}>
-                                                                    {status}
-                                                                </span>
-                                                                {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
-                                                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block bg-orange-50 text-orange-600 border-orange-200 shadow-sm animate-pulse-subtle">
-                                                                        CON OBSERVACIÓN
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                const status = docData ? docData.estado : 'PENDIENTE';
+                                                const getStatusColor = (s) => {
+                                                    switch (s) {
+                                                        case 'VIGENTE': return 'border-success/50 bg-success-light/10';
+                                                        case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
+                                                        case 'PENDIENTE': return 'border-secondary/50 bg-secondary-light/10';
+                                                        case 'EN REVISIÓN': return 'border-info/50 bg-info-light/10';
+                                                        case 'CON OBSERVACIÓN': return 'border-orange-500/50 bg-orange-50';
+                                                        default: return 'border-secondary/20 bg-secondary-light/10';
+                                                    }
+                                                };
 
 
-                                                </div>
+                                                const handleFileUpload = (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        const fileUrl = URL.createObjectURL(file);
+                                                        setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
 
-                                                {/* Divider Line */}
-                                                {!isWizardMode && (
-                                                    <div className="w-[90%] h-px bg-secondary/10 mx-auto mb-4"></div>
-                                                )}
+                                                        setFormData(prev => {
+                                                            const currentDocs = prev.documentacion || [];
+                                                            const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
 
-                                                {/* Observation Alert (Card Mode) */}
-                                                {docData?.observacion && (
-                                                    expandedObservations[doc.id] ? (
-                                                        <div
-                                                            onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
-                                                            className="mb-4 p-2.5 bg-orange-50 border border-orange-100 rounded-lg flex items-start gap-2 cursor-pointer hover:bg-orange-100/50 transition-colors animate-fade-in"
-                                                        >
-                                                            <i className="pi pi-exclamation-circle text-orange-500 mt-0.5 shadow-sm"></i>
-                                                            <div className="flex-1">
-                                                                <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Observación:</p>
-                                                                <p className="text-[11px] text-orange-800 leading-tight italic font-medium">{docData.observacion}</p>
-                                                            </div>
-                                                            <i className="pi pi-chevron-up text-[10px] text-orange-400 mt-1"></i>
-                                                        </div>
-                                                    ) : (
-                                                        <div
-                                                            onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
-                                                            className="mb-4 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors group/obs"
-                                                        >
-                                                            <i className="pi pi-exclamation-circle text-orange-500 text-sm group-hover/obs:scale-110 transition-transform"></i>
-                                                            <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Ver Observación</span>
-                                                            <i className="pi pi-chevron-down text-[10px] text-orange-400 ml-1"></i>
-                                                        </div>
-                                                    )
-                                                )}
+                                                            let newDocs;
+                                                            if (docIndex >= 0) {
+                                                                // Update existing - PRESERVE STATUS until save
+                                                                newDocs = [...currentDocs];
+                                                                newDocs[docIndex] = {
+                                                                    ...newDocs[docIndex],
+                                                                    archivo: file.name,
+                                                                    fileUrl: fileUrl,
+                                                                    fileObject: file, // Store the File object
+                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
+                                                                    label: doc.label,
+                                                                    // Mark as modified so we know to update status on save
+                                                                    modified: true,
+                                                                    fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
+                                                                };
+                                                            } else {
+                                                                // Add new - Status PENDING until save
+                                                                newDocs = [...currentDocs, {
+                                                                    id: doc.id,
+                                                                    tipo: doc.id,
+                                                                    id_active: doc.id_active,
+                                                                    id_attribute: doc.id_attribute,
+                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                                    label: doc.label,
+                                                                    estado: 'PENDIENTE',
+                                                                    archivo: file.name,
+                                                                    fileUrl: fileUrl,
+                                                                    fileObject: file, // Store the File object
+                                                                    modified: true, // New docs are modified by definition
+                                                                    fechaVencimiento: null
+                                                                }];
+                                                            }
+                                                            return { ...prev, documentacion: newDocs };
+                                                        });
+                                                    }
+                                                };
 
-                                                {/* Body: Configuration (Wizard Mode) */}
-                                                {isWizardMode ? (
-                                                    <div className="mt-auto pt-4 border-t border-secondary/5 space-y-4">
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
-                                                                <i className="pi pi-history text-[9px]"></i> Periodicidad
-                                                            </label>
-                                                            <div className="relative">
-                                                                <select
-                                                                    value={doc.frecuencia}
-                                                                    onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
-                                                                    className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
-                                                                >
-                                                                    <option value="Mensual">Mensual</option>
-                                                                    <option value="Trimestral">Trimestral</option>
-                                                                    <option value="Semestral">Semestral</option>
-                                                                    <option value="Anual">Anual</option>
-                                                                    <option value="Única vez">Única vez</option>
-                                                                </select>
-                                                                <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
-                                                            </div>
-                                                        </div>
+                                                const handleRemoveFile = (docId) => {
+                                                    setDocToDelete(docId);
+                                                    setConfirmModalOpen(true);
+                                                };
 
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
-                                                                <i className="pi pi-lock text-[9px]"></i> Requerimiento
-                                                            </label>
-                                                            <div
-                                                                onClick={() => updateDocRequirement(doc.id, 'isOptional', !doc.isOptional)}
-                                                                className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${doc.isOptional
-                                                                    ? 'bg-gray-50 border-secondary/10 opacity-70'
-                                                                    : 'bg-indigo-50/50 border-indigo-100'}`}
-                                                            >
-                                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${doc.isOptional ? 'bg-white text-secondary/40' : 'bg-indigo-500 text-white shadow-sm'}`}>
-                                                                    <i className={`pi ${doc.isOptional ? 'pi-circle' : 'pi-check-circle'} text-[11px]`}></i>
-                                                                </div>
-                                                                <span className={`text-[11px] font-bold ${doc.isOptional ? 'text-secondary' : 'text-indigo-700'}`}>
-                                                                    {doc.isOptional ? 'Opcional' : 'Obligatorio'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-3">
-                                                        <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
-                                                            <i className="pi pi-clock text-primary text-[11px]"></i>
-                                                            <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</span>
-                                                        </div>
+                                                const handleDateChange = (docId, date) => {
+                                                    if (date) {
+                                                        setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
+                                                        setFormData(prev => {
+                                                            const currentDocs = prev.documentacion || [];
+                                                            const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
+                                                            let newDocs;
 
-                                                        {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
-                                                            <div className="flex flex-col w-full">
-                                                                <div className="flex items-center gap-2">
-                                                                    <i className="pi pi-calendar text-secondary/50 text-base"></i>
-                                                                    {isStep4ActionsEnabled ? (
-                                                                        <Calendar
-                                                                            value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
-                                                                            onChange={(e) => handleDateChange(doc.id, e.value)}
-                                                                            placeholder="Vencimiento"
-                                                                            disabled={!docData?.archivo}
-                                                                            minDate={new Date()}
-                                                                            className={`compact-calendar-input w-full border border-secondary/50 rounded-lg ${!docData?.archivo ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                                                                            panelClassName="compact-calendar-panel"
-                                                                            dateFormat="dd/mm/yy"
-                                                                        />
-                                                                    ) : (
-                                                                        <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
-                                                                    )}
-                                                                </div>
-                                                                {isStep4ActionsEnabled && !docData?.archivo && (
-                                                                    <span className="text-[10px] text-warning font-medium ml-6 mt-1.5">
-                                                                        * Requiere archivo para editar fecha
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                            // Format YYYY-MM-DD for consistency
+                                                            const year = date.getFullYear();
+                                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                            const day = String(date.getDate()).padStart(2, '0');
+                                                            const formattedDate = `${year}-${month}-${day}`;
 
-                                                        {/* ACTION AREA: Placeholder / Upload / File Info */}
-                                                        {/* 1. Pending + No File => Placeholder or Upload Zone */}
-                                                        {!docData?.archivo && (
-                                                            isStep4ActionsEnabled ? (
-                                                                <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
-                                                                    <input
-                                                                        type="file"
-                                                                        id={`file-${doc.id}`}
-                                                                        onChange={handleFileUpload}
-                                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                                    />
-                                                                    <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-secondary/20 rounded-xl bg-secondary/5 text-secondary/60 group-hover/upload:border-primary/50 group-hover/upload:bg-primary/5 group-hover/upload:text-primary transition-all p-4">
-                                                                        <i className="pi pi-cloud-upload text-3xl mb-2"></i>
-                                                                        <span className="text-[11px] font-bold uppercase tracking-widest text-center">Subir Archivo</span>
-                                                                        <span className="text-[9px] font-medium text-secondary/40 mt-1">o arrastrar aquí</span>
-                                                                    </div>
-                                                                </div>
-                                                            ) : null
-                                                        )}
+                                                            if (docIndex >= 0) {
+                                                                newDocs = [...currentDocs];
+                                                                newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
+                                                            } else {
+                                                                newDocs = [...currentDocs, {
+                                                                    id: docId,
+                                                                    tipo: docId,
+                                                                    id_active: doc.id_active,
+                                                                    id_attribute: doc.id_attribute,
+                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                                    label: doc.label,
+                                                                    estado: 'PENDIENTE',
+                                                                    archivo: null,
+                                                                    modified: true,
+                                                                    fechaVencimiento: formattedDate
+                                                                }];
+                                                            }
+                                                            return { ...prev, documentacion: newDocs };
+                                                        });
+                                                    }
+                                                };
 
-                                                        {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
-                                                        {(docData?.archivo && isStep4ActionsEnabled) && (
-                                                            <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
-                                                                onClick={() => handleViewFile(docData)}
-                                                            >
-                                                                <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                                                    <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
-                                                                        <i className="pi pi-file-pdf text-xs"></i>
-                                                                    </div>
-                                                                    <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
-                                                                        {docData.archivo}
-                                                                    </span>
-                                                                </div>
+                                                return (
+                                                    <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status)} group relative h-full min-h-[150px]`}>
 
-                                                                {isStep4ActionsEnabled ? (
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); handleRemoveFile(doc.id); }}
-                                                                        className="text-secondary/40 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all shrink-0 z-10"
-                                                                        title="Eliminar archivo"
-                                                                    >
-                                                                        <i className="pi pi-trash text-xs"></i>
-                                                                    </button>
-                                                                ) : (
-                                                                    loadingDocs[docData?.id] ? (
-                                                                        <i className="pi pi-spin pi-spinner text-primary text-xs mr-1"></i>
-                                                                    ) : (
-                                                                        <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
-                                                                    )
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {/* 3. Read-Only Mode + File Exists => Absolute External Link Icon */}
-                                                        {(!isStep4ActionsEnabled && docData?.archivo) && (
+                                                        {/* Botón Eliminar (Solo edición config) */}
+                                                        {!isStep4ConfigReadOnly && editDocMode && (
                                                             <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleViewFile(docData);
-                                                                }}
-                                                                className="absolute bottom-3 right-3 text-secondary/40 hover:text-primary hover:scale-110 transition-all z-10 p-2"
-                                                                title="Ver Documento"
+                                                                onClick={() => toggleDocRequirement(doc.id)}
+                                                                className="absolute -top-2 -right-2 bg-white text-red-500 shadow-md rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition-all z-10"
                                                             >
-                                                                {loadingDocs[docData?.id] ? (
-                                                                    <i className="pi pi-spin pi-spinner text-lg text-primary"></i>
-                                                                ) : (
-                                                                    <i className="pi pi-external-link text-lg"></i>
-                                                                )}
+                                                                <i className="pi pi-times text-[10px] font-bold"></i>
                                                             </button>
                                                         )}
 
-                                                        {/* File Control (Partial Edit Only) */}
+
+                                                        <div className="flex-1 flex flex-col h-full">
+                                                            {/* Header: Icon + Title */}
+                                                            <div className="flex items-start gap-4 mb-3">
+                                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
+                                                                    (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
+                                                                        status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
+                                                                            status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
+                                                                                status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
+                                                                                    'bg-secondary/10 border-secondary/20 text-secondary')}`}>
+                                                                    <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={docData?.label || doc.label}>{docData?.label || doc.label}</h4>
+                                                                    </div>
+                                                                    {doc.helpText && (
+                                                                        <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
+                                                                            {doc.helpText}
+                                                                        </p>
+                                                                    )}
+                                                                    {!isWizardMode && (
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
+                                                                                status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                                                    status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
+                                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                            'bg-secondary/10 text-secondary border-secondary/20'
+                                                                                }`}>
+                                                                                {status}
+                                                                            </span>
+                                                                            {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
+                                                                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block bg-orange-50 text-orange-600 border-orange-200 shadow-sm animate-pulse-subtle">
+                                                                                    CON OBSERVACIÓN
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+
+                                                            </div>
+
+                                                            {/* Divider Line */}
+                                                            {!isWizardMode && (
+                                                                <div className="w-[90%] h-px bg-secondary/10 mx-auto mb-4"></div>
+                                                            )}
+
+                                                            {/* Observation Alert (Card Mode) */}
+                                                            {docData?.observacion && (
+                                                                expandedObservations[doc.id] ? (
+                                                                    <div
+                                                                        onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
+                                                                        className="mb-4 p-2.5 bg-orange-50 border border-orange-100 rounded-lg flex items-start gap-2 cursor-pointer hover:bg-orange-100/50 transition-colors animate-fade-in"
+                                                                    >
+                                                                        <i className="pi pi-exclamation-circle text-orange-500 mt-0.5 shadow-sm"></i>
+                                                                        <div className="flex-1">
+                                                                            <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Observación:</p>
+                                                                            <p className="text-[11px] text-orange-800 leading-tight italic font-medium">{docData.observacion}</p>
+                                                                        </div>
+                                                                        <i className="pi pi-chevron-up text-[10px] text-orange-400 mt-1"></i>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div
+                                                                        onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
+                                                                        className="mb-4 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors group/obs"
+                                                                    >
+                                                                        <i className="pi pi-exclamation-circle text-orange-500 text-sm group-hover/obs:scale-110 transition-transform"></i>
+                                                                        <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Ver Observación</span>
+                                                                        <i className="pi pi-chevron-down text-[10px] text-orange-400 ml-1"></i>
+                                                                    </div>
+                                                                )
+                                                            )}
+
+                                                            {/* Body: Configuration (Wizard Mode) */}
+                                                            {isWizardMode ? (
+                                                                <div className="mt-auto pt-4 border-t border-secondary/5 space-y-4">
+                                                                    <div className="flex flex-col gap-1.5">
+                                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                                            <i className="pi pi-history text-[9px]"></i> Periodicidad
+                                                                        </label>
+                                                                        <div className="relative">
+                                                                            <select
+                                                                                value={doc.frecuencia}
+                                                                                onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
+                                                                                className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
+                                                                            >
+                                                                                <option value="Mensual">Mensual</option>
+                                                                                <option value="Trimestral">Trimestral</option>
+                                                                                <option value="Semestral">Semestral</option>
+                                                                                <option value="Anual">Anual</option>
+                                                                                <option value="Única vez">Única vez</option>
+                                                                            </select>
+                                                                            <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex flex-col gap-1.5">
+                                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                                            <i className="pi pi-lock text-[9px]"></i> Requerimiento
+                                                                        </label>
+                                                                        <div
+                                                                            onClick={() => updateDocRequirement(doc.id, 'isOptional', !doc.isOptional)}
+                                                                            className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${doc.isOptional
+                                                                                ? 'bg-gray-50 border-secondary/10 opacity-70'
+                                                                                : 'bg-indigo-50/50 border-indigo-100'}`}
+                                                                        >
+                                                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${doc.isOptional ? 'bg-white text-secondary/40' : 'bg-indigo-500 text-white shadow-sm'}`}>
+                                                                                <i className={`pi ${doc.isOptional ? 'pi-circle' : 'pi-check-circle'} text-[11px]`}></i>
+                                                                            </div>
+                                                                            <span className={`text-[11px] font-bold ${doc.isOptional ? 'text-secondary' : 'text-indigo-700'}`}>
+                                                                                {doc.isOptional ? 'Opcional' : 'Obligatorio'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-3">
+                                                                    <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
+                                                                        <i className="pi pi-clock text-primary text-[11px]"></i>
+                                                                        <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</span>
+                                                                    </div>
+
+                                                                    {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
+                                                                        <div className="flex flex-col w-full">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <i className="pi pi-calendar text-secondary/50 text-base"></i>
+                                                                                {isStep4ActionsEnabled ? (
+                                                                                    <Calendar
+                                                                                        value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
+                                                                                        onChange={(e) => handleDateChange(doc.id, e.value)}
+                                                                                        placeholder="Vencimiento"
+                                                                                        disabled={!docData?.archivo}
+                                                                                        minDate={new Date()}
+                                                                                        className={`compact-calendar-input w-full border border-secondary/50 rounded-lg ${!docData?.archivo ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                                                                                        panelClassName="compact-calendar-panel"
+                                                                                        dateFormat="dd/mm/yy"
+                                                                                    />
+                                                                                ) : (
+                                                                                    <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
+                                                                                )}
+                                                                            </div>
+                                                                            {isStep4ActionsEnabled && !docData?.archivo && (
+                                                                                <span className="text-[10px] text-warning font-medium ml-6 mt-1.5">
+                                                                                    * Requiere archivo para editar fecha
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* ACTION AREA: Placeholder / Upload / File Info */}
+                                                                    {/* 1. Pending + No File => Placeholder or Upload Zone */}
+                                                                    {!docData?.archivo && (
+                                                                        isStep4ActionsEnabled ? (
+                                                                            <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
+                                                                                <input
+                                                                                    type="file"
+                                                                                    id={`file-${doc.id}`}
+                                                                                    onChange={handleFileUpload}
+                                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                                                />
+                                                                                <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-secondary/20 rounded-xl bg-secondary/5 text-secondary/60 group-hover/upload:border-primary/50 group-hover/upload:bg-primary/5 group-hover/upload:text-primary transition-all p-4">
+                                                                                    <i className="pi pi-cloud-upload text-3xl mb-2"></i>
+                                                                                    <span className="text-[11px] font-bold uppercase tracking-widest text-center">Subir Archivo</span>
+                                                                                    <span className="text-[9px] font-medium text-secondary/40 mt-1">o arrastrar aquí</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : null
+                                                                    )}
+
+                                                                    {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
+                                                                    {(docData?.archivo && isStep4ActionsEnabled) && (
+                                                                        <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
+                                                                            onClick={() => handleViewFile(docData)}
+                                                                        >
+                                                                            <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                                <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
+                                                                                    <i className="pi pi-file-pdf text-xs"></i>
+                                                                                </div>
+                                                                                <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
+                                                                                    {docData.archivo}
+                                                                                </span>
+                                                                            </div>
+
+                                                                            {isStep4ActionsEnabled ? (
+                                                                                <button
+                                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveFile(doc.id); }}
+                                                                                    className="text-secondary/40 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all shrink-0 z-10"
+                                                                                    title="Eliminar archivo"
+                                                                                >
+                                                                                    <i className="pi pi-trash text-xs"></i>
+                                                                                </button>
+                                                                            ) : (
+                                                                                loadingDocs[docData?.id] ? (
+                                                                                    <i className="pi pi-spin pi-spinner text-primary text-xs mr-1"></i>
+                                                                                ) : (
+                                                                                    <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
+                                                                                )
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 3. Read-Only Mode + File Exists => Absolute External Link Icon */}
+                                                                    {(!isStep4ActionsEnabled && docData?.archivo) && (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleViewFile(docData);
+                                                                            }}
+                                                                            className="absolute bottom-3 right-3 text-secondary/40 hover:text-primary hover:scale-110 transition-all z-10 p-2"
+                                                                            title="Ver Documento"
+                                                                        >
+                                                                            {loadingDocs[docData?.id] ? (
+                                                                                <i className="pi pi-spin pi-spinner text-lg text-primary"></i>
+                                                                            ) : (
+                                                                                <i className="pi pi-external-link text-lg"></i>
+                                                                            )}
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* File Control (Partial Edit Only) */}
+                                                                </div>
+                                                            )
+                                                            }
+                                                        </div>
                                                     </div>
-                                                )
-                                                }
-                                            </div>
+                                                );
+                                            })()}
                                         </div>
                                     );
-                                })
-                                }
-                            </div >
+                                })}
+                            </div>
                         ) : (
                             <div className="bg-white rounded-xl border border-secondary/10 overflow-hidden shadow-sm">
                                 <table className="w-full text-left border-collapse">
@@ -1867,25 +1853,22 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                         </div>
                                         <div className="p-2 max-h-[60vh] overflow-y-auto">
                                             {/* Si tenemos requisitos disponibles de la API, usarlos. Si no, fallback a reglas estáticas */}
+                                            {console.log(availableRequirements)}
                                             {(availableRequirements && availableRequirements.length > 0) ? (
-                                                availableRequirements.filter(active => {
-                                                    const activeId = active.id_active || active.idActive || active.id;
-                                                    // Buscamos si ya existe en requiredDocs por ID o por ID de activo
-                                                    return !requiredDocs.some(r =>
-                                                        String(r.id) === String(activeId) ||
-                                                        String(r.id_active) === String(activeId) ||
-                                                        String(r.id) === String(active.description) // Por si acaso se usa el label como ID
-                                                    );
-                                                }).map(active => {
-                                                    const activeId = active.id_active || active.idActive || active.id;
+                                                availableRequirements.filter(req => {
+                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                    // Buscamos si ya existe en requiredDocs por ID
+                                                    return !requiredDocs.some(r => String(r.id) === String(reqId));
+                                                }).map(req => {
+                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
                                                     return (
                                                         <button
-                                                            key={activeId}
+                                                            key={reqId}
                                                             onClick={() => {
                                                                 const newReq = {
-                                                                    id: activeId,
-                                                                    id_active: activeId,
-                                                                    label: active.description,
+                                                                    id: reqId,
+                                                                    id_active: req.attributeTemplate?.actives?.idActive || null,
+                                                                    label: req.description,
                                                                     frecuencia: 'Con Vencimiento',
                                                                     obligatoriedad: 'Manual'
                                                                 };
@@ -1897,7 +1880,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                             className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
                                                         >
                                                             <div>
-                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{active.description}</p>
+                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{req.description}</p>
                                                                 <p className="text-[10px] text-secondary">Tipo: Legajo Proveedor</p>
                                                             </div>
                                                             <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>

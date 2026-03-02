@@ -118,7 +118,8 @@ const NewSupplier = () => {
     setLoading(true);
     try {
       console.log("Fetching requirements for group:", idGroup);
-      const data = await requirementService.getListRequirements({ idGroup });
+      const data = await requirementService.getListRequirements({ idGroup, idActiveType: 5 });
+      console.log("Requirements for group:", data);
       setAvailableRequirements(data || []);
     } catch (error) {
       console.error("Error fetching group requirements:", error);
@@ -250,23 +251,17 @@ const NewSupplier = () => {
             address_tax: supplierFormData.direccionFiscal,
             address_real: supplierFormData.direccionReal,
 
-            // COMPANY AND GROUP ASSOCIATION (Fix)
+            // COMPANY AND GROUP ASSOCIATION
             id_company: supplierFormData.empresas?.[0] || null,
-            groupRequirements: supplierFormData.id_group ? [{
-              id_group: supplierFormData.id_group,
-              list_requirements: {
-                description: 'Legajo Inicial',
-                id_type_requirements: 1, // General
-                id_active: 5, // Legajo Proveedor
-                attributes: {
-                  description: 'Documentación de Respaldo',
-                  extension: 'ALFA_NUM',
-                  id_periodicity: 1 // Anual o Única (según DB)
+            groupRequirements: supplierFormData.id_group && supplierFormData.documentacion?.length > 0 ?
+              supplierFormData.documentacion.map(req => ({
+                id_group: supplierFormData.id_group,
+                list_requirements: {
+                  id_list_requirements: req.id // We just need to send the ID to link it
                 }
-              }
-            }] : null,
+              })) : null,
 
-            // CONTACTS - APPLYING FIX HERE
+            // CONTACTS
             contacts: supplierFormData.contactos ? {
               list: supplierFormData.contactos.map(c => ({
                 ...c, // SPREAD ORIGINAL FIELDS TO PRESERVE DATA (Fix)

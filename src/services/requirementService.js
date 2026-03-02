@@ -20,9 +20,11 @@ export const requirementService = {
             if (queryParams.length > 0) {
                 url += `?${queryParams.join('&')}`;
             }
-
+            console.log("URL:", url);
             const response = await api.get(url);
+            console.log("Response:", response.data);
             return response.data;
+
         } catch (error) {
             console.error("requirementService: Error fetching list requirements", error);
             throw error;
