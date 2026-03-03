@@ -9,26 +9,7 @@ import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
 import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
 
 
-// Mapping for Document ID to Active Description
-const DOC_TYPE_LABELS = {
-    'CONSTANCIA_AFIP': 'Constancia de Inscripción AFIP',
-    'ESTATUTO': 'Estatuto Social',
-    'FORM_931': 'Formulario 931',
-    'HABILITACION_SEGURIDAD': 'Habilitación Comercial / Seguridad',
-    'SEGURO_ACCIDENTES': 'Seguro de Accidentes Personales',
-    'ART_CERTIFICADO': 'Certificado de Cobertura ART',
-    'SEGURO_VIDA': 'Seguro de Vida Obligatorio',
-    'HABILITACION_VEHICULOS': 'Habilitación de Vehículos / VTV',
-    'SOLICITUD_USUARIOS': 'Solicitud de Usuarios de Sistema',
-    'CERT_NO_DEUDA_EDESAL': 'Certificado de No Deuda (Edesal)',
-    'EMR_MANUAL_EDESAL': 'Manual de Inducción Seguridad EMR (Edesal)',
-    'DDJJ_ETICA_EDESAL': 'Declaración Jurada Ética (Edesal)',
-    'HABILITACION_VIGILANCIA_EDESAL': 'Habilitación Provincial de Seguridad (Edesal)',
-    'ANEXO_SH_ROVELLA': 'Anexo Seguridad e Higiene (Rovella)',
-    'FICHA_ALTA_ROVELLA': 'Ficha Alta de Proveedor (Rovella)',
-    'POLIZA_OBRA_ROVELLA': 'Póliza de Seguro de Obra (Rovella)',
-    'SAP_ROVELLA': 'Seguro ACC Personales - Cláusula Rovella'
-};
+import { DOC_TYPE_LABELS } from '../data/documentConstants';
 
 
 export const useSupplier = () => {
@@ -82,30 +63,34 @@ export const useSupplier = () => {
                                 const docMap = new Map();
 
                                 groupReqs.forEach(req => {
-                                    const listReq = req.listRequirements;
+                                    // Handle both listRequirements (camelCase) and list_requirements (snake_case)
+                                    const listReq = req.list_requirements || req.listRequirements;
                                     if (!listReq) return;
 
-                                    const attrTempl = listReq.attributeTemplate;
+                                    // Handle attribute_template (snake_case) and attributeTemplate (camelCase)
+                                    const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
                                     const attrs = attrTempl?.attributes;
-                                    const folderMeta = listReq.folder_metadata?.data;
+
+                                    // Handle folder_metadata (snake_case) and folderMetadata (camelCase)
+                                    const folderMeta = (listReq.folder_metadata || listReq.folderMetadata)?.data;
                                     const files = listReq.files || [];
                                     const submittedFile = files.length > 0 ? files[0] : null;
-                                    const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf;
 
-                                    const requirementId = listReq.id_list_requirements;
-                                    const key = `R${requirementId}`;
+                                    // Handle id_list_requirements (snake_case) and idListRequirements (camelCase)
+                                    const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
+                                    const key = requirementId;
 
                                     if (!docMap.has(key)) {
                                         const label = listReq.description || attrs?.description || 'Documento';
 
                                         let docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
-                                            DOC_TYPE_LABELS[k].toLowerCase() === label.toLowerCase()
+                                            DOC_TYPE_LABELS[k].label.toLowerCase() === label.toLowerCase()
                                         );
 
                                         if (!docKey) {
                                             const cleanDesc = label.replace(/ obligatorio/i, '').trim();
                                             docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
-                                                DOC_TYPE_LABELS[k].toLowerCase().includes(cleanDesc.toLowerCase())
+                                                DOC_TYPE_LABELS[k].label.toLowerCase().includes(cleanDesc.toLowerCase())
                                             ) || label.toUpperCase().replace(/\s+/g, '_');
                                         }
 
@@ -116,7 +101,6 @@ export const useSupplier = () => {
                                         const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf || {};
                                         const directFileName = submittedFile?.file_name || submittedFile?.fileName;
                                         const directFileUrl = submittedFile?.file_url || submittedFile?.url;
-                                        const directContent = submittedFile?.content || submittedFile?.file_content;
 
                                         const finalStatus = folderMeta?.estado || (isFile ? 'EN REVISIÓN' : 'PENDIENTE');
                                         const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
@@ -124,12 +108,12 @@ export const useSupplier = () => {
                                         const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
 
                                         docMap.set(key, {
-                                            id: `req-${key}`,
-                                            id_group_req: req.id_group_requirements,
-                                            id_list_req: listReq.id_list_requirements,
+                                            id: key,
+                                            id_group_req: req.id_group_requirements || req.idGroupRequirements,
+                                            id_list_req: listReq.id_list_requirements || listReq.idListRequirements,
                                             id_attribute: attrs?.id_attributes || attrs?.idAttributes,
                                             id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
-                                            id_element: listReq.folder_metadata?.id_elements,
+                                            id_element: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
                                             id_active: attrTempl?.id_active || attrTempl?.idActive,
                                             tipo: docKey,
                                             label: cleanLabel,
@@ -145,15 +129,25 @@ export const useSupplier = () => {
                                 });
 
                                 const dynamicDocs = Array.from(docMap.values());
-                                console.log("Specific Documentation mapped:", dynamicDocs);
+                                console.log("Specific Documentation mapped (DEBUG):", JSON.stringify(dynamicDocs, null, 2));
                                 data.documentacion = dynamicDocs;
                             } else {
-                                console.warn("No specific group requirements found, marking as MOCK for visibility");
-                                data.isMock = true;
+                                console.warn("No specific group requirements found, enriching basic documents from mapToUISupplier");
+                                if (data.documentacion && data.documentacion.length > 0) {
+                                    data.documentacion = data.documentacion.map(doc => {
+                                        const metadata = DOC_TYPE_LABELS[doc.tipo];
+                                        return {
+                                            ...doc,
+                                            label: metadata?.label || doc.tipo?.replace(/_/g, ' ') || 'Documento',
+                                            frecuencia: metadata?.frecuencia || 'Única vez'
+                                        };
+                                    });
+                                }
                             }
                         } catch (err) {
                             console.warn("Failed to fetch specific group requirements, falling back to basic documents", err);
-                            data.isMock = true;
+                            // Ensure it's marked as not mock even on error
+                            data.isMock = false;
                         }
                     }
 
@@ -161,21 +155,15 @@ export const useSupplier = () => {
                     setSupplierData({ ...data, isMock: false });
                 } else {
                     console.error("Data received is null or undefined");
-                    throw new Error("API data is empty");
+                    setSupplierData(null);
                 }
             } else {
-                console.warn("No CUIT identified, loading FALLBACK MOCK");
-                const mock = MOCK_SUPPLIERS.find(p => p.id === 1);
-                console.log("Mock data selected:", mock);
-                setSupplierData({ ...mock, isMock: true });
+                console.warn("No CUIT identified.");
+                setSupplierData(null);
             }
         } catch (error) {
             console.error("CRITICAL ERROR in fetchSupplierData:", error);
-            console.log("Attempting emergency MOCK recovery...");
-            const activeCuit = currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
-            const mock = MOCK_SUPPLIERS.find(p => p.cuit === activeCuit) || MOCK_SUPPLIERS.find(p => p.id === 1);
-            console.log("Recovery Mock data:", mock);
-            setSupplierData({ ...mock, internalId: mock.internalId || mock.id, isMock: true });
+            setSupplierData(null);
         } finally {
             console.log("Setting loading to false");
             setLoading(false);
@@ -197,7 +185,7 @@ export const useSupplier = () => {
         const elementsList = [];
         if (mergedData.documentacion) {
             for (const doc of mergedData.documentacion) {
-                const docLabel = DOC_TYPE_LABELS[doc.tipo];
+                const docLabel = DOC_TYPE_LABELS[doc.tipo]?.label;
                 // Resolve active: prioritize doc.id_active, then fall back to matching legajoActives
                 const active = legajoActives.find(a =>
                     String(a.id_active) === String(doc.id_active || doc.tipo) ||

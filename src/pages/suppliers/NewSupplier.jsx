@@ -254,12 +254,32 @@ const NewSupplier = () => {
             // COMPANY AND GROUP ASSOCIATION
             id_company: supplierFormData.empresas?.[0] || null,
             groupRequirements: supplierFormData.id_group && supplierFormData.documentacion?.length > 0 ?
-              supplierFormData.documentacion.map(req => ({
-                id_group: supplierFormData.id_group,
-                list_requirements: {
-                  id_list_requirements: req.id // We just need to send the ID to link it
+              supplierFormData.documentacion.map(req => {
+                // If it's a custom requirement (ID starts with CUSTOM_), build the full InsertDTO structure
+                if (String(req.id).startsWith('CUSTOM_')) {
+                  return {
+                    id_group: supplierFormData.id_group,
+                    list_requirements: {
+                      description: req.label,
+                      id_type_requirements: 1, // 1 = LEGAL (único tipo en la BD)
+                      id_active: req.id_active,
+                      attributes: {
+                        description: req.attribute_description || req.label.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''),
+                        extension: "ALFA_NUM",
+                        id_periodicity: 1 // Default to 'Única vez' or calculate better based on req.frecuencia
+                      }
+                    }
+                  };
                 }
-              })) : null,
+
+                // Existing requirement from API, just link by ID
+                return {
+                  id_group: supplierFormData.id_group,
+                  list_requirements: {
+                    id_list_requirements: req.id
+                  }
+                };
+              }) : null,
 
             // CONTACTS
             contacts: supplierFormData.contactos ? {
@@ -275,17 +295,8 @@ const NewSupplier = () => {
               }))
             } : null,
 
-            // Documents
-            document_supplier: supplierFormData.documentacion ? {
-              list: supplierFormData.documentacion.map(d => ({
-                id: d.id,
-                tipo: d.tipo,
-                estado: d.estado,
-                archivo: d.archivo,
-                observacion: d.observacion,
-                fechaVencimiento: d.fechaVencimiento instanceof Date ? d.fechaVencimiento.toISOString().split('T')[0] : d.fechaVencimiento
-              }))
-            } : null
+            // Documents — document_supplier column is not used
+            document_supplier: null
           };
         }
 

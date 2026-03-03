@@ -13,10 +13,12 @@ import MultiSelect from '../../components/ui/MultiSelect';
 import { Calendar } from 'primereact/calendar';
 import { Dialog } from 'primereact/dialog';
 import { StatusBadge } from '../../components/ui/Badges';
+import { activeService } from '../../services/activeService';
 import { InputMask } from 'primereact/inputmask';
 import { classNames } from 'primereact/utils';
 import { base64ToBlobUrl } from '../../utils/fileUtils';
 import { fileService } from '../../services/fileService';
+import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 
 const EMPTY_ARRAY = [];
 
@@ -141,11 +143,40 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
     }, [groups, formData.grupo, formData.id_group]);
 
-    // State para tracking de cambios sin guardar
+    // State para el tracking de cambios sin guardar
     const [dirtySteps, setDirtySteps] = useState(new Set());
 
     // State para el modo de visualización de documentos (Paso 4)
     const [docViewMode, setDocViewMode] = useState('grid'); // 'grid' o 'table'
+
+    const [customDocName, setCustomDocName] = useState('');
+    const [customActiveId, setCustomActiveId] = useState('');
+
+    const [dbActives, setDbActives] = useState([]);
+
+    useEffect(() => {
+        const fetchActives = async () => {
+            try {
+                // Fetch Activos directly for "Legajo Proveedor" (tipo_activo = 5)
+                const data = await activeService.getByType(5);
+                setDbActives(data || []);
+            } catch (error) {
+                console.error("Error fetching available actives in SupplierForm:", error);
+            }
+        };
+        fetchActives();
+    }, []);
+
+    const uniqueActives = React.useMemo(() => {
+        // Use the dbActives directly instead of deriving from availableRequirements
+        if (dbActives && dbActives.length > 0) {
+            return dbActives.map(active => ({
+                id: active.id_active ?? active.idActive, // API returns snake_case id_active
+                description: active.description
+            }));
+        }
+        return [];
+    }, [dbActives]);
 
     // State para el modal de observaciones
     const [obsModalVisible, setObsModalVisible] = useState(false);
@@ -345,7 +376,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         'Grupo y Empresa': ['grupo', 'empresas'],
         'Ubicación': ['pais', 'paisCode', 'provincia', 'provinciaCode', 'localidad', 'codigoPostal', 'direccionFiscal', 'direccionReal'],
         'Contactos': ['contactos'],
-        'Documentos': ['documentacion']
+        'Documentos': ['documentacion', 'id_group']
     };
 
     const handleSubmit = (stepScope = null) => {
@@ -414,7 +445,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     // --- LOGICA DE DESCARGA DE ARCHIVOS BAJO DEMANDA ---
     const handleViewFile = async (docData) => {
-        if (!docData) return;
+        if (!docData || !docData.archivo) return;
 
         // If it already has a local fileUrl (e.g. newly uploaded file), use it instantly
         if (docData.fileUrl && docData.fileUrl.startsWith('blob:')) {
@@ -422,7 +453,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             return;
         }
 
-        // If we don't have id_file_submitted, it might be a mock or external link
+        // Identify the best ID to fetch the file. id_file_submitted is priority for backend files.
+        const fileId = docData.id_file_submitted || docData.id;
+
+        // If we don't have a valid ID specifically for the file registry, it might be an external link or local blob
         if (!docData.id_file_submitted) {
             if (docData.fileUrl) window.open(docData.fileUrl, '_blank');
             else alert(`Visualización no disponible para: ${docData.archivo}`);
@@ -432,7 +466,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         try {
             setLoadingDocs(prev => ({ ...prev, [docData.id]: true }));
 
-            // Fetch file via new endpoint (devuelve un Blob puro por la config de axios)
+            // Fetch file via backend service using the submitted file ID
+            console.log("SupplierForm: Fetching file with ID:", docData.id_file_submitted);
             const fileBlob = await fileService.getFile(docData.id_file_submitted);
 
             if (fileBlob && fileBlob.size > 0) {
@@ -561,79 +596,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     };
 
     // --- CONFIGURACIÓN DE DOCUMENTACIÓN ---
-    const ALL_DOCS_RULES = [
-        { id: 'CONSTANCIA_AFIP', label: 'Constancia de Inscripción AFIP', frecuencia: 'Mensual', obligatoriedad: 'Todos', defaultFor: () => true },
-        { id: 'ESTATUTO', label: 'Estatuto Social', frecuencia: 'Única vez', obligatoriedad: 'Solo Jurídicas', defaultFor: (data) => data.tipoPersona === 'JURIDICA' },
-        { id: 'FORM_931', label: 'Formulario 931', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
-        { id: 'HABILITACION_SEGURIDAD', label: 'Habilitación Comercial / Seguridad', frecuencia: 'Con Vencimiento', obligatoriedad: 'Vigilancia', defaultFor: (data) => data.servicio === 'VIGILANCIA' },
-        { id: 'SEGURO_ACCIDENTES', label: 'Seguro de Accidentes Personales', frecuencia: 'Mensual', obligatoriedad: 'Físicas', defaultFor: (data) => data.tipoPersona === 'FISICA' },
-        { id: 'ART_CERTIFICADO', label: 'Certificado de Cobertura ART', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
-        { id: 'SEGURO_VIDA', label: 'Seguro de Vida Obligatorio', frecuencia: 'Mensual', obligatoriedad: 'Empleadores', defaultFor: (data) => data.empleadorAFIP },
-        { id: 'HABILITACION_VEHICULOS', label: 'Habilitación de Vehículos / VTV', frecuencia: 'Con Vencimiento', obligatoriedad: 'Logística', defaultFor: (data) => data.servicio === 'Logística' || data.servicio === 'MOVILES Y EQUIPOS' },
-        { id: 'SOLICITUD_USUARIOS', label: 'Solicitud de Usuarios de Sistema', frecuencia: 'Única vez', obligatoriedad: 'Todos', defaultFor: () => true },
 
-        // --- REGLAS ESPECÍFICAS POR GRUPO ---
-
-        // EDESAL
-        {
-            id: 'CERT_NO_DEUDA_EDESAL',
-            label: 'Certificado de No Deuda (Edesal)',
-            frecuencia: 'Mensual',
-            obligatoriedad: 'Edesal',
-            defaultFor: (data) => data.grupo === 'EDESAL'
-        },
-        {
-            id: 'EMR_MANUAL_EDESAL',
-            label: 'Manual de Inducción Seguridad EMR (Edesal)',
-            frecuencia: 'Única vez',
-            obligatoriedad: 'Edesal',
-            defaultFor: (data) => data.grupo === 'EDESAL'
-        },
-        {
-            id: 'DDJJ_ETICA_EDESAL',
-            label: 'Declaración Jurada Ética (Edesal)',
-            frecuencia: 'Única vez',
-            obligatoriedad: 'Edesal - Monotributistas',
-            defaultFor: (data) => data.grupo === 'EDESAL' && data.clasificacionAFIP === 'Monotributista'
-        },
-        {
-            id: 'HABILITACION_VIGILANCIA_EDESAL',
-            label: 'Habilitación Provincial de Seguridad (Edesal)',
-            frecuencia: 'Anual',
-            obligatoriedad: 'Edesal - Vigilancia Jurídica',
-            defaultFor: (data) => data.grupo === 'EDESAL' && data.servicio === 'VIGILANCIA' && data.tipoPersona === 'JURIDICA'
-        },
-
-        // ROVELLA
-        {
-            id: 'ANEXO_SH_ROVELLA',
-            label: 'Anexo Seguridad e Higiene (Rovella)',
-            frecuencia: 'Única vez',
-            obligatoriedad: 'Rovella',
-            defaultFor: (data) => data.grupo === 'ROVELLA'
-        },
-        {
-            id: 'FICHA_ALTA_ROVELLA',
-            label: 'Ficha Alta de Proveedor (Rovella)',
-            frecuencia: 'Única vez',
-            obligatoriedad: 'Rovella',
-            defaultFor: (data) => data.grupo === 'ROVELLA'
-        },
-        {
-            id: 'POLIZA_OBRA_ROVELLA',
-            label: 'Póliza de Seguro de Obra (Rovella)',
-            frecuencia: 'Mensual',
-            obligatoriedad: 'Rovella - Mantenimiento',
-            defaultFor: (data) => data.grupo === 'ROVELLA' && (data.servicio === 'Mantenimiento' || data.servicio === 'Logística')
-        },
-        {
-            id: 'SAP_ROVELLA',
-            label: 'Seguro ACC Personales - Cláusula Rovella',
-            frecuencia: 'Anual',
-            obligatoriedad: 'Rovella - Físicas Mantenimiento',
-            defaultFor: (data) => data.grupo === 'ROVELLA' && data.tipoPersona === 'FISICA' && data.servicio === 'Mantenimiento'
-        }
-    ];
 
     const [requiredDocs, setRequiredDocs] = useState([]);
     const [isCustomConfig, setIsCustomConfig] = useState(isWizardMode); // If Wizard, start customized (empty)
@@ -641,49 +604,32 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     const [showDocModal, setShowDocModal] = useState(false);
     const [isStepperOpen, setIsStepperOpen] = useState(false); // Mobile Accordion State
 
-    // Recalcular requisitos automáticamente SI NO está personalizado Y NO es Wizard (Alta)
+    // Unified logic to sync requiredDocs with formData.documentation
     useEffect(() => {
-        // En ALTA (isWizardMode), usamos availableRequirements si están disponibles
-        if (isWizardMode && !isCustomConfig) {
-            // Requerimiento del usuario: NO poblar automáticamente, que el proveedor empiece sin requisitos
-            setRequiredDocs([]);
-            // Marcar como custom configuration para que no vuelva a intentar auto-generar
-            setIsCustomConfig(true);
-            return;
-        }
-
-        if (!isCustomConfig) {
-            // Si estemos en modo Edición Parcial (Mis Datos / Detalle),
-            // la documentación cargada DEBE ser nuestra fuente única de verdad.
-            if (partialEdit) {
-                const existingDocs = formData.documentacion || [];
-                const dynamicRequirements = existingDocs.map(doc => ({
-                    id: doc.id,
+        if (partialEdit) {
+            const existingDocs = formData.documentacion || [];
+            const dynamicRequirements = existingDocs.map(doc => {
+                const tipo = doc.tipo || 'DOCUMENTO';
+                return {
+                    id: doc.id || (Date.now() + Math.random()),
                     id_active: doc.id_active,
-                    tipo: doc.tipo,
-                    label: doc.label || doc.tipoDescripcion || 'Documento',
-                    frecuencia: doc.frecuencia || 'N/A',
-                    obligatoriedad: 'Requerido',
+                    tipo: tipo,
+                    label: doc.label || doc.tipoDescripcion || getDocLabel(tipo),
+                    frecuencia: doc.frecuencia || getDocFrequency(tipo),
+                    obligatoriedad: doc.obligatoriedad || 'Requerido',
                     estado: doc.estado || 'PENDIENTE',
-                    archivo: doc.archivo
-                }));
+                    archivo: doc.archivo,
+                    fechaVencimiento: doc.fechaVencimiento,
+                    observacion: doc.observacion
+                };
+            });
 
-                setRequiredDocs(prev => {
-                    const changed = JSON.stringify(prev) !== JSON.stringify(dynamicRequirements);
-                    if (changed) console.log("SupplierForm: Derived requiredDocs from formData.documentacion (PartialEdit):", dynamicRequirements);
-                    return changed ? dynamicRequirements : prev;
-                });
-                return;
-            }
-
-            // Default suggested rules (Legacy/Static)
-            const calculated = ALL_DOCS_RULES.filter(rule => rule.defaultFor(formData));
             setRequiredDocs(prev => {
-                const changed = JSON.stringify(prev) !== JSON.stringify(calculated);
-                return changed ? calculated : prev;
+                const changed = JSON.stringify(prev) !== JSON.stringify(dynamicRequirements);
+                return changed ? dynamicRequirements : prev;
             });
         }
-    }, [isWizardMode, formData.grupo, formData.tipoPersona, formData.empleadorAFIP, formData.servicio, formData.clasificacionAFIP, isCustomConfig, partialEdit, formData.documentacion, availableRequirements]);
+    }, [partialEdit, formData.documentacion]);
 
     // En modo lectura o edición inicial, cargar desde initialData si existe (simulado)
     useEffect(() => {
@@ -694,13 +640,42 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
     }, [initialData]);
 
+    // CRITICAL: Sync requiredDocs → formData.documentacion in wizard mode
+    // This ensures handleSubmit always has up-to-date docs in the payload
+    useEffect(() => {
+        if (isWizardMode) {
+            setFormData(prev => {
+                const prevDocs = JSON.stringify(prev.documentacion);
+                const newDocs = JSON.stringify(requiredDocs);
+                if (prevDocs === newDocs) return prev; // No change, avoid re-render
+                return { ...prev, documentacion: requiredDocs };
+            });
+        }
+    }, [requiredDocs, isWizardMode]);
+
     const toggleDocRequirement = (docId) => {
         setIsCustomConfig(true);
         setRequiredDocs(prev => {
-            const exists = prev.find(d => d.id === docId);
-            if (exists) return prev.filter(d => d.id !== docId);
-            const rule = ALL_DOCS_RULES.find(d => d.id === docId);
-            return [...prev, rule];
+            const exists = prev.find(d => String(d.id) === String(docId));
+            if (exists) return prev.filter(d => String(d.id) !== String(docId));
+
+            // Look for it in availableRequirements from API
+            const rule = (availableRequirements || []).find(d => {
+                const reqId = d.id_list_requirements || d.idListRequirements || d.id;
+                return String(reqId) === String(docId);
+            });
+
+            if (!rule) return prev;
+
+            const newReq = {
+                id: docId,
+                id_active: rule.id_attribute_template?.id_active?.id_active || rule.attributeTemplate?.id_active || rule.attributeTemplate?.idActive || null,
+                label: rule.description,
+                frecuencia: 'Con Vencimiento',
+                obligatoriedad: 'Manual'
+            };
+
+            return [...prev, newReq];
         });
         markStepDirty(getStepIdx('Documentos'));
     };
@@ -715,8 +690,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const resetDocConfig = () => {
         setIsCustomConfig(false);
-        const defaults = ALL_DOCS_RULES.filter(rule => rule.defaultFor(formData));
-        setRequiredDocs(defaults);
+        setRequiredDocs([]);
     };
 
     const nextStep = () => {
@@ -1283,6 +1257,14 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             </div>
                         )}
 
+                        {requiredDocs.length === 0 && (
+                            <div className="mb-8 p-6 bg-secondary-light/30 border-2 border-dashed border-secondary/20 rounded-2xl text-center animate-fade-in">
+                                <i className="pi pi-file-excel text-4xl text-secondary/30 mb-3 block"></i>
+                                <h4 className="text-secondary-dark font-bold mb-1">Sin documentación asignada</h4>
+                                <p className="text-xs text-secondary font-medium italic">No hay documentación a presentar asignada a este proveedor.</p>
+                            </div>
+                        )}
+
                         {docViewMode === 'grid' || isWizardMode ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {/* Card para AGREGAR NUEVO (Solo en modo edición de CONFIGURACION) */}
@@ -1421,12 +1403,20 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         <div className="flex-1 flex flex-col h-full">
                                                             {/* Header: Icon + Title */}
                                                             <div className="flex items-start gap-4 mb-3">
-                                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
-                                                                    (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
-                                                                        status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
-                                                                            status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
-                                                                                status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
-                                                                                    'bg-secondary/10 border-secondary/20 text-secondary')}`}>
+                                                                <div
+                                                                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${docData?.archivo ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'} ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
+                                                                        (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
+                                                                            status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
+                                                                                status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
+                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
+                                                                                        'bg-secondary/10 border-secondary/20 text-secondary')}`}
+                                                                    onClick={(e) => {
+                                                                        if (docData?.archivo) {
+                                                                            e.stopPropagation();
+                                                                            handleViewFile(docData);
+                                                                        }
+                                                                    }}
+                                                                >
                                                                     <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
@@ -1851,61 +1841,154 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                 <i className="pi pi-times"></i>
                                             </button>
                                         </div>
-                                        <div className="p-2 max-h-[60vh] overflow-y-auto">
-                                            {/* Si tenemos requisitos disponibles de la API, usarlos. Si no, fallback a reglas estáticas */}
-                                            {console.log(availableRequirements)}
-                                            {(availableRequirements && availableRequirements.length > 0) ? (
-                                                availableRequirements.filter(req => {
-                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
-                                                    // Buscamos si ya existe en requiredDocs por ID
-                                                    return !requiredDocs.some(r => String(r.id) === String(reqId));
-                                                }).map(req => {
-                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
-                                                    return (
-                                                        <button
-                                                            key={reqId}
-                                                            onClick={() => {
-                                                                const newReq = {
-                                                                    id: reqId,
-                                                                    id_active: req.attributeTemplate?.actives?.idActive || null,
-                                                                    label: req.description,
+                                        <div className="p-4 border-b border-secondary/10 bg-gray-50/50">
+                                            <p className="text-xs font-bold text-secondary-dark mb-2">Crear requisito personalizado</p>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="relative">
+                                                    <select
+                                                        value={customActiveId}
+                                                        onChange={(e) => setCustomActiveId(e.target.value)}
+                                                        className={`w-full text-sm py-2 pl-3 pr-10 bg-white border rounded-lg appearance-none focus:outline-none focus:ring-1 shadow-sm transition-colors ${!customActiveId ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500 text-amber-900/70' : 'border-secondary/20 focus:border-primary focus:ring-primary text-secondary-dark'}`}
+                                                    >
+                                                        <option value="" disabled className="text-gray-400">Seleccione el Activo (Obligatorio)</option>
+                                                        {uniqueActives.map(active => (
+                                                            <option key={active.id} value={active.id} className="text-secondary-dark">{active.description}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">
+                                                        <i className="pi pi-chevron-down text-xs"></i>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={customDocName}
+                                                        onChange={(e) => setCustomDocName(e.target.value)}
+                                                        placeholder="Nombre del documento..."
+                                                        className="flex-1 text-sm py-2 px-3 bg-white border border-secondary/20 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && customDocName.trim() && customActiveId) {
+                                                                e.preventDefault();
+
+                                                                // Generar descripción estandarizada para el atributo en el backend
+                                                                const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+                                                                const newCustomReq = {
+                                                                    id: 'CUSTOM_' + Date.now(),
+                                                                    id_active: Number(customActiveId),
+                                                                    label: customDocName.trim(),
+                                                                    attribute_description: normalizedName,
                                                                     frecuencia: 'Con Vencimiento',
                                                                     obligatoriedad: 'Manual'
                                                                 };
-                                                                setIsCustomConfig(true); // Mark as custom to prevent auto-reset
-                                                                setRequiredDocs(prev => [...prev, newReq]);
+                                                                setIsCustomConfig(true);
+                                                                setRequiredDocs(prev => [...prev, newCustomReq]);
+                                                                setCustomDocName('');
+                                                                setCustomActiveId('');
                                                                 setShowDocModal(false);
                                                                 markStepDirty(currentStep);
-                                                            }}
-                                                            className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
-                                                        >
-                                                            <div>
-                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{req.description}</p>
-                                                                <p className="text-[10px] text-secondary">Tipo: Legajo Proveedor</p>
-                                                            </div>
-                                                            <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
-                                                        </button>
-                                                    );
-                                                })
-                                            ) : (
-                                                ALL_DOCS_RULES.filter(rule => !requiredDocs.some(r => String(r.id) === String(rule.id) || String(r.id_active) === String(rule.id))).map(rule => (
+                                                            }
+                                                        }}
+                                                    />
                                                     <button
-                                                        key={rule.id}
-                                                        onClick={() => { toggleDocRequirement(rule.id); setShowDocModal(false); }}
-                                                        className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
-                                                    >
-                                                        <div>
-                                                            <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{rule.label}</p>
-                                                            <p className="text-[10px] text-secondary">{rule.frecuencia} — {rule.obligatoriedad}</p>
-                                                        </div>
-                                                        <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
-                                                    </button>
-                                                ))
-                                            )}
+                                                        onClick={() => {
+                                                            if (!customDocName.trim() || !customActiveId) return;
 
-                                            {((availableRequirements?.length > 0 ? availableRequirements : ALL_DOCS_RULES).filter(rule => {
-                                                const ruleId = rule.id_active || rule.idActive || rule.id;
-                                                return !requiredDocs.some(r => String(r.id) === String(ruleId) || String(r.id_active) === String(ruleId));
+                                                            // Generar descripción estandarizada para el atributo en el backend
+                                                            const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+
+                                                            const newCustomReq = {
+                                                                id: 'CUSTOM_' + Date.now(),
+                                                                id_active: Number(customActiveId),
+                                                                label: customDocName.trim(),
+                                                                attribute_description: normalizedName,
+                                                                frecuencia: 'Con Vencimiento',
+                                                                obligatoriedad: 'Manual'
+                                                            };
+                                                            setIsCustomConfig(true);
+                                                            setRequiredDocs(prev => [...prev, newCustomReq]);
+                                                            setCustomDocName('');
+                                                            setCustomActiveId('');
+                                                            setShowDocModal(false);
+                                                            markStepDirty(currentStep);
+                                                        }}
+                                                        disabled={!customDocName.trim() || !customActiveId}
+                                                        className="bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold shadow-sm transition-all text-sm"
+                                                    >
+                                                        Crear
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="p-2 max-h-[50vh] overflow-y-auto">
+                                            {/* Si tenemos requisitos disponibles de la API, usarlos agrupados. Si no, fallback a reglas estáticas */}
+                                            {console.log(availableRequirements)}
+                                            {(availableRequirements && availableRequirements.length > 0) ? (
+                                                (() => {
+                                                    const available = availableRequirements.filter(req => {
+                                                        const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                        return !requiredDocs.some(r => String(r.id) === String(reqId));
+                                                    });
+
+                                                    if (available.length === 0) return null;
+
+                                                    const groups = {};
+                                                    available.forEach(req => {
+                                                        const template = req.id_attribute_template || req.attributeTemplate;
+                                                        const activeObj = template?.id_active || template?.actives;
+
+                                                        const activeId = activeObj?.id_active || activeObj?.idActive || 'UNCLASSIFIED';
+                                                        const activeName = activeObj?.description || 'Otros Requisitos';
+
+                                                        if (!groups[activeId]) {
+                                                            groups[activeId] = { id: activeId, name: activeName, reqs: [] };
+                                                        }
+                                                        groups[activeId].reqs.push(req);
+                                                    });
+
+                                                    return Object.values(groups).map(group => (
+                                                        <div key={group.id} className="mb-4 last:mb-0">
+                                                            <h4 className="text-xs font-bold text-primary mb-2 px-2 uppercase tracking-wider bg-primary/5 py-1.5 rounded-md flex items-center gap-2">
+                                                                <i className="pi pi-folder-open text-[10px]"></i>
+                                                                {group.name}
+                                                            </h4>
+                                                            <div className="space-y-1">
+                                                                {group.reqs.map(req => {
+                                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                                    return (
+                                                                        <button
+                                                                            key={reqId}
+                                                                            onClick={() => {
+                                                                                const newReq = {
+                                                                                    id: reqId,
+                                                                                    // Conservar ambos tipos por seguridad
+                                                                                    id_active: req.id_attribute_template?.id_active?.id_active || req.attributeTemplate?.id_active || req.attributeTemplate?.idActive || null,
+                                                                                    label: req.description,
+                                                                                    frecuencia: 'Con Vencimiento',
+                                                                                    obligatoriedad: 'Manual'
+                                                                                };
+                                                                                setIsCustomConfig(true); // Mark as custom to prevent auto-reset
+                                                                                setRequiredDocs(prev => [...prev, newReq]);
+                                                                                setShowDocModal(false);
+                                                                                markStepDirty(currentStep);
+                                                                            }}
+                                                                            className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
+                                                                        >
+                                                                            <div>
+                                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{req.description}</p>
+                                                                            </div>
+                                                                            <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    ));
+                                                })()
+                                            ) : null}
+
+                                            {((availableRequirements || []).filter(req => {
+                                                const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                return !requiredDocs.some(r => String(r.id) === String(reqId));
                                             }).length === 0) && (
                                                     <p className="text-center text-sm text-secondary py-8 italic">No hay más documentos disponibles.</p>
                                                 )}
@@ -2224,7 +2307,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                         )}
                         {currentStep === steps.length && !readOnly && !partialEdit && (
                             <button
-                                onClick={() => onSubmit && onSubmit(formData)}
+                                onClick={() => handleSubmit()}
                                 className="text-white bg-green-600 hover:bg-green-700 font-bold rounded-lg text-sm px-5 py-2.5 text-center flex items-center justify-center gap-2 shadow-md transition-all w-full md:w-auto animate-fade-in"
                             >
                                 <i className="pi pi-check"></i> Finalizar y Guardar

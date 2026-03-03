@@ -7,6 +7,7 @@ import { groupService } from '../../services/groupService';
 import { StatusBadge } from '../../components/ui/Badges';
 import { formatCUIT } from '../../utils/formatUtils';
 import { base64ToBlobUrl } from '../../utils/fileUtils';
+import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -31,53 +32,57 @@ const SupplierDetail = () => {
 
             if (groupReqs && groupReqs.length > 0) {
               const DOC_TYPE_LABELS = {
-                'CONSTANCIA_AFIP': 'Constancia de Inscripción AFIP',
-                'ESTATUTO': 'Estatuto Social',
-                'FORM_931': 'Formulario 931',
-                'HABILITACION_SEGURIDAD': 'Habilitación Comercial / Seguridad',
-                'SEGURO_ACCIDENTES': 'Seguro de Accidentes Personales',
-                'ART_CERTIFICADO': 'Certificado de Cobertura ART',
-                'SEGURO_VIDA': 'Seguro de Vida Obligatorio',
-                'HABILITACION_VEHICULOS': 'Habilitación de Vehículos / VTV',
-                'SOLICITUD_USUARIOS': 'Solicitud de Usuarios de Sistema',
-                'CERT_NO_DEUDA_EDESAL': 'Certificado de No Deuda (Edesal)',
-                'EMR_MANUAL_EDESAL': 'Manual de Inducción Seguridad EMR (Edesal)',
-                'DDJJ_ETICA_EDESAL': 'Declaración Jurada Ética (Edesal)',
-                'HABILITACION_VIGILANCIA_EDESAL': 'Habilitación Provincial de Seguridad (Edesal)',
-                'ANEXO_SH_ROVELLA': 'Anexo Seguridad e Higiene (Rovella)',
-                'FICHA_ALTA_ROVELLA': 'Ficha Alta de Proveedor (Rovella)',
-                'POLIZA_OBRA_ROVELLA': 'Póliza de Seguro de Obra (Rovella)',
-                'SAP_ROVELLA': 'Seguro ACC Personales - Cláusula Rovella'
+                'CONSTANCIA_AFIP': { label: 'Constancia de Inscripción AFIP', frecuencia: 'Mensual' },
+                'ESTATUTO': { label: 'Estatuto Social', frecuencia: 'Única vez' },
+                'FORM_931': { label: 'Formulario 931', frecuencia: 'Mensual' },
+                'HABILITACION_SEGURIDAD': { label: 'Habilitación Comercial / Seguridad', frecuencia: 'Con Vencimiento' },
+                'SEGURO_ACCIDENTES': { label: 'Seguro de Accidentes Personales', frecuencia: 'Mensual' },
+                'ART_CERTIFICADO': { label: 'Certificado de Cobertura ART', frecuencia: 'Mensual' },
+                'SEGURO_VIDA': { label: 'Seguro de Vida Obligatorio', frecuencia: 'Anual' },
+                'HABILITACION_VEHICULOS': { label: 'Habilitación de Vehículos / VTV', frecuencia: 'Anual' },
+                'SOLICITUD_USUARIOS': { label: 'Solicitud de Usuarios de Sistema', frecuencia: 'Única vez' },
+                'CERT_NO_DEUDA_EDESAL': { label: 'Certificado de No Deuda (Edesal)', frecuencia: 'Trimestral' },
+                'EMR_MANUAL_EDESAL': { label: 'Manual de Inducción Seguridad EMR (Edesal)', frecuencia: 'Bienal' },
+                'DDJJ_ETICA_EDESAL': { label: 'Declaración Jurada Ética (Edesal)', frecuencia: 'Anual' },
+                'HABILITACION_VIGILANCIA_EDESAL': { label: 'Habilitación Provincial de Seguridad (Edesal)', frecuencia: 'Anual' },
+                'ANEXO_SH_ROVELLA': { label: 'Anexo Seguridad e Higiene (Rovella)', frecuencia: 'Única vez' },
+                'FICHA_ALTA_ROVELLA': { label: 'Ficha Alta de Proveedor (Rovella)', frecuencia: 'Única vez' },
+                'POLIZA_OBRA_ROVELLA': { label: 'Póliza de Seguro de Obra (Rovella)', frecuencia: 'Mensual' },
+                'SAP_ROVELLA': { label: 'Seguro ACC Personales - Cláusula Rovella', frecuencia: 'Anual' }
               };
 
               // Use a Map to ensure absolute uniqueness of Requirements
               const docMap = new Map();
 
               groupReqs.forEach(req => {
-                const listReq = req.listRequirements;
+                // Handle both listRequirements (camelCase) and list_requirements (snake_case)
+                const listReq = req.list_requirements || req.listRequirements;
                 if (!listReq) return;
 
-                const attrTempl = listReq.attributeTemplate;
+                // Handle attribute_template (snake_case) and attributeTemplate (camelCase)
+                const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
                 const attrs = attrTempl?.attributes;
-                const folderMeta = listReq.folder_metadata?.data;
+
+                // Handle folder_metadata (snake_case) and folderMetadata (camelCase)
+                const folderMeta = (listReq.folder_metadata || listReq.folderMetadata)?.data;
                 const files = listReq.files || [];
                 const submittedFile = files.length > 0 ? files[0] : null;
-                const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf;
 
-                const requirementId = listReq.id_list_requirements;
-                const key = `R${requirementId}`;
+                // Handle id_list_requirements (snake_case) and idListRequirements (camelCase)
+                const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
+                const key = requirementId;
 
                 if (!docMap.has(key)) {
                   const label = listReq.description || attrs?.description || 'Documento';
 
                   let docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
-                    DOC_TYPE_LABELS[k].toLowerCase() === label.toLowerCase()
+                    DOC_TYPE_LABELS[k].label.toLowerCase() === label.toLowerCase()
                   );
 
                   if (!docKey) {
                     const cleanDesc = label.replace(/ obligatorio/i, '').trim();
                     docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
-                      DOC_TYPE_LABELS[k].toLowerCase().includes(cleanDesc.toLowerCase())
+                      DOC_TYPE_LABELS[k].label.toLowerCase().includes(cleanDesc.toLowerCase())
                     ) || label.toUpperCase().replace(/\s+/g, '_');
                   }
 
@@ -88,7 +93,6 @@ const SupplierDetail = () => {
                   const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf || {};
                   const directFileName = submittedFile?.file_name || submittedFile?.fileName;
                   const directFileUrl = submittedFile?.file_url || submittedFile?.url;
-                  const directContent = submittedFile?.content || submittedFile?.file_content;
 
                   const finalStatus = folderMeta?.estado || (isFile ? 'EN REVISIÓN' : 'PENDIENTE');
                   const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
@@ -96,11 +100,12 @@ const SupplierDetail = () => {
                   const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
 
                   docMap.set(key, {
-                    id: `req-${key}`,
-                    id_group_req: req.id_group_requirements,
-                    id_list_req: listReq.id_list_requirements,
+                    id: key,
+                    id_group_req: req.id_group_requirements || req.idGroupRequirements,
+                    id_list_req: listReq.id_list_requirements || listReq.idListRequirements,
                     id_attribute: attrs?.id_attributes || attrs?.idAttributes,
-                    id_element: listReq.folder_metadata?.id_elements,
+                    id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
+                    id_element: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
                     id_active: attrTempl?.id_active || attrTempl?.idActive,
                     tipo: docKey,
                     label: cleanLabel,
@@ -148,16 +153,20 @@ const SupplierDetail = () => {
               nombre: response.contacts.nombre_contacto || '',
               tipo: response.contacts.puesto || 'OPERATIVO - LEGAJO'
             }] : [],
-            documentacion: dynamicDocs.length > 0 ? dynamicDocs : (response.elements ? response.elements.map(el => ({
-              id: el.id_elements,
-              id_active: el.active?.idActive,
-              tipo: el.active?.description || 'DOCUMENTO',
-              estado: el.data?.estado || 'PENDIENTE',
-              archivo: el.data?.archivo || null,
-              observacion: el.data?.observacion || null,
-              fechaVencimiento: el.data?.fechaVencimiento || null,
-              frecuencia: el.data?.frecuencia || 'Mensual'
-            })) : [])
+            documentacion: dynamicDocs.length > 0 ? dynamicDocs : (response.elements ? response.elements.map(el => {
+              const tipo = el.active?.description || 'DOCUMENTO';
+              return {
+                id: el.id_elements,
+                id_active: el.active?.idActive,
+                tipo: tipo,
+                label: getDocLabel(tipo),
+                estado: el.data?.estado || 'PENDIENTE',
+                archivo: el.data?.archivo || null,
+                observacion: el.data?.observacion || null,
+                fechaVencimiento: el.data?.fechaVencimiento || null,
+                frecuencia: getDocFrequency(tipo)
+              };
+            }) : [])
           };
           setProveedor(mappedData);
         }
