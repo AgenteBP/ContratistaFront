@@ -183,19 +183,19 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
     const getMenuItems = (role) => {
         // Base items reusable across roles
         const ITEM_INICIO = { type: 'item', icon: 'pi-home', label: 'Inicio', to: '/dashboard', end: true };
-        const ITEM_REPORTES = {
-            type: 'custom',
-            render: (expanded) => (
-                <li className="mr-1" key="reports">
-                    <button className={`w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200 overflow-hidden whitespace-nowrap ${!expanded ? 'justify-center px-0' : ''}`}>
-                        <div className={`flex items-center min-w-0 ${expanded ? 'w-full' : 'justify-center w-auto'}`}>
-                            <i className="pi pi-chart-bar w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark text-lg flex-shrink-0"></i>
-                            <span className={`font-medium transition-all duration-200 ${expanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>Reportes</span>
-                        </div>
-                    </button>
-                </li>
-            )
-        };
+        // const ITEM_REPORTES = {
+        //     type: 'custom',
+        //     render: (expanded) => (
+        //         <li className="mr-1" key="reports">
+        //             <button className={`w-full flex items-center p-3 rounded-lg text-secondary-dark hover:bg-secondary-light group transition-all duration-200 overflow-hidden whitespace-nowrap ${!expanded ? 'justify-center px-0' : ''}`}>
+        //                 <div className={`flex items-center min-w-0 ${expanded ? 'w-full' : 'justify-center w-auto'}`}>
+        //                     <i className="pi pi-chart-bar w-5 h-5 transition duration-75 text-secondary group-hover:text-secondary-dark text-lg flex-shrink-0"></i>
+        //                     <span className={`font-medium transition-all duration-200 ${expanded ? 'opacity-100 ms-3' : 'opacity-0 w-0 ms-0 hidden'}`}>Reportes</span>
+        //                 </div>
+        //             </button>
+        //         </li>
+        //     )
+        // };
 
         const SUBMENU_DOCUMENTOS = {
             type: 'submenu',
@@ -225,13 +225,23 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
 
         // --- Role Configurations ---
 
+        const SUBMENU_AUDITORIA_TECNICA = {
+            type: 'submenu',
+            icon: 'pi-chart-bar',
+            label: 'Auditoría Técnica',
+            items: [
+                { label: 'Auditar', to: '/auditores/tecnica', icon: 'pi-sitemap', end: true },
+                { label: 'Historial', to: '/auditores/tecnica/historial', icon: 'pi-history' }
+            ]
+        };
+
         if (isProveedor) {
             return [
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/proveedor', badge: '!', badgeColor: 'danger' },
                 SUBMENU_RECURSOS_STD,
                 SUBMENU_DOCUMENTOS,
-                ITEM_REPORTES
+                // ITEM_REPORTES
             ];
         }
 
@@ -240,12 +250,11 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 ITEM_INICIO,
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
                 SUBMENU_RECURSOS_STD,
-                // FILTRADO DINÁMICO: Solo mostramos Auditoría Técnica si el rol lo es.
-                // En el futuro podrías añadir el item de Auditoría Legal aquí.
-                isAuditorTecnico ? { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' } : null,
-                isAuditorLegal ? { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' } : null,
+                // FILTRADO DINÁMICO: Mostramos los items según la especialidad del auditor.
+                isAuditorTecnico && SUBMENU_AUDITORIA_TECNICA,
+                isAuditorLegal && { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' },
                 SUBMENU_DOCUMENTOS,
-                ITEM_REPORTES
+                // ITEM_REPORTES
             ].filter(Boolean); // Limpiamos los nulls
         }
 
@@ -266,7 +275,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                     ]
                 },
                 SUBMENU_DOCUMENTOS,
-                ITEM_REPORTES
+                // ITEM_REPORTES
             ];
         }
 
@@ -278,9 +287,9 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-shield', label: 'Auditores', to: '/auditores', end: true, badge: '5' },
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
-                { type: 'item', icon: 'pi-chart-bar', label: 'Auditoría Técnica', to: '/auditores/tecnica' },
+                SUBMENU_AUDITORIA_TECNICA,
                 SUBMENU_DOCUMENTOS,
-                ITEM_REPORTES
+                // ITEM_REPORTES
             ];
         }
 

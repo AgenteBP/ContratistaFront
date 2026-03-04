@@ -32,6 +32,37 @@ const EmployeeData = ({ data, onChange, onNext }) => {
         { label: 'Mendoza', value: 'Mendoza' }
     ];
 
+    // State for employee types
+    // Since employee types might not be a dropdown in the current UI (mock data not shown for types), 
+    // we need to determine how to set idActive. 
+    // If "Puesto" is text input, we still need an idActive for the "Empleado" entity itself.
+    // OR if there are sub-types (Chofer, Administrativo).
+    // The previous plan assumed idActiveType=1. 
+    // Let's fetch it and if there's only one, set it automatically. 
+    // If there are multiple, maybe we need a dropdown or logic based on "esChofer".
+
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                // ID 1 corresponds to Employees
+                const activeTypes = await import('../../../services/elementService').then(m => m.default.getActivesByType(1));
+
+                if (activeTypes && activeTypes.length > 0) {
+                    // We could also populate a dropdown if needed, mapping to uppercase:
+                    // const mappedTypes = activeTypes.map(t => ({ label: t.description.toUpperCase(), value: t.id_active }));
+
+                    // For now, default to the first one found (e.g. "Empleado") 
+                    // unless we have specific logic to choose.
+                    // We set it in formData to be passed to NewEmployee
+                    handleChange('idActive', activeTypes[0].id_active);
+                }
+            } catch (error) {
+                console.error('Error fetching employee types:', error);
+            }
+        };
+        fetchTypes();
+    }, []);
+
     const genderOptions = [
         { label: 'Masculino', value: 'M' },
         { label: 'Femenino', value: 'F' },
@@ -84,7 +115,7 @@ const EmployeeData = ({ data, onChange, onNext }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <Input label="Apellido" value={formData.apellido} onChange={(e) => handleChange('apellido', e.target.value)} placeholder="INGRESE APELLIDOS DEL EMPLEADO" error={errors.apellido} />
                 <Input label="Nombre" value={formData.nombre} onChange={(e) => handleChange('nombre', e.target.value)} placeholder="INGRESE NOMBRES DEL EMPLEADO" error={errors.nombre} />
                 <Input label="C.U.I.L." value={formData.cuil} onChange={(e) => handleChange('cuil', e.target.value)} placeholder="INGRESE CUIL DEL EMPLEADO" />
@@ -126,12 +157,11 @@ const EmployeeData = ({ data, onChange, onNext }) => {
                 <Input label="Convenio" value={formData.convenio} onChange={(e) => handleChange('convenio', e.target.value)} placeholder="INGRESE NOMBRE DEL CONVENIO" />
 
                 <Input label="Teléfono" value={formData.telefono} onChange={(e) => handleChange('telefono', e.target.value)} placeholder="INGRESE TELÉFONO DEL EMPLEADO" />
-                <div className="md:col-span-2">
+
+                <div className="sm:col-span-2">
                     <Input label="Dirección/Detalle Adicional" value={formData.direccion} onChange={(e) => handleChange('direccion', e.target.value)} placeholder="INGRESE DIRECCIÓN DEL EMPLEADO" />
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                     <Label>Género</Label>
                     <div className="flex gap-4 mt-2">

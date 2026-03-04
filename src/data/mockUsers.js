@@ -13,9 +13,9 @@ export const MOCK_USERS = [
             {
                 roleName: 'PROVEEDOR',
                 entities: [
-                    { id: 1, razonSocial: 'PAEZ BRAIAN ANDRES', cuit: '20-37202708-9', servicio: 'MANTENIMIENTO', grupo: 'DISTRIBUCIÓN', accesoHabilitado: 'NO', riesgo: 'RIESGO ALTO', esTemporal: 'No', estatus: 'SIN COMPLETAR', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '04/11/2025', bajaSistema: '', inhabilitadoEl: '', motivo: 'Falta documentación crítica' },
-                    { id: 6, razonSocial: 'CONSTRUCTORA DEL NORTE S.A.', cuit: '30-60606060-9', servicio: 'INVERSION Y MANTENIMIENTO', grupo: 'EMPRESAS GRUPO', accesoHabilitado: 'NO', riesgo: 'RIESGO ALTO', esTemporal: 'No', estatus: 'SIN COMPLETAR', empleadorAFIP: 'Si', facturasAPOC: 'Si', altaSistema: '01/01/2025', bajaSistema: '', inhabilitadoEl: '', motivo: 'Detectada factura APOC en validación' },
-                    { id: 8, razonSocial: 'CONSULTORA PERFILES', cuit: '30-99887766-1', servicio: 'BAREMO', grupo: 'RR.HH.', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'Si', estatus: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '05/05/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' }
+                    { id: 1, razonSocial: 'PAEZ BRAIAN ANDRES', cuit: '20-37202708-9', servicio: 'MANTENIMIENTO', grupo: 'DISTRIBUCIÓN', accesoHabilitado: 'NO', riesgo: 'RIESGO ALTO', esTemporal: 'No', estado: 'SIN COMPLETAR', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '04/11/2025', bajaSistema: '', inhabilitadoEl: '', motivo: 'Falta documentación crítica' },
+                    { id: 6, razonSocial: 'CONSTRUCTORA DEL NORTE S.A.', cuit: '30-60606060-9', servicio: 'INVERSION Y MANTENIMIENTO', grupo: 'EMPRESAS GRUPO', accesoHabilitado: 'NO', riesgo: 'RIESGO ALTO', esTemporal: 'No', estado: 'SIN COMPLETAR', empleadorAFIP: 'Si', facturasAPOC: 'Si', altaSistema: '01/01/2025', bajaSistema: '', inhabilitadoEl: '', motivo: 'Detectada factura APOC en validación' },
+                    { id: 8, razonSocial: 'CONSULTORA PERFILES', cuit: '30-99887766-1', servicio: 'BAREMO', grupo: 'RR.HH.', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'Si', estado: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '05/05/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' }
                 ]
             },
             {
@@ -43,9 +43,9 @@ export const MOCK_USERS = [
             {
                 roleName: 'PROVEEDOR',
                 entities: [
-                    { id: 2, razonSocial: 'SEGURIDAD TOTAL S.A.', cuit: '30-55555555-1', servicio: 'VIGILANCIA', grupo: 'COMERCIAL', accesoHabilitado: 'SI', riesgo: 'RIESGO MEDIO', esTemporal: 'No', estatus: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '10/01/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' },
-                    { id: 4, razonSocial: 'TECH SOLUTIONS GLOBAL', cuit: '33-70707070-4', servicio: 'BAREMO/MANTENIMIENTO TI', grupo: 'TI', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'No', estatus: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '15/06/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' },
-                    { id: 8, razonSocial: 'CONSULTORA PERFILES', cuit: '30-99887766-1', servicio: 'BAREMO', grupo: 'RR.HH.', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'Si', estatus: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '05/05/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' }
+                    { id: 2, razonSocial: 'SEGURIDAD TOTAL S.A.', cuit: '30-55555555-1', servicio: 'VIGILANCIA', grupo: 'COMERCIAL', accesoHabilitado: 'SI', riesgo: 'RIESGO MEDIO', esTemporal: 'No', estado: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '10/01/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' },
+                    { id: 4, razonSocial: 'TECH SOLUTIONS GLOBAL', cuit: '33-70707070-4', servicio: 'BAREMO/MANTENIMIENTO TI', grupo: 'TI', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'No', estado: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '15/06/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' },
+                    { id: 8, razonSocial: 'CONSULTORA PERFILES', cuit: '30-99887766-1', servicio: 'BAREMO', grupo: 'RR.HH.', accesoHabilitado: 'SI', riesgo: 'RIESGO BAJO', esTemporal: 'Si', estado: 'ACTIVO', empleadorAFIP: 'Si', facturasAPOC: 'No', altaSistema: '05/05/2024', bajaSistema: '', inhabilitadoEl: '', motivo: '' }
                 ]
             },
             {

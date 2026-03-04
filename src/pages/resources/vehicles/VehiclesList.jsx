@@ -6,34 +6,26 @@ import Dropdown from '../../../components/ui/Dropdown';
 import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
 import { StatusBadge } from '../../../components/ui/Badges';
-import { MOCK_VEHICLES } from '../../../data/mockResources';
+import { useAuth } from '../../../context/AuthContext';
+import elementService from '../../../services/elementService';
+// import { MOCK_VEHICLES } from '../../../data/mockResources';
+import TableFilters from '../../../components/ui/TableFilters';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useVehicles } from '../../../hooks/useVehicles';
 
 const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
+    const { vehicles, loading, marcas, modelos } = useVehicles();
+
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
-    const [vehicles, setVehicles] = useState([]);
     const [filteredVehicles, setFilteredVehicles] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [expandedRows, setExpandedRows] = useState(null);
-
-    const [marcas, setMarcas] = useState([]);
-    const [modelos, setModelos] = useState([]);
 
     useEffect(() => {
         initFilters();
-        setVehicles(MOCK_VEHICLES);
-
-        const uniqueMarcas = [...new Set(MOCK_VEHICLES.map(v => v.marca))].sort();
-        const uniqueModelos = [...new Set(MOCK_VEHICLES.map(v => v.modelo))].sort();
-
-        setMarcas(uniqueMarcas.map(m => ({ label: m, value: m })));
-        setModelos(uniqueModelos.map(m => ({ label: m, value: m })));
-
-        setLoading(false);
     }, []);
 
     const initFilters = () => {
@@ -73,6 +65,9 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{data.marca} {data.modelo}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Año fabricación</span><span className="text-sm font-medium text-secondary-dark">{data.anio}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de unidad</span><span className="text-sm font-medium text-secondary-dark">{data.tipo}</span></div>
+                    {/* New Technical Fields */}
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Color</span><span className="text-sm font-medium text-secondary-dark">{data.color}</span></div>
+                    {data.peso && <div><span className="block text-[10px] text-secondary font-bold uppercase">Peso</span><span className="text-sm font-medium text-secondary-dark">{data.peso}</span></div>}
                 </div>
 
                 <div className="space-y-3">
@@ -108,6 +103,16 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">VEH-{data.id.toString().padStart(4, '0')}</span></div>
                 </div>
 
+                {/* Additional Technical Details Column */}
+                {(data.detalles_tecnicos && Object.keys(data.detalles_tecnicos).length > 0) && (
+                    <div className="space-y-3">
+                        <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Detalle Técnico</h6>
+                        {data.detalles_tecnicos.motor && <div><span className="block text-[10px] text-secondary font-bold uppercase">Motor</span><span className="text-sm font-medium text-secondary-dark">{data.detalles_tecnicos.motor}</span></div>}
+                        {data.detalles_tecnicos.combustible && <div><span className="block text-[10px] text-secondary font-bold uppercase">Combustible</span><span className="text-sm font-medium text-secondary-dark">{data.detalles_tecnicos.combustible}</span></div>}
+                        {data.detalles_tecnicos.cabina && <div><span className="block text-[10px] text-secondary font-bold uppercase">Cabina</span><span className="text-sm font-medium text-secondary-dark capitalize">{data.detalles_tecnicos.cabina}</span></div>}
+                    </div>
+                )}
+
                 <div className="flex flex-col justify-end gap-2">
                     <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
                         <i className="pi pi-file-excel"></i> Ver Planillas VTV
@@ -120,135 +125,44 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
         </div>
     );
 
-    const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
-            {/* Top Row: Search and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative w-full sm:w-[450px]">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <i className="pi pi-search text-secondary/50 text-xs"></i>
-                    </div>
-                    <input
-                        type="text"
-                        value={globalFilterValue}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setGlobalFilterValue(val);
-                            let _filters = { ...filters };
-                            _filters['global'].value = val;
-                            setFilters(_filters);
-                        }}
-                        className="bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9"
-                        placeholder="Buscar vehículo..."
-                    />
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
-                        <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
-                    </button>
-                    {isEmbedded && (
-                        <PrimaryButton
-                            label="Nuevo Vehículo"
-                            icon="pi pi-plus"
-                            onClick={() => navigate('/recursos/vehiculos/nuevo')}
-                        />
-                    )}
-                </div>
-            </div>
-
-            {/* Bottom Row: Filters & Stats */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.marca?.value}
-                            options={marcas}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['marca'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="MARCA"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.marca?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['marca'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.modelo?.value}
-                            options={modelos}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['modelo'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="MODELO"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.modelo?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['modelo'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.estado?.value}
-                            options={['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['estado'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="ESTADO"
-                            className="w-full md:w-48"
-                        />
-                        {filters?.estado?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['estado'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs ml-auto">
-                    <button
-                        onClick={initFilters}
-                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
-                    >
-                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
-                    </button>
-                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
-                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
-                        {filteredVehicles ? filteredVehicles.length : vehicles.length} Unidades
-                    </span>
-                </div>
-            </div>
+    const topActions = (
+        <div className="flex items-center gap-2">
+            <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
+                <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
+            </button>
+            {isEmbedded && (
+                <PrimaryButton
+                    label="Nuevo Vehículo"
+                    icon="pi pi-plus"
+                    onClick={() => navigate('/recursos/vehiculos/nuevo')}
+                />
+            )}
         </div>
+    );
+
+    const filterConfig = [
+        { label: 'MARCA', value: 'marca', options: marcas },
+        { label: 'MODELO', value: 'modelo', options: modelos },
+        { label: 'ESTADO', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
+    ];
+
+    const renderHeader = () => (
+        <TableFilters
+            filters={filters}
+            setFilters={setFilters}
+            globalFilterValue={globalFilterValue}
+            onGlobalFilterChange={(e) => {
+                const val = e.target.value;
+                setGlobalFilterValue(val);
+                let _filters = { ...filters };
+                _filters['global'].value = val;
+                setFilters(_filters);
+            }}
+            config={filterConfig}
+            totalItems={vehicles.length}
+            filteredItems={filteredVehicles ? filteredVehicles.length : null}
+            topRightContent={topActions}
+        />
     );
 
     return (

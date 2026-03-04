@@ -66,15 +66,19 @@ body {
 /* --- COMPACT CALENDAR (PrimeReact) --- */
 /* Removed hardcoded small fonts for improved readability */
 
-.compact-calendar-panel .p-datepicker-header {
+.compact-calendar-panel {
+    width: 250px !important;
     padding: 0.25rem !important;
-    font-size: 0.75rem !important;
-    /* Smaller header */
+}
+
+.compact-calendar-panel .p-datepicker-header {
+    padding: 0.5rem !important;
+    font-size: 0.8rem !important;
 }
 
 .compact-calendar-panel table {
     font-size: 0.75rem !important;
-    /* Smaller days */
+    width: 100% !important;
 }
 
 .compact-calendar-panel table th {
@@ -82,7 +86,19 @@ body {
 }
 
 .compact-calendar-panel table td {
-    padding: 0.25rem !important;
+    padding: 2px !important;
+}
+
+.compact-calendar-panel table td span {
+    width: 100% !important;
+    height: 32px !important;
+    /* Fixed height to match width and make it look squared */
+    line-height: 32px !important;
+    border-radius: 4px !important;
+    /* Square-ish with small rounding */
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Custom Input Calendar styling */
@@ -324,4 +340,10 @@ body {
 .p-multiselect-header .p-checkbox:not(.p-checkbox-disabled):hover .p-checkbox-box {
     border-color: #6366f1 !important;
     background-color: #ffffff !important;
+}
+
+/* --- CUSTOM DROPDOWN ALIGNMENT --- */
+.navbar-user-dropdown {
+    margin-top: 18px !important;
+    transform: translateX(16px) !important;
 }

@@ -6,7 +6,7 @@ export const MOCK_EMPRESAS = [
         descripcion: 'Servicios de tecnología y desarrollo de software.',
         rubro: 'Tecnología',
         grupo: 'Grupo Tech',
-        estatus: 'ACTIVO'
+        estado: 'ACTIVO'
     },
     {
         id: 2,
@@ -15,7 +15,7 @@ export const MOCK_EMPRESAS = [
         descripcion: 'Obras civiles e ingeniería.',
         rubro: 'Construcción',
         grupo: 'Holding Construcción',
-        estatus: 'ACTIVO'
+        estado: 'ACTIVO'
     },
     {
         id: 3,
@@ -24,7 +24,7 @@ export const MOCK_EMPRESAS = [
         descripcion: 'Transporte y logística nacional.',
         rubro: 'Logística',
         grupo: 'Logística Global',
-        estatus: 'INACTIVO'
+        estado: 'INACTIVO'
     },
     {
         id: 4,
@@ -33,7 +33,7 @@ export const MOCK_EMPRESAS = [
         descripcion: 'Producción agrícola ganadera.',
         rubro: 'Agro',
         grupo: 'Grupo Agro',
-        estatus: 'ACTIVO'
+        estado: 'ACTIVO'
     },
     {
         id: 5,
@@ -42,6 +42,6 @@ export const MOCK_EMPRESAS = [
         descripcion: 'Extracción de minerales metalíferos.',
         rubro: 'Minería',
         grupo: 'Holding Minero',
-        estatus: 'ACTIVO'
+        estado: 'ACTIVO'
     }
 ];

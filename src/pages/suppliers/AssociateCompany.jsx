@@ -5,6 +5,8 @@ import Label from '../../components/ui/Label';
 import MultiSelect from '../../components/ui/MultiSelect';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { StatusBadge } from '../../components/ui/Badges';
+import { formatCUIT } from '../../utils/formatUtils';
+import { supplierService } from '../../services/supplierService';
 
 const AssociateCompany = () => {
     const { id } = useParams();
@@ -28,18 +30,38 @@ const AssociateCompany = () => {
     };
 
     useEffect(() => {
-        const found = MOCK_SUPPLIERS.find(s => s.id === parseInt(id));
-        if (found) {
-            setSupplier({ ...found });
+        const fetchSupplier = async () => {
+            if (!id) return;
+            try {
+                // The 'id' param from URL is now the CUIT
+                const data = await supplierService.getById(id);
+                if (data) {
+                    // Normalize data structure if needed to match what the UI expects
+                    const mappedSupplier = {
+                        ...data,
+                        // If the API returns different field names, map them here. 
+                        // Based on supplierService.getById it seems to return raw API response.
+                        razonSocial: data.company_name,
+                        cuit: data.cuit,
+                        estado: data.active === 0 ? 'ACTIVO' : 'INACTIVO', // Mapping active int to status string if needed
+                        grupo: null, // API might not return 'grupo' directly if it's in a sub-object, adjust as needed. 
+                        // For now, initializing empty or preserving if API sends it.
+                        // If associations come from a different endpoint, we might need another call.
+                    };
+                    setSupplier(mappedSupplier);
 
-            // Initialize associations object from flat mock data
-            // In a real app, the API would ideally return this grouped or we'd map it
-            const initialAssoc = {};
-            if (found.grupo && found.empresas) {
-                initialAssoc[found.grupo] = found.empresas;
+                    // Initialize associations if available in data
+                    // For now, we leave it empty or map from data if structure is known
+                    // const initialAssoc = {};
+                    // if (data.groups) ...
+                    // setAssociations(initialAssoc);
+                }
+            } catch (error) {
+                console.error("Error fetching supplier for association:", error);
             }
-            setAssociations(initialAssoc);
-        }
+        };
+
+        fetchSupplier();
     }, [id]);
 
     const handleSave = () => {
@@ -89,13 +111,13 @@ const AssociateCompany = () => {
                         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
                             {supplier.razonSocial?.charAt(0)}
                         </div>
-                        <StatusBadge status={supplier.estatus} className="scale-75 md:scale-90" />
+                        <StatusBadge status={supplier.estado} className="scale-75 md:scale-90" />
                     </div>
 
                     <div className="flex-1 space-y-4">
                         <div>
                             <h2 className="text-xl font-bold text-secondary-dark">{supplier.razonSocial}</h2>
-                            <p className="text-sm text-secondary font-medium uppercase tracking-wider">CUIT: {supplier.cuit}</p>
+                            <p className="text-sm text-secondary font-medium uppercase tracking-wider">CUIT: {formatCUIT(supplier.cuit)}</p>
                         </div>
 
                         {/* Current Associations Summary - Grouped */}
@@ -149,10 +171,10 @@ const AssociateCompany = () => {
                                         }
                                     }}
                                     className={`p-6 rounded-2xl border-2 transition-all group relative overflow-hidden ${selectedGroup === grupo
-                                            ? 'border-primary bg-primary/5 shadow-md scale-[1.02]'
-                                            : isFullyAssociated
-                                                ? 'border-secondary/5 bg-gray-50 opacity-60 cursor-not-allowed'
-                                                : 'cursor-pointer border-secondary/10 bg-white hover:border-secondary/30'
+                                        ? 'border-primary bg-primary/5 shadow-md scale-[1.02]'
+                                        : isFullyAssociated
+                                            ? 'border-secondary/5 bg-gray-50 opacity-60 cursor-not-allowed'
+                                            : 'cursor-pointer border-secondary/10 bg-white hover:border-secondary/30'
                                         }`}
                                 >
                                     <div className="flex items-center gap-4 relative z-10">
@@ -233,8 +255,8 @@ const AssociateCompany = () => {
                             onClick={handleSave}
                             disabled={!selectedGroup || selectedCompanies.length === 0}
                             className={`px-8 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md ${!selectedGroup || selectedCompanies.length === 0
-                                    ? 'bg-secondary/20 text-secondary/40 cursor-not-allowed'
-                                    : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 animate-pulse-subtle'
+                                ? 'bg-secondary/20 text-secondary/40 cursor-not-allowed'
+                                : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 animate-pulse-subtle'
                                 }`}
                         >
                             <i className="pi pi-save"></i> Guardar Asociación

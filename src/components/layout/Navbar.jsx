@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import { useAuth } from '../../context/AuthContext';
@@ -6,9 +6,11 @@ import { useAuth } from '../../context/AuthContext';
 const Navbar = ({ onToggleSidebar }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, currentRole, logout } = useAuth();
+    const { user, currentRole, logout, selectRole } = useAuth();
     const menuRef = useRef(null);
     const userMenuRef = useRef(null);
+    const switcherRef = useRef(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // --- Dynamic User Info ---
     // Mapeo de códigos de rol a etiquetas amigables
@@ -28,8 +30,86 @@ const Navbar = ({ onToggleSidebar }) => {
         email: user?.username || user?.email || 'usuario@contratista.com',
         role: currentRole.role,
         roleLabel: roleLabels[currentRole.role] || currentRole.role,
-        entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || ''
+        entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || '',
+        id_entity: currentRole.id_entity
     } : null;
+
+    // --- Profile Switcher Logic ---
+    const availableProfiles = useMemo(() => {
+        if (!user) return [];
+        const profiles = [];
+
+        user.roles?.forEach(roleName => {
+            if (roleName === 'ADMIN') {
+                profiles.push({
+                    role: 'ADMIN',
+                    roleId: 'admin-root',
+                    id_entity: 0,
+                    name: 'Gestión Central',
+                    type: 'ADMIN'
+                });
+            }
+            if (roleName === 'AUDITOR' && user.auditors) {
+                user.auditors.forEach(a => {
+                    profiles.push({
+                        role: 'AUDITOR',
+                        roleId: 'auditor-root',
+                        id_entity: a.id_auditor,
+                        name: `Registro: ${a.registration_number}`,
+                        type: a.type_auditor
+                    });
+                });
+            }
+            if (roleName === 'CUSTOMER' && user.clients) {
+                user.clients.forEach(c => {
+                    profiles.push({
+                        role: 'EMPRESA',
+                        roleId: 'customer-root',
+                        id_entity: c.id_company_client,
+                        name: c.companyDescription,
+                        id_company: c.id_company
+                    });
+                });
+            }
+            if (roleName === 'SUPPLIER' && user.suppliers) {
+                user.suppliers.forEach(s => {
+                    profiles.push({
+                        role: 'PROVEEDOR',
+                        roleId: 'supplier-root',
+                        id_entity: s.id_supplier,
+                        name: s.company_name,
+                        cuit: s.cuit
+                    });
+                });
+            }
+        });
+        return profiles;
+    }, [user]);
+
+    const otherProfiles = availableProfiles.filter(p =>
+        p.role !== currentRole?.role || p.id_entity !== currentRole?.id_entity
+    );
+
+    const handleRoleSwitch = (profile) => {
+        selectRole({
+            role: profile.role,
+            roleId: profile.roleId,
+            type: profile.type || profile.role,
+            id_entity: profile.id_entity,
+            entity_name: profile.name,
+            ...profile
+        });
+        switcherRef.current?.hide();
+        setSearchQuery('');
+        navigate('/dashboard');
+    };
+
+    const filteredProfiles = useMemo(() => {
+        return otherProfiles.filter(p =>
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.role.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [otherProfiles, searchQuery]);
 
     // 1. DICCIONARIO DE NOMBRES
     const breadcrumbNameMap = {
@@ -46,7 +126,7 @@ const Navbar = ({ onToggleSidebar }) => {
         'vehiculos': 'Vehículos',
         'maquinaria': 'Maquinaria',
         'tecnica': 'Técnica',
-        'configuracion': 'Configuración',
+
         'auditoria': 'Auditoría',
     };
 
@@ -108,8 +188,8 @@ const Navbar = ({ onToggleSidebar }) => {
                         </>
                     )}
 
-                    {/* Título Página Actual */}
-                    <span className={activeClass}>{lastDisplayName}</span>
+                    {/* Título Página Actual (Solo en Desktop) */}
+                    <span className={`hidden md:block ${activeClass}`}>{lastDisplayName}</span>
 
                     {/* Dropdown Menu - Anchored to whatever clicked trigger, but semantically belongs here */}
                     <OverlayPanel ref={menuRef} my="left top" at="left bottom" className="shadow-xl border border-gray-100 bg-white rounded-xl p-0" style={{ maxWidth: '220px' }}>
@@ -188,7 +268,7 @@ const Navbar = ({ onToggleSidebar }) => {
     return (
         <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg px-4 py-3 w-full border-b border-secondary/20 shadow-sm ring-1 ring-secondary/5 md:border-b-0 md:rounded-xl md:shadow-md md:m-4 md:w-auto md:mx-6 transition-all">
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 md:gap-3">
                     {/* Mobile Toggle Button */}
                     <button
                         onClick={onToggleSidebar}
@@ -200,40 +280,73 @@ const Navbar = ({ onToggleSidebar }) => {
                     {renderBreadcrumbs()}
                 </div>
 
-                {/* Perfil de Usuario (Menu Trigger) */}
-                <div
-                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-1.5 rounded-xl transition-all border border-transparent hover:border-gray-100"
-                    onClick={(e) => userMenuRef.current?.toggle(e)}
-                >
-                    <div className="hidden md:flex text-right flex-col leading-tight">
-                        <span className="font-bold text-secondary-dark text-sm">{userInfo?.user || 'Usuario'}</span>
-                        <span className="text-xs text-secondary truncate max-w-[150px]">
-                            {userInfo?.roleLabel}
-                        </span>
+                <div className="flex items-center gap-1 md:gap-3">
+                    {/* Switcher Trigger (Refined Mobile Design) */}
+                    {availableProfiles.length > 1 && (() => {
+                        const activeTheme = {
+                            'PROVEEDOR': { color: 'text-success', bg: 'bg-success/5', border: 'border-success/20', iconBg: 'bg-success/10', icon: 'pi-briefcase', short: 'PRO' },
+                            'EMPRESA': { color: 'text-primary', bg: 'bg-primary/5', border: 'border-primary/20', iconBg: 'bg-primary/10', icon: 'pi-building', short: 'EMP' },
+                            'AUDITOR': { color: 'text-info', bg: 'bg-info/5', border: 'border-info/20', iconBg: 'bg-info/10', icon: 'pi-file-check', short: userInfo?.roleLabel?.includes('Técnico') ? 'TEC' : 'LEG' },
+                            'ADMIN': { color: 'text-secondary-dark', bg: 'bg-secondary/5', border: 'border-secondary/20', iconBg: 'bg-secondary/10', icon: 'pi-cog', short: 'ADM' }
+                        }[userInfo?.role] || { color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', iconBg: 'bg-gray-100', icon: 'pi-user', short: 'USR' };
+
+                        return (
+                            <div
+                                onClick={(e) => switcherRef.current?.toggle(e)}
+                                className={`
+                                    flex items-center justify-center transition-all cursor-pointer group shadow-sm
+                                    md:px-4 md:py-2 md:gap-3 md:rounded-full md:border md:${activeTheme.bg} md:${activeTheme.border}
+                                    w-10 h-10 rounded-full md:w-auto md:h-auto ${activeTheme.bg} border ${activeTheme.border} md:border-inherit
+                                `}
+                            >
+                                <div className={`
+                                    flex items-center justify-center transition-transform duration-500 shrink-0
+                                    md:w-6 md:h-6 md:rounded-full md:${activeTheme.iconBg} ${activeTheme.color}
+                                    text-lg md:text-[10px]
+                                `}>
+                                    <i className="pi pi-sync font-bold"></i>
+                                </div>
+
+                                <div className="hidden md:flex flex-col min-w-0 pr-1 overflow-hidden">
+                                    <span className={`text-[8px] leading-tight font-black ${activeTheme.color} uppercase tracking-[0.15em] mb-0.5 whitespace-nowrap`}>
+                                        {userInfo?.roleLabel}
+                                    </span>
+                                    <span className="text-xs font-bold text-secondary-dark truncate max-w-[120px] md:max-w-[160px] leading-none">
+                                        {userInfo?.entityName || 'Cambiar'}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    <div
+                        className="flex items-center gap-1 cursor-pointer hover:bg-gray-50 p-1.5 rounded-full transition-all border border-transparent hover:border-gray-100"
+                        onClick={(e) => userMenuRef.current?.toggle(e)}
+                    >
+                        <img className="w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100" src={`https://ui-avatars.com/api/?name=${userInfo?.user || 'U'}&background=6366f1&color=fff`} alt="User" />
+                        <i className="hidden sm:block pi pi-angle-down text-secondary/50 text-[10px] ml-0.5"></i>
                     </div>
-                    <img className="w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white shadow-sm ring-1 ring-gray-100" src={`https://ui-avatars.com/api/?name=${userInfo?.user || 'U'}&background=6366f1&color=fff`} alt="User" />
-                    <i className="pi pi-angle-down text-secondary/50 text-xs hidden md:block"></i>
                 </div>
 
                 {/* User Dropdown Menu */}
-                <OverlayPanel ref={userMenuRef} my="right top" at="right bottom" className="shadow-2xl border border-gray-100 bg-white rounded-xl p-0" style={{ maxWidth: '280px', width: '240px' }}>
+                <OverlayPanel
+                    ref={userMenuRef}
+                    my="right top"
+                    at="right bottom"
+                    className="shadow-2xl border border-gray-100 bg-white rounded-xl p-0 navbar-user-dropdown"
+                    style={{ maxWidth: '280px', minWidth: '240px' }}
+                >
 
                     {/* Header: User Info */}
-                    <div className="flex flex-col items-center p-4 bg-gray-50/50 rounded-t-xl gap-2 border-b border-gray-100">
+                    <div className="flex flex-col items-center p-5 bg-gray-50/50 rounded-t-xl gap-2 border-b border-gray-100">
                         <img className="w-16 h-16 rounded-full border-4 border-white shadow-md mb-1" src={`https://ui-avatars.com/api/?name=${userInfo?.user || 'U'}&background=6366f1&color=fff&size=128`} alt="Profile" />
                         <div className="text-center w-full">
-                            <h4 className="font-bold text-gray-800 text-base leading-tight truncate px-2">{userInfo?.user || 'Usuario'}</h4>
-                            <span className="inline-block mt-1 px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full uppercase tracking-wider mb-1">
-                                {userInfo?.roleLabel || 'Usuario'}
-                            </span>
-                            {userInfo?.entityName && (
-                                <p className="text-xs text-secondary-dark font-medium truncate px-2">
-                                    {userInfo.entityName}
-                                </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1 font-medium">{userInfo?.email}</p>
+                            <h4 className="font-bold text-gray-800 text-lg leading-tight truncate px-2">{userInfo?.user || 'Usuario'}</h4>
+                            <p className="text-xs text-secondary/60 mt-0.5 font-medium">{userInfo?.email}</p>
                         </div>
                     </div>
+
+                    {/* Profile Switcher Section (REMOVED - MOVED TO DEDICATED SELECTOR) */}
 
                     {/* Actions List */}
                     <div className="flex flex-col p-2 gap-1">
@@ -250,6 +363,116 @@ const Navbar = ({ onToggleSidebar }) => {
                         >
                             <i className="pi pi-sign-out text-gray-400 group-hover:text-red-500 transition-colors"></i>
                             <span className="text-sm font-medium text-gray-600 group-hover:text-red-600 transition-colors">Cerrar Sesión</span>
+                        </div>
+                    </div>
+                </OverlayPanel>
+
+                {/* Dedicated Switcher Panel */}
+                <OverlayPanel
+                    ref={switcherRef}
+                    className="shadow-2xl border border-gray-100 bg-white rounded-2xl p-0 overflow-hidden"
+                    style={{ width: '320px' }}
+                    onHide={() => setSearchQuery('')}
+                >
+                    <div className="flex flex-col">
+                        {/* Search Header */}
+                        <div className="p-3 bg-gray-50/80 border-b border-gray-100">
+                            <div className="relative">
+                                <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar empresa o rol..."
+                                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 pl-8 pr-3 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+
+                        {/* Profiles List */}
+                        <div className="max-h-[350px] overflow-y-auto p-1 py-1 scroll-smooth">
+                            {/* Perfil Actual (Modo Lectura - SOLO EN MÓVIL) */}
+                            {userInfo && (
+                                <div className="mb-2 border-b border-gray-100 pb-2 sm:hidden">
+                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest">
+                                        Perfil Activo
+                                    </div>
+                                    <div className="flex items-center gap-3 p-2.5 mx-1 bg-gray-50/80 rounded-xl border border-primary/20 shadow-inner opacity-90 cursor-default">
+                                        {(() => {
+                                            const activeTheme = {
+                                                'PROVEEDOR': { icon: 'pi-briefcase', color: 'text-success', bg: 'bg-success/20' },
+                                                'EMPRESA': { icon: 'pi-building', color: 'text-primary', bg: 'bg-primary/20' },
+                                                'AUDITOR': { icon: 'pi-file-check', color: 'text-info', bg: 'bg-info/20' },
+                                                'ADMIN': { icon: 'pi-cog', color: 'text-secondary-dark', bg: 'bg-secondary/20' }
+                                            }[userInfo.role] || { icon: 'pi-user', color: 'text-gray-500', bg: 'bg-gray-100' };
+
+                                            return (
+                                                <>
+                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${activeTheme.bg} ${activeTheme.color} flex-shrink-0`}>
+                                                        <i className={`pi ${activeTheme.icon} text-base`}></i>
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-xs font-black text-gray-900 truncate leading-tight">{userInfo.entityName || userInfo.user}</span>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${activeTheme.bg} ${activeTheme.color} uppercase tracking-wider`}>
+                                                                {userInfo.roleLabel}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+
+                            {filteredProfiles.length > 0 ? (
+                                <>
+                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest mt-1">
+                                        Cambiar a otro perfil
+                                    </div>
+                                    {filteredProfiles.map((profile, idx) => {
+                                        const theme = {
+                                            'EMPRESA': { icon: 'pi-building', color: 'text-primary', bg: 'bg-primary/5' },
+                                            'AUDITOR': { icon: 'pi-file-check', color: 'text-info', bg: 'bg-info/5' },
+                                            'PROVEEDOR': { icon: 'pi-briefcase', color: 'text-success', bg: 'bg-success/5' },
+                                            'ADMIN': { icon: 'pi-cog', color: 'text-secondary-dark', bg: 'bg-secondary/5' }
+                                        }[profile.role] || { icon: 'pi-user', color: 'text-gray-500', bg: 'bg-gray-50' };
+
+                                        return (
+                                            <div
+                                                key={`${profile.role}-${profile.id_entity}-${idx}`}
+                                                onClick={() => handleRoleSwitch(profile)}
+                                                className="flex items-center gap-3 p-2.5 mx-1 hover:bg-gray-50 rounded-xl cursor-pointer transition-all group border border-transparent hover:border-gray-100"
+                                            >
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${theme.bg} ${theme.color} flex-shrink-0 group-hover:scale-105 transition-transform shadow-sm`}>
+                                                    <i className={`pi ${theme.icon} text-base`}></i>
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-xs font-bold text-gray-800 truncate leading-tight">{profile.name}</span>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${theme.bg} ${theme.color} uppercase tracking-wider`}>
+                                                            {roleLabels[profile.role] || profile.role}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <i className="pi pi-chevron-right ml-auto text-[10px] text-gray-300 group-hover:translate-x-0.5 transition-transform"></i>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            ) : (
+                                <div className="p-10 text-center">
+                                    <i className="pi pi-search text-gray-200 text-3xl mb-2"></i>
+                                    <p className="text-xs text-gray-400 font-medium">No se encontraron resultados</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer tip */}
+                        <div className="p-2 bg-gray-50/50 text-[10px] text-center text-gray-400 font-bold border-top border-gray-100 uppercase tracking-wider">
+                            cambiar de perfil
                         </div>
                     </div>
                 </OverlayPanel>

@@ -6,6 +6,7 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { StatusBadge } from '../../components/ui/Badges';
 import { InputText } from 'primereact/inputtext';
+import { formatCUIT } from '../../utils/formatUtils';
 
 const UserDetail = () => {
     const { id } = useParams();
@@ -70,9 +71,9 @@ const UserDetail = () => {
                         id: s.id_supplier,
                         // Campos específicos para las columnas de PROVEEDOR
                         razonSocial: s.fantasy_name || s.company_name || NO_DATA,
-                        cuit: s.cuit || NO_DATA,
+                        cuit: formatCUIT(s.cuit) || NO_DATA,
                         servicio: s.classification_afip || NO_DATA, // Usamos clasificacion como servicio por ahora
-                        estatus: 'ACTIVO', // No viene estatus en el DTO de supplier, asumimos activo o requerimos cambio en back
+                        estado: 'ACTIVO', // No viene estado en el DTO de supplier, asumimos activo o requerimos cambio en back
 
                         // Campos genéricos si se cambia de vista
                         name: s.fantasy_name || s.company_name || NO_DATA,
@@ -108,7 +109,7 @@ const UserDetail = () => {
 
                         // Campos específicos para columnas de EMPRESA
                         puesto: c.rank || NO_DATA,
-                        cuit: c.cuit || NO_DATA, // Speculative
+                        cuit: formatCUIT(c.cuit) || NO_DATA, // Speculative
                         rubro: c.rubro || NO_DATA, // Speculative
                         activo: c.hasOwnProperty('active') ? c.active : true, // Asumimos true si no viene, o false? DTO tiene active boolean.
 
@@ -379,7 +380,7 @@ const UserDetail = () => {
                             <Column key="prov-rs" field="razonSocial" header="Razón Social" className="font-bold" body={(d) => checkData(d.razonSocial)}></Column>,
                             <Column key="prov-cuit" field="cuit" header="CUIT" className="font-mono text-xs" body={(d) => checkData(d.cuit)}></Column>,
                             <Column key="prov-serv" field="servicio" header="Clasificación AFIP" body={(d) => checkData(d.servicio)}></Column>,
-                            <Column key="prov-stat" field="estatus" header="Estatus" body={(d) => <StatusBadge status={d.estatus} />}></Column>,
+                            <Column key="prov-stat" field="estado" header="Estado" body={(d) => <StatusBadge status={d.estado} />}></Column>,
                             <Column key="prov-act" header="Acción" body={actionTemplate} className="text-center w-24 pr-6" headerClassName="pr-6"></Column>
                         ] : selectedRole === 'EMPRESA' ? [
                             <Column key="emp-name" field="name" header="Empresa" className="font-bold w-1/4 pl-6" body={(d) => checkData(d.name)} headerClassName="pl-6"></Column>,

@@ -11,7 +11,7 @@ export const MOCK_SUPPLIERS = [
         telefono: '+54 11 1234 5678',
         empleadorAFIP: true,
         esTemporal: true,
-        estatus: 'ACTIVO',
+        estado: 'ACTIVO',
         grupo: 'EDESAL',
         empresas: ['Edesal'],
         facturasAPOC: 'No',
@@ -25,14 +25,7 @@ export const MOCK_SUPPLIERS = [
         contactos: [
             { id: 101, nombre: 'Braian Paez', tipo: 'OPERATIVO - LEGAJO', email: 'braian@email.com', movil: '11 5555 6666' }
         ],
-        documentacion: [
-            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2026-12-01', archivo: 'constancia_afip.pdf', obligatorio: true },
-            { id: 2, tipo: 'SEGURO_VIDA', estado: 'VENCIDO', fechaVencimiento: '2023-01-01', archivo: 'seguro_vencido.pdf', observacion: 'El comprobante de pago adjunto es ilegible. Además, la póliza ya está vencida.', obligatorio: true },
-            { id: 3, tipo: 'FORM_931', estado: 'CON OBSERVACIÓN', fechaVencimiento: '2025-05-10', archivo: 'f931_error.pdf', observacion: 'El formulario 931 presentado no corresponde al período solicitado. Por favor, suba el último pagado.', obligatorio: true },
-            { id: 4, tipo: 'SOLICITUD_USUARIOS', estado: 'PENDIENTE', archivo: null, observacion: 'Documento obligatorio no presentado a la fecha de la última auditoría (01/02/2026).', obligatorio: true },
-            { id: 5, tipo: 'CERTIFICADO_ISO', estado: 'VIGENTE', fechaVencimiento: '2025-08-15', archivo: 'iso_9001.pdf', obligatorio: false },
-            // Simulamos documentos pendientes (faltan id 3 y 4 por ejemplo)
-        ]
+        documentacion: []
     },
     {
         id: 2,
@@ -46,7 +39,7 @@ export const MOCK_SUPPLIERS = [
         telefono: '+54 11 8888 9999',
         empleadorAFIP: true,
         esTemporal: false,
-        estatus: 'ACTIVO',
+        estado: 'ACTIVO',
         facturasAPOC: 'No',
         altaSistema: '10/01/2024',
         pais: 'Argentina',
@@ -59,12 +52,7 @@ export const MOCK_SUPPLIERS = [
             { id: 201, nombre: 'Carlos Gomez', tipo: 'REPRESENTANTE LEGAL', email: 'carlos@seguridadtotal.com', telefono: '4444-5555' },
             { id: 202, nombre: 'Ana Diaz', tipo: 'ADMINISTRATIVO - LICITACIONES', email: 'licitaciones@seguridadtotal.com' }
         ],
-        documentacion: [
-            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'VIGENTE', fechaVencimiento: '2025-12-31', archivo: 'constancia.pdf' },
-            { id: 2, tipo: 'ESTATUTO', estado: 'EN REVISIÓN', fechaVencimiento: null, archivo: 'estatuto_social.pdf' },
-            { id: 3, tipo: 'FORM_931', estado: 'VIGENTE', fechaVencimiento: '2025-11-20', archivo: 'f931_nov.pdf' },
-            { id: 4, tipo: 'HABILITACION_SEGURIDAD', estado: 'VENCIDO', fechaVencimiento: '2024-12-31', archivo: null }
-        ]
+        documentacion: []
     },
     {
         id: 3,
@@ -78,7 +66,7 @@ export const MOCK_SUPPLIERS = [
         telefono: '+54 11 3333 2222',
         empleadorAFIP: true,
         esTemporal: true,
-        estatus: 'DADO DE BAJA',
+        estado: 'DADO DE BAJA',
         facturasAPOC: 'No',
         altaSistema: '01/03/2023',
         pais: 'Argentina',
@@ -102,7 +90,7 @@ export const MOCK_SUPPLIERS = [
         telefono: '+54 11 9999 1111',
         empleadorAFIP: true,
         esTemporal: false,
-        estatus: 'ACTIVO',
+        estado: 'ACTIVO',
         facturasAPOC: 'No',
         altaSistema: '15/06/2024',
         pais: 'Argentina',
@@ -114,9 +102,7 @@ export const MOCK_SUPPLIERS = [
         contactos: [
             { id: 401, nombre: 'Ing. Roberto Pettinato', tipo: 'REPRESENTANTE LEGAL' }
         ],
-        documentacion: [
-            { id: 1, tipo: 'CONSTANCIA_AFIP', estado: 'PENDIENTE', fechaVencimiento: null, archivo: null }
-        ]
+        documentacion: []
     },
     {
         id: 5,
@@ -130,7 +116,7 @@ export const MOCK_SUPPLIERS = [
         telefono: '',
         empleadorAFIP: false,
         esTemporal: true,
-        estatus: 'SUSPENDIDO',
+        estado: 'SUSPENDIDO',
         facturasAPOC: 'No',
         altaSistema: '20/02/2025',
         pais: 'Argentina',
@@ -139,6 +125,7 @@ export const MOCK_SUPPLIERS = [
         codigoPostal: '5501',
         direccionFiscal: 'San Martin Sur 45',
         direccionReal: '',
-        contactos: []
+        contactos: [],
+        documentacion: []
     }
 ];

@@ -5,6 +5,7 @@ import { Dropdown } from 'primereact/dropdown';
 import { Button } from 'primereact/button';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { getAvailableRoles } from '../../utils/authUtils';
 
 /**
  * RoleCard: tarjeta para cada rol.
@@ -41,7 +42,15 @@ const RoleCard = ({ roleData, onSelect }) => {
   const confirmSelection = (e) => {
     e?.stopPropagation?.();
     const val = selectedOption ?? (options[0]?.value);
-    const selectedEntity = typeof val === 'string' ? { name: val } : { id: val?.id, name: val?.name || val?.entity };
+
+    // IMPORTANTE: Preservar todas las propiedades de la entidad (como 'type' para auditores)
+    const selectedEntity = typeof val === 'string' ? { name: val } : { ...val };
+
+    // Si no tiene nombre amigable pero tiene 'entity', lo normalizamos
+    if (!selectedEntity.name && selectedEntity.entity) {
+      selectedEntity.name = selectedEntity.entity;
+    }
+
     onSelect({ role: roleData.role, roleId: roleData.id, selectedEntity });
   };
 
@@ -114,56 +123,7 @@ const RoleSelectionPage = () => {
 
   // 1. MAPEAMOS LOS DATOS AL FORMATO QUE ENTIENDE LA UI
   const availableRoles = useMemo(() => {
-    if (!userProfile) return [];
-
-    const mapped = [];
-
-    userProfile.roles?.forEach(roleName => {
-      if (roleName === 'ADMIN') {
-        mapped.push({
-          id: 'admin-root',
-          role: 'ADMIN',
-          entities: [{ id: 0, name: 'Gestión Central' }]
-        });
-      }
-
-      if (roleName === 'AUDITOR' && userProfile.auditors) {
-        mapped.push({
-          id: 'auditor-root',
-          role: 'AUDITOR',
-          entities: userProfile.auditors.map(a => ({
-            id: a.id_auditor,
-            name: `Registro: ${a.registration_number}`,
-            type: a.type_auditor
-          }))
-        });
-      }
-
-      if (roleName === 'CUSTOMER' && userProfile.clients) {
-        mapped.push({
-          id: 'customer-root',
-          role: 'EMPRESA',
-          entities: userProfile.clients.map(c => ({
-            id: c.id_company_client,
-            name: c.companyDescription,
-            id_company: c.id_company
-          }))
-        });
-      }
-
-      if (roleName === 'SUPPLIER' && userProfile.suppliers) {
-        mapped.push({
-          id: 'supplier-root',
-          role: 'PROVEEDOR',
-          entities: userProfile.suppliers.map(s => ({
-            id: s.id_supplier,
-            name: s.company_name
-          }))
-        });
-      }
-    });
-
-    return mapped;
+    return getAvailableRoles(userProfile);
   }, [userProfile]);
 
   const handleRoleSelect = (selectedContext) => {

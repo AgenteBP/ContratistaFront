@@ -10,6 +10,7 @@ import { MOCK_USERS } from '../../data/mockUsers';
 import { userService } from '../../services/userService';
 import PageHeader from '../../components/ui/PageHeader';
 import AppTable from '../../components/ui/AppTable';
+import TableFilters from '../../components/ui/TableFilters';
 
 import PrimaryButton from '../../components/ui/PrimaryButton';
 
@@ -22,9 +23,31 @@ const UsersList = () => {
     const [loading, setLoading] = useState(true);
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
+    const [expandedRows, setExpandedRows] = useState(null);
 
-    const roles = ['ADMINISTRADOR', 'PROVEEDOR', 'AUDITOR', 'TECNICO', 'RRHH'];
-    const estatusOptions = ['ACTIVO', 'INACTIVO'];
+    const roles = ['PROVEEDOR', 'AUDITOR', 'CLIENTE/EMPRESA', 'ADMINISTRADOR'];
+    const estadoOptions = ['ACTIVO', 'INACTIVO'];
+
+    const roleTranslations = {
+        'ADMIN': 'ADMINISTRADOR',
+        'ROLE_ADMIN': 'ADMINISTRADOR',
+        'ADMINISTRATOR': 'ADMINISTRADOR',
+        'ADMINISTRADOR': 'ADMINISTRADOR',
+        'PROVIDER': 'PROVEEDOR',
+        'ROLE_PROVIDER': 'PROVEEDOR',
+        'PROVEEDOR': 'PROVEEDOR',
+        'SUPPLIER': 'PROVEEDOR',
+        'AUDITOR': 'AUDITOR',
+        'ROLE_AUDITOR': 'AUDITOR',
+        'COMPANY': 'CLIENTE/EMPRESA',
+        'ROLE_COMPANY': 'CLIENTE/EMPRESA',
+        'ENTERPRISE': 'CLIENTE/EMPRESA',
+        'CLIENTE': 'CLIENTE/EMPRESA',
+        'EMPRESA': 'CLIENTE/EMPRESA',
+        'CUSTOMER': 'CLIENTE/EMPRESA',
+        'TECNICO': 'TÉCNICO', // Optional if technical users exist? Removing from filter as per request but keeping translation just in case
+        'RRHH': 'RRHH'
+    };
 
     useEffect(() => {
         initFilters();
@@ -40,15 +63,22 @@ const UsersList = () => {
             const data = await userService.getAll();
 
             // Transformar datos de API para la tabla
-            const processedData = data.map(user => ({
-                ...user,
-                // Mapear active (bool) a status (string) para el Badge
-                status: user.active ? 'ACTIVO' : 'INACTIVO',
-                // Si la API no trae email separado y usa username como email
-                email: user.username,
-                // Aplanar roles para filtrado/ordenamiento simple si es necesario
-                roleStr: user.rols ? user.rols.join(', ') : ''
-            }));
+            const processedData = data.map(user => {
+                // Traducir roles
+                const translatedRoles = user.rols ? user.rols.map(r => roleTranslations[r.toUpperCase()] || r) : [];
+
+                return {
+                    ...user,
+                    // Reemplazar rols con los traducidos para visualizar
+                    rols: translatedRoles,
+                    // Mapear active (bool) a status (string) para el Badge
+                    status: user.active ? 'ACTIVO' : 'INACTIVO',
+                    // Si la API no trae email separado y usa username como email
+                    email: user.username,
+                    // Aplanar roles para filtrado/ordenamiento simple si es necesario
+                    roleStr: translatedRoles.join(', ')
+                };
+            });
 
             console.log("Raw API Data:", data);
             console.log("Processed Data:", processedData);
@@ -57,6 +87,7 @@ const UsersList = () => {
             // const data = MOCK_USERS;
 
             setUsers(processedData);
+            setFilteredUsers(null);
         } catch (error) {
             console.error("Error al cargar usuarios:", error);
         } finally {
@@ -71,7 +102,7 @@ const UsersList = () => {
             firstName: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Agregado
             lastName: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Agregado
             email: { value: null, matchMode: FilterMatchMode.CONTAINS },
-            // role: { value: null, matchMode: FilterMatchMode.EQUALS }, // Ajustar si se quiere filtrar por rol
+            roleStr: { value: null, matchMode: FilterMatchMode.CONTAINS },
             status: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
@@ -121,68 +152,24 @@ const UsersList = () => {
         list: { className: 'p-1' }
     };
 
+
+
+    const filterConfig = [
+        { label: 'Rol', value: 'roleStr', options: roles.map(r => ({ label: r, value: r })) },
+        { label: 'Estado', value: 'status', options: estadoOptions.map(s => ({ label: s, value: s })) }
+    ];
+
     const renderHeader = () => (
-        <div className="bg-white border-b border-secondary/10 px-4 py-3 space-y-3">
-            {/* Top Row: Search and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative w-full sm:w-[450px]">
-                    <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <i className="pi pi-search text-secondary/50 text-xs"></i>
-                    </div>
-                    <input
-                        type="text"
-                        value={globalFilterValue}
-                        onChange={onGlobalFilterChange}
-                        disabled={loading}
-                        className={`bg-secondary-light/40 border border-secondary/20 text-secondary-dark text-xs rounded-lg focus:ring-1 focus:ring-primary/20 focus:border-primary/50 block w-full ps-9 p-2 outline-none transition-all placeholder:text-secondary/40 h-9 ${loading ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                        placeholder="Buscar usuario..."
-                    />
-                </div>
-            </div>
-
-            {/* Bottom Row: Filters & Stats */}
-            <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between border-t border-secondary/5 pt-3">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                        <Dropdown
-                            value={filters?.status?.value}
-                            options={estatusOptions.map(s => ({ label: s, value: s }))}
-                            onChange={(e) => {
-                                let _filters = { ...filters };
-                                _filters['status'].value = e.value;
-                                setFilters(_filters);
-                            }}
-                            placeholder="Estatus"
-                            pt={dropdownPt}
-                        />
-                        {filters?.status?.value && (
-                            <i
-                                className="pi pi-filter-slash text-white bg-primary text-[10px] absolute -top-2 -right-2 rounded-full p-[3px] shadow-sm border border-secondary/10 cursor-pointer hover:bg-danger transition-colors"
-                                onClick={() => {
-                                    let _filters = { ...filters };
-                                    _filters['status'].value = null;
-                                    setFilters(_filters);
-                                }}
-                                title="Limpiar filtro"
-                            ></i>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs ml-auto">
-                    <button
-                        onClick={initFilters}
-                        className="text-secondary hover:text-primary font-bold hover:underline transition-colors flex items-center gap-1"
-                    >
-                        <i className="pi pi-filter-slash text-[10px]"></i> Limpiar Filtros
-                    </button>
-                    <div className="h-4 w-px bg-secondary/20 hidden md:block"></div>
-                    <span className="text-secondary/50 font-bold uppercase tracking-widest leading-none">
-                        {filteredUsers ? filteredUsers.length : users.length} Usuarios
-                    </span>
-                </div>
-            </div>
-        </div>
+        <TableFilters
+            filters={filters}
+            setFilters={setFilters}
+            globalFilterValue={globalFilterValue}
+            onGlobalFilterChange={onGlobalFilterChange}
+            config={filterConfig}
+            totalItems={users.length}
+            filteredItems={filteredUsers ? filteredUsers.length : null}
+            itemName="USUARIOS"
+        />
     );
 
     const customSortIcon = (options) => {
@@ -221,6 +208,30 @@ const UsersList = () => {
         );
     };
 
+    const rowExpansionTemplate = (data) => (
+        <div className="p-4 bg-gray-50 text-sm space-y-3 animate-fade-in relative">
+            {/* Indicador visual de expansión */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+
+            <div className="grid grid-cols-1 gap-2">
+                <div>
+                    <span className="font-bold text-secondary-dark block mb-1">Roles:</span>
+                    <div className="flex flex-wrap gap-1">
+                        {data.rols?.map((rol, index) => (
+                            <span key={index} className="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-light text-secondary-dark border border-secondary/20">
+                                {rol}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+                <div>
+                    <span className="font-bold text-secondary-dark block">Email / Usuario:</span>
+                    <span className="text-secondary">{data.username}</span>
+                </div>
+            </div>
+        </div>
+    );
+
     const header = renderHeader();
 
     return (
@@ -248,18 +259,26 @@ const UsersList = () => {
                 dataKey="id"
                 sortIcon={customSortIcon}
                 emptyMessage="No se encontraron usuarios."
+                expandedRows={expandedRows}
+                onRowToggle={(e) => setExpandedRows(e.data)}
+                rowExpansionTemplate={rowExpansionTemplate}
             >
-                <Column field="id" header="#ID" sortable className="hidden md:table-cell font-mono text-sm text-secondary/50 w-10 pl-6" headerClassName="hidden md:table-cell pl-6"></Column>
-
-                {/* Usuario / Email */}
-                <Column field="username" header="Usuario" sortable className="hidden lg:table-cell font-mono text-secondary-dark" headerClassName="hidden lg:table-cell"></Column>
-
-                {/* Nombre Completo */}
-                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" className="pl-4" headerClassName="pl-4"></Column>
+                <Column header="Nombre" body={fullNameTemplate} sortable sortField="firstName" className="pl-6" headerClassName="pl-6"></Column>
 
 
-                {/* Estatus Mapeado */}
-                <Column field="status" header="Estatus" sortable body={(d) => <StatusBadge status={d.status} />}></Column>
+                {/* Estado Mapeado */}
+                {/* Estado Mapeado */}
+                <Column field="roleStr" header="Roles" sortable className="hidden md:table-cell" headerClassName="hidden md:table-cell" style={{ width: '350px' }} body={(rowData) => (
+                    <div className="flex flex-wrap gap-1">
+                        {rowData.rols?.map((rol, index) => (
+                            <span key={index} className="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-light text-secondary-dark border border-secondary/20">
+                                {rol}
+                            </span>
+                        ))}
+                    </div>
+                )}></Column>
+
+                <Column field="status" header="Estado" sortable body={(d) => <StatusBadge status={d.status} />}></Column>
 
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>

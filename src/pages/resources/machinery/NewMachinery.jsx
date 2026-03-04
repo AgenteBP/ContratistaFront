@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import MachineryData from '../../../components/resources/forms/MachineryData';
 import AssignmentData from '../../../components/resources/forms/AssignmentData';
 import DocumentsData from '../../../components/resources/forms/DocumentsData';
+import { useAuth } from '../../../context/AuthContext';
 
 const NewMachinery = () => {
     const navigate = useNavigate();
+    const { user, currentRole } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
 
     // Global form state
@@ -22,7 +24,7 @@ const NewMachinery = () => {
         tipoMaquinaria: '',
         tieneChofer: false,
         choferAsignado: null,
-        tieneGNC: false, // Potentially not relevant for machinery but keeping for consistency if needed or removing
+        tieneGNC: false,
 
         // Step 2: Assignment
         categoria: '',
@@ -43,12 +45,36 @@ const NewMachinery = () => {
         setCurrentStep(3);
     };
 
-    const handleFinalSubmit = (step3Data) => {
-        const finalData = { ...formData, ...step3Data };
-        console.log('FINAL MACHINERY DATA:', finalData);
-        // Here we would call the service to save
-        // navigate('/recursos/maquinaria'); 
-        setCurrentStep(4); // Success step
+    const handleFinalSubmit = async (step3Data) => {
+        try {
+            const finalData = { ...formData, ...step3Data };
+            console.log('FINAL MACHINERY DATA:', finalData);
+
+            // Prepare payload
+            const idSupplier = currentRole?.role === 'PROVEEDOR'
+                ? currentRole.id_entity
+                : user?.suppliers?.[0]?.id_supplier;
+
+            if (!idSupplier) {
+                console.error("No supplier found for user/role");
+                return;
+            }
+
+            const payload = {
+                id_supplier: idSupplier,
+                id_active: finalData.idActive, // Set in MachineryData
+                data: {
+                    ...finalData
+                }
+            };
+
+            const elementService = await import('../../../services/elementService').then(m => m.default);
+            await elementService.save(payload);
+            setCurrentStep(4); // Success step
+
+        } catch (error) {
+            console.error("Error saving machinery:", error);
+        }
     };
 
     const handleBack = () => {
@@ -58,10 +84,12 @@ const NewMachinery = () => {
     const renderStep = () => {
         switch (currentStep) {
             case 1:
+                const idSupplier = currentRole?.role === 'PROVEEDOR' ? currentRole.id_entity : user?.suppliers?.[0]?.id_supplier;
                 return (
                     <MachineryData
                         data={formData}
                         onNext={handleStep1Submit}
+                        idSupplier={idSupplier}
                     />
                 );
             case 2:
