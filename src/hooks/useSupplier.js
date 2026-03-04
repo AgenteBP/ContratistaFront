@@ -102,7 +102,33 @@ export const useSupplier = () => {
                                         const directFileName = submittedFile?.file_name || submittedFile?.fileName;
                                         const directFileUrl = submittedFile?.file_url || submittedFile?.url;
 
-                                        const finalStatus = folderMeta?.estado || (isFile ? 'EN REVISIÓN' : 'PENDIENTE');
+                                        // Status logic based on Audit, Expiration, and File presence
+                                        let finalStatus = 'PENDIENTE';
+                                        const hasAudit = submittedFile?.audit;
+                                        const auditStatus = submittedFile?.audit?.status;
+
+                                        if (hasAudit) {
+                                            if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
+                                            else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
+                                            else finalStatus = 'EN REVISIÓN';
+                                        } else {
+                                            const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
+                                            if (expDateStr) {
+                                                const expDate = new Date(expDateStr);
+                                                const today = new Date();
+                                                expDate.setHours(0, 0, 0, 0);
+                                                today.setHours(0, 0, 0, 0);
+
+                                                if (expDate < today) {
+                                                    finalStatus = 'VENCIDO';
+                                                } else {
+                                                    finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                                }
+                                            } else {
+                                                finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                            }
+                                        }
+
                                         const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
                                         const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
                                         const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;

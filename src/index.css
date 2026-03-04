@@ -66,23 +66,32 @@ body {
 /* --- COMPACT CALENDAR (PrimeReact) --- */
 /* Removed hardcoded small fonts for improved readability */
 
+.compact-calendar-panel {
+    max-width: 240px !important;
+}
+
 .compact-calendar-panel .p-datepicker-header {
-    padding: 0.25rem !important;
+    padding: 0.3rem !important;
     font-size: 0.75rem !important;
-    /* Smaller header */
 }
 
 .compact-calendar-panel table {
-    font-size: 0.75rem !important;
-    /* Smaller days */
+    font-size: 0.7rem !important;
 }
 
 .compact-calendar-panel table th {
-    padding: 0.25rem !important;
+    padding: 0.2rem !important;
 }
 
 .compact-calendar-panel table td {
-    padding: 0.25rem !important;
+    padding: 0.1rem !important;
+}
+
+.compact-calendar-panel table td span {
+    width: 1.6rem !important;
+    height: 1.6rem !important;
+    line-height: 1.6rem !important;
+    border-radius: 50% !important;
 }
 
 /* Custom Input Calendar styling */
