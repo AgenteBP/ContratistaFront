@@ -14,12 +14,21 @@ const SupplierData = () => {
 
     const getDocStatus = (data) => {
         const docs = data.documentacion || [];
+
+        // Si no hay documentos asignados al proveedor
+        if (docs.length === 0) return 'SIN ASIGNAR';
+
         if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';
+        if (docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION')) return 'OBSERVADO';
 
         const locationComplete = data.pais && data.provincia && data.localidad &&
             data.codigoPostal && data.direccionFiscal;
 
-        const allDocsValid = docs.every(d => d.estado === 'VIGENTE' || d.estado === 'PRESENTADO');
+        // Un documento se considera al día si está VIGENTE o EN REVISIÓN (ya fue presentado)
+        const allDocsValid = docs.every(d =>
+            d.estado === 'VIGENTE' || d.estado === 'PRESENTADO' || d.estado === 'EN REVISIÓN'
+        );
+
         return (allDocsValid && locationComplete) ? 'COMPLETO' : 'PENDIENTE';
     };
 

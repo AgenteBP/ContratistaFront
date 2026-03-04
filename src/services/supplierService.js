@@ -45,15 +45,30 @@ export const supplierService = {
                 }))
                 : [],
             documentacion: (response.document_supplier && response.document_supplier.list)
-                ? response.document_supplier.list.map(d => ({
-                    tipo: d.tipo,
-                    estado: d.estado || 'PENDIENTE',
-                    archivo: d.archivo,
-                    observacion: d.observacion,
-                    fechaVencimiento: d.fechaVencimiento,
-                    id: d.id || Date.now() + Math.random(),
-                    modified: false
-                }))
+                ? response.document_supplier.list.map(d => {
+                    // Try to find structural data in 'elements' list for IDs
+                    const elementData = (response.elements || []).find(e =>
+                        e.active && e.active.idActive === d.tipo
+                    );
+
+                    const latestFile = (elementData?.files_submitted && elementData.files_submitted.length > 0)
+                        ? elementData.files_submitted[0] // findLatest already sorts by desc
+                        : null;
+
+                    return {
+                        tipo: d.tipo,
+                        estado: d.estado || 'PENDIENTE',
+                        archivo: d.archivo,
+                        observacion: d.observacion,
+                        fechaVencimiento: d.fechaVencimiento,
+                        id: d.id || d.tipo, // Use requirement ID as primary key
+                        id_elements: elementData?.id_elements || null,
+                        id_file_submitted: latestFile?.id_file_submitted || null,
+                        hasAudits: latestFile?.has_audits || false,
+                        period: latestFile?.period || null,
+                        modified: false
+                    };
+                })
                 : []
         };
     },

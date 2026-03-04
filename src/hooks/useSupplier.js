@@ -112,16 +112,21 @@ export const useSupplier = () => {
                                             else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
                                             else finalStatus = 'EN REVISIÓN';
                                         } else {
-                                            const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
-                                            if (expDateStr) {
-                                                const expDate = new Date(expDateStr);
-                                                const today = new Date();
-                                                expDate.setHours(0, 0, 0, 0);
-                                                today.setHours(0, 0, 0, 0);
+                                            const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
+                                            if (rawVencForStatus) {
+                                                try {
+                                                    const [year, month, day] = String(rawVencForStatus).split('T')[0].split('-');
+                                                    const expDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
 
-                                                if (expDate < today) {
-                                                    finalStatus = 'VENCIDO';
-                                                } else {
+                                                    if (expDate < today) {
+                                                        finalStatus = 'VENCIDO';
+                                                    } else {
+                                                        finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                                    }
+                                                } catch (e) {
+                                                    console.warn("Invalid date format:", rawVencForStatus);
                                                     finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
                                                 }
                                             } else {
@@ -129,9 +134,10 @@ export const useSupplier = () => {
                                             }
                                         }
 
-                                        const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
-                                        const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
-                                        const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
+                                        const finalObs = submittedFile?.observacion || folderMeta?.observacion || null;
+                                        const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
                                         docMap.set(key, {
                                             id: key,
@@ -139,7 +145,7 @@ export const useSupplier = () => {
                                             id_list_req: listReq.id_list_requirements || listReq.idListRequirements,
                                             id_attribute: attrs?.id_attributes || attrs?.idAttributes,
                                             id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
-                                            id_element: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
+                                            id_elements: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
                                             id_active: attrTempl?.id_active || attrTempl?.idActive,
                                             tipo: docKey,
                                             label: cleanLabel,
@@ -149,6 +155,7 @@ export const useSupplier = () => {
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
                                             fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
+                                            hasAudits: submittedFile?.has_audits || false,
                                             modified: false
                                         });
                                     }
@@ -221,33 +228,59 @@ export const useSupplier = () => {
                 const finalIdActive = doc.id_active || active?.id_active;
 
                 if (finalIdActive && (doc.modified || doc.fileObject)) {
+                    // Prepare fileDto 
                     let fileDto = null;
                     if (doc.fileObject) {
                         const base64Data = await fileToBase64(doc.fileObject);
                         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
 
-                        // New DB Architecture payload fields 
                         fileDto = {
                             id_file_submitted: doc.id_file_submitted || null,
                             id_attribute: doc.id_attribute || 1,
-                            period: new Date().getFullYear().toString(),
+                            period: doc.period || new Date().getFullYear().toString(),
                             file_name: doc.archivo,
                             file_size: doc.fileObject.size,
                             file_type: doc.fileObject.type,
                             file_content: pureBase64,
-                            date_submitted: new Date().toISOString().split('T')[0]
+                            date_submitted: new Date().toISOString().split('T')[0],
+                            expiration_date: doc.fechaVencimiento || null
+                        };
+                    } else if (doc.modified && !doc.archivo) {
+                        // DELETION SIGNAL
+                        fileDto = {
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
+                            period: doc.period || new Date().getFullYear().toString(),
+                            file_name: null,
+                            file_size: null,
+                            file_type: null,
+                            file_content: null,
+                            date_submitted: null,
+                            expiration_date: doc.fechaVencimiento || null
+                        };
+                    } else if (doc.modified && doc.archivo && !doc.fileObject) {
+                        // CASE: Updated metadata (like expiration date) but NO new file
+                        fileDto = {
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
+                            period: doc.period || new Date().getFullYear().toString(),
+                            file_name: doc.archivo,
+                            file_size: null,
+                            file_type: null,
+                            file_content: null,
+                            date_submitted: null,
+                            expiration_date: doc.fechaVencimiento || null
                         };
                     }
 
                     elementsList.push({
-                        id_element: doc.id_element || null,
+                        id_elements: doc.id_elements || null,
                         id_active: finalIdActive,
                         element_data: {
                             tipo: doc.tipo,
                             estado: doc.estado,
                             archivo: doc.archivo,
-                            observacion: doc.observacion,
-                            fechaVencimiento: doc.fechaVencimiento
+                            observacion: doc.observacion
                         },
                         file_submitted: fileDto
                     });

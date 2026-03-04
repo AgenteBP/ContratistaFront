@@ -104,7 +104,7 @@ const SidebarSubmenu = ({ icon, label, items, isExpanded }) => {
                     )}
                 </div>
             </button>
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                 <ul className="pl-2 pt-1 pb-2 space-y-1">
                     {items.map((item, idx) => (
                         <li key={idx}>
@@ -235,6 +235,16 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
             ]
         };
 
+        const SUBMENU_AUDITORIA_LEGAL = {
+            type: 'submenu',
+            icon: 'pi-file-edit',
+            label: 'Auditoría Legal',
+            items: [
+                { label: 'Dashboard', to: '/auditoria-legal', icon: 'pi-chart-pie', end: true },
+                { label: 'Inbox Global', to: '/auditoria-legal/inbox', icon: 'pi-inbox' }
+            ]
+        };
+
         if (isProveedor) {
             return [
                 ITEM_INICIO,
@@ -252,7 +262,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 SUBMENU_RECURSOS_STD,
                 // FILTRADO DINÁMICO: Mostramos los items según la especialidad del auditor.
                 isAuditorTecnico && SUBMENU_AUDITORIA_TECNICA,
-                isAuditorLegal && { type: 'item', icon: 'pi-file-edit', label: 'Auditoría Legal', to: '/auditores/legal' },
+                isAuditorLegal && SUBMENU_AUDITORIA_LEGAL,
                 SUBMENU_DOCUMENTOS,
                 // ITEM_REPORTES
             ].filter(Boolean); // Limpiamos los nulls
@@ -288,6 +298,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
                 SUBMENU_AUDITORIA_TECNICA,
+                SUBMENU_AUDITORIA_LEGAL,
                 SUBMENU_DOCUMENTOS,
                 // ITEM_REPORTES
             ];

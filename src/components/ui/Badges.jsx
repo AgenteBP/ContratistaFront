@@ -43,6 +43,15 @@ export const StatusBadge = ({ status }) => {
 
             case 'EN REVISIÓN':
             case 'EN REVISION':
+                // Info: Sky
+                return 'bg-info-light text-info-hover border-info/30';
+
+            case 'SIN ASIGNAR':
+            case 'Opcional':
+            case 'MANUAL':
+                // Neutral: Slate/Gray
+                return 'bg-secondary-light text-secondary border-secondary/30';
+
             default:
                 // Info: Sky
                 return 'bg-info-light text-info-hover border-info/30';

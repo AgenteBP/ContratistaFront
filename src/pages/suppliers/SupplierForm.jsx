@@ -151,6 +151,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const [customDocName, setCustomDocName] = useState('');
     const [customActiveId, setCustomActiveId] = useState('');
+    const [customPeriodicity, setCustomPeriodicity] = useState('UNICA VEZ');
 
     const [dbActives, setDbActives] = useState([]);
 
@@ -238,25 +239,46 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     const confirmDeleteFile = () => {
         if (!docToDelete) return;
 
+        const currentDocs = formData.documentacion || [];
+        const targetDoc = currentDocs.find(d =>
+            String(d.id) === String(docToDelete) ||
+            String(d.tipo) === String(docToDelete)
+        );
+
+        // BLOCK: If the document has audits, don't allow pure deletion — force replacement
+        if (targetDoc?.hasAudits) {
+            setValidationError(`El documento "${targetDoc.label || targetDoc.tipo}" ya fue auditado y no puede eliminarse. Debe reemplazarlo con un nuevo archivo.`);
+            setTimeout(() => setValidationError(null), 5000);
+            setDocToDelete(null);
+            setConfirmModalOpen(false);
+            return;
+        }
+
         setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
         setFormData(prev => {
-            const currentDocs = prev.documentacion || [];
-            const docIndex = currentDocs.findIndex(d => d.tipo === docToDelete);
+            const docs = prev.documentacion || [];
+            const docIndex = docs.findIndex(d =>
+                String(d.id) === String(docToDelete) ||
+                String(d.tipo) === String(docToDelete)
+            );
 
             if (docIndex >= 0) {
-                const newDocs = [...currentDocs];
+                const newDocs = [...docs];
                 newDocs[docIndex] = {
                     ...newDocs[docIndex],
                     archivo: null,
                     fileUrl: null,
+                    fileObject: null,
                     modified: true,
-                    fechaVencimiento: null
+                    fechaVencimiento: null,
+                    estado: 'PENDIENTE'
                 };
                 return { ...prev, documentacion: newDocs };
             }
             return prev;
         });
         setDocToDelete(null);
+        setConfirmModalOpen(false);
     };
 
     const handleLeaveConfirm = () => {
@@ -292,13 +314,36 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     useEffect(() => {
         if (initialData) {
-            setFormData(prev => ({
-                ...prev,
-                ...initialData,
+            console.log("SupplierForm: Syncing state with new initialData", initialData.cuit);
+            setFormData({
+                razonSocial: initialData.razonSocial || '',
+                cuit: initialData.cuit || '',
+                nombreFantasia: initialData.nombreFantasia || '',
+                tipoPersona: initialData.tipoPersona || 'JURIDICA',
+                clasificacionAFIP: initialData.clasificacionAFIP || 'SELECCIONE CLASIFICACIÓN AFIP',
+                servicio: initialData.servicio || 'SELECCIONE SERVICIO',
+                email: initialData.email || '',
+                telefono: initialData.telefono || '',
                 empleadorAFIP: initialData.empleadorAFIP === 'Si' || initialData.empleadorAFIP === true,
                 esTemporal: initialData.esTemporal === 'Si' || initialData.esTemporal === true,
-                contactos: initialData.contactos || []
-            }));
+                grupo: initialData.grupo || '',
+                id_group: initialData.id_group || null,
+                empresas: initialData.empresas || [],
+                pais: initialData.pais || '',
+                paisCode: initialData.paisCode || '',
+                provincia: initialData.provincia || '',
+                provinciaCode: initialData.provinciaCode || '',
+                localidad: initialData.localidad || '',
+                codigoPostal: initialData.codigoPostal || '',
+                direccionFiscal: initialData.direccionFiscal || '',
+                direccionReal: initialData.direccionReal || '',
+                contactos: initialData.contactos || [],
+                documentacion: initialData.documentacion || [],
+                internalId: initialData.internalId || initialData.id,
+                id: initialData.id
+            });
+            // Al cambiar de proveedor, reseteamos el estado de "sucio"
+            setDirtySteps(new Set());
         }
     }, [initialData]);
 
@@ -613,6 +658,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 return {
                     id: doc.id || (Date.now() + Math.random()),
                     id_active: doc.id_active,
+                    id_attribute: doc.id_attribute,
+                    id_elements: doc.id_elements,
                     tipo: tipo,
                     label: doc.label || doc.tipoDescripcion || getDocLabel(tipo),
                     frecuencia: doc.frecuencia || getDocFrequency(tipo),
@@ -620,7 +667,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                     estado: doc.estado || 'PENDIENTE',
                     archivo: doc.archivo,
                     fechaVencimiento: doc.fechaVencimiento,
-                    observacion: doc.observacion
+                    observacion: doc.observacion,
+                    hasAudits: doc.hasAudits || false
                 };
             });
 
@@ -670,6 +718,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             const newReq = {
                 id: docId,
                 id_active: rule.id_attribute_template?.id_active?.id_active || rule.attributeTemplate?.id_active || rule.attributeTemplate?.idActive || null,
+                id_attribute: rule.id_attribute_template?.id_attributes || rule.attributeTemplate?.id_attributes || rule.attributeTemplate?.idAttributes || null,
                 label: rule.description,
                 frecuencia: 'Con Vencimiento',
                 obligatoriedad: 'Manual'
@@ -1328,8 +1377,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                 newDocs = [...currentDocs, {
                                                                     id: doc.id,
                                                                     tipo: doc.id,
-                                                                    id_active: doc.id_active,
-                                                                    id_attribute: doc.id_attribute,
+                                                                    id_active: docData ? docData.id_active : doc.id_active,
+                                                                    id_attribute: docData ? docData.id_attribute : doc.id_attribute,
+                                                                    id_elements: docData ? docData.id_elements : null,
                                                                     tipoDescripcion: doc.label || doc.tipoDescripcion,
                                                                     label: doc.label,
                                                                     estado: 'PENDIENTE',
@@ -1371,8 +1421,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                 newDocs = [...currentDocs, {
                                                                     id: docId,
                                                                     tipo: docId,
-                                                                    id_active: doc.id_active,
-                                                                    id_attribute: doc.id_attribute,
+                                                                    id_active: docData ? docData.id_active : doc.id_active,
+                                                                    id_attribute: docData ? docData.id_attribute : doc.id_attribute,
+                                                                    id_elements: docData ? docData.id_elements : null,
                                                                     tipoDescripcion: doc.label || doc.tipoDescripcion,
                                                                     label: doc.label,
                                                                     estado: 'PENDIENTE',
@@ -1494,11 +1545,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                                 onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
                                                                                 className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
                                                                             >
-                                                                                <option value="Mensual">Mensual</option>
-                                                                                <option value="Trimestral">Trimestral</option>
-                                                                                <option value="Semestral">Semestral</option>
-                                                                                <option value="Anual">Anual</option>
-                                                                                <option value="Única vez">Única vez</option>
+                                                                                <option value="ANUAL">Anual</option>
+                                                                                <option value="MENSUAL">Mensual</option>
+                                                                                <option value="SEMANAL">Semanal</option>
+                                                                                <option value="UNICA VEZ">Única vez</option>
                                                                             </select>
                                                                             <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
                                                                         </div>
@@ -1536,7 +1586,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                                 <i className="pi pi-calendar text-secondary/50 text-base"></i>
                                                                                 {isStep4ActionsEnabled ? (
                                                                                     <Calendar
-                                                                                        value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
+                                                                                        value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
                                                                                         onChange={(e) => handleDateChange(doc.id, e.value)}
                                                                                         placeholder="Vencimiento"
                                                                                         disabled={!docData?.archivo}
@@ -1546,7 +1596,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                                         dateFormat="dd/mm/yy"
                                                                                     />
                                                                                 ) : (
-                                                                                    <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
+                                                                                    <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : docData.fechaVencimiento; })() : '-'}</span>
                                                                                 )}
                                                                             </div>
                                                                             {isStep4ActionsEnabled && !docData?.archivo && (
@@ -1662,13 +1712,13 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                     setDirtySteps(prev => new Set(prev).add(4));
                                                     setFormData(prev => {
                                                         const currentDocs = prev.documentacion || [];
-                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
+                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id) || String(d.tipo) === String(doc.id));
                                                         let newDocs;
                                                         if (docIndex >= 0) {
                                                             newDocs = [...currentDocs];
                                                             newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
                                                         } else {
-                                                            newDocs = [...currentDocs, { id: Date.now(), tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
+                                                            newDocs = [...currentDocs, { id: doc.id, tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
                                                         }
                                                         return { ...prev, documentacion: newDocs };
                                                     });
@@ -1859,6 +1909,21 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                         <i className="pi pi-chevron-down text-xs"></i>
                                                     </div>
                                                 </div>
+                                                <div className="relative">
+                                                    <select
+                                                        value={customPeriodicity}
+                                                        onChange={(e) => setCustomPeriodicity(e.target.value)}
+                                                        className="w-full text-sm py-2 px-3 bg-white border border-secondary/20 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm appearance-none pr-10 text-secondary-dark"
+                                                    >
+                                                        <option value="ANUAL">Anual</option>
+                                                        <option value="MENSUAL">Mensual</option>
+                                                        <option value="SEMANAL">Semanal</option>
+                                                        <option value="UNICA VEZ">Única vez</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">
+                                                        <i className="pi pi-clock text-xs"></i>
+                                                    </div>
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="text"
@@ -1877,7 +1942,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                     id_active: Number(customActiveId),
                                                                     label: customDocName.trim(),
                                                                     attribute_description: normalizedName,
-                                                                    frecuencia: 'Con Vencimiento',
+                                                                    frecuencia: customPeriodicity,
                                                                     obligatoriedad: 'Manual'
                                                                 };
                                                                 setIsCustomConfig(true);
@@ -1901,7 +1966,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                                                 id_active: Number(customActiveId),
                                                                 label: customDocName.trim(),
                                                                 attribute_description: normalizedName,
-                                                                frecuencia: 'Con Vencimiento',
+                                                                frecuencia: customPeriodicity,
                                                                 obligatoriedad: 'Manual'
                                                             };
                                                             setIsCustomConfig(true);
@@ -2018,7 +2083,14 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 {headerInfo.docStatus && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-secondary/50 text-xs font-bold uppercase hidden md:inline-block">Documentación:</span>
-                                        <StatusBadge status={headerInfo.docStatus} />
+                                        <StatusBadge status={(() => {
+                                            const docs = formData.documentacion || [];
+                                            if (docs.length === 0) return 'SIN ASIGNAR';
+                                            if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';
+                                            if (docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION')) return 'OBSERVADO';
+                                            const allDocsValid = docs.every(d => d.estado === 'VIGENTE' || d.estado === 'PRESENTADO' || d.estado === 'EN REVISIÓN');
+                                            return allDocsValid ? 'COMPLETO' : 'PENDIENTE';
+                                        })()} />
                                     </div>
                                 )}
                             </div>
@@ -2065,13 +2137,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 } else if (currentStep === 3) {
                     if (formData.contactos.length === 0) { status = 'invalid'; msg = 'Sin contactos'; }
                 } else if (currentStep === 4) {
+                    const docs = formData.documentacion || [];
                     const missingDocs = requiredDocs.some(req => {
-                        // Skip validation for optional docs
                         if (req.obligatoriedad === 'Opcional' || req.isOptional) return false;
-                        const doc = formData.documentacion?.find(d => d.tipo === req.id);
-                        return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                        const doc = docs.find(d => String(d.tipo) === String(req.id) || (req.id_active && String(d.id_active) === String(req.id_active)));
+                        return !doc || !doc.archivo || doc.estado === 'VENCIDO' || doc.estado === 'CON OBSERVACIÓN' || doc.estado === 'OBSERVADO' || doc.estado === 'CON OBSERVACION';
                     });
-                    if (missingDocs) { status = 'invalid'; msg = 'Doc. pendiente'; }
+                    if (missingDocs) {
+                        status = 'invalid';
+                        const hasObs = docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION');
+                        msg = hasObs ? 'Observado' : 'Doc. pendiente';
+                    }
                 }
 
                 const isDirtyState = dirtySteps.has(currentStep);
@@ -2162,15 +2238,16 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             missingMsg = 'Sin contactos';
                         }
                     } else if (step === 'Documentos' && !isWizardMode) {
+                        const docs = formData.documentacion || [];
                         const missingDocs = requiredDocs.some(req => {
-                            // Skip validation for optional docs
                             if (req.obligatoriedad === 'Opcional' || req.isOptional) return false;
-                            const doc = formData.documentacion?.find(d => d.tipo === req.id);
-                            return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                            const doc = docs.find(d => String(d.tipo) === String(req.id) || (req.id_active && String(d.id_active) === String(req.id_active)));
+                            return !doc || !doc.archivo || doc.estado === 'VENCIDO' || doc.estado === 'CON OBSERVACIÓN' || doc.estado === 'OBSERVADO' || doc.estado === 'CON OBSERVACION';
                         });
                         if (missingDocs) {
                             isInvalid = true;
-                            missingMsg = 'Doc. pendiente';
+                            const hasObs = docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION');
+                            missingMsg = hasObs ? 'Observado' : 'Doc. pendiente';
                         }
                     }
 

@@ -19,6 +19,7 @@ import { MOCK_USERS } from '../../data/mockUsers';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { formatCUIT } from '../../utils/formatUtils';
 import Dropdown from '../../components/ui/Dropdown';
+import { PERIODICITY_MAP } from '../../data/documentConstants';
 
 const NewSupplier = () => {
   const { id } = useParams(); // ID del usuario si estamos agregando rol
@@ -201,7 +202,7 @@ const NewSupplier = () => {
       // Construct RegisterRequest part
       const registerRequest = {
         userName: userData.username,
-        password: userData.password || 'default123', // Handle password if missing in existing
+        password: userData.password || '123', // Handle password if missing in existing
         firstName: userData.firstName,
         lastName: userData.lastName,
         role: backendRole, // 'SUPPLIER', 'AUDITOR', 'CUSTOMER'
@@ -266,7 +267,7 @@ const NewSupplier = () => {
                       attributes: {
                         description: req.attribute_description || req.label.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''),
                         extension: "ALFA_NUM",
-                        id_periodicity: 1 // Default to 'Única vez' or calculate better based on req.frecuencia
+                        id_periodicity: PERIODICITY_MAP[req.frecuencia?.toUpperCase()] || 4 // Default to 'UNICA VEZ' if not found
                       }
                     }
                   };
