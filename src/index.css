@@ -67,31 +67,38 @@ body {
 /* Removed hardcoded small fonts for improved readability */
 
 .compact-calendar-panel {
-    max-width: 240px !important;
+    width: 250px !important;
+    padding: 0.25rem !important;
 }
 
 .compact-calendar-panel .p-datepicker-header {
-    padding: 0.3rem !important;
-    font-size: 0.75rem !important;
+    padding: 0.5rem !important;
+    font-size: 0.8rem !important;
 }
 
 .compact-calendar-panel table {
-    font-size: 0.7rem !important;
+    font-size: 0.75rem !important;
+    width: 100% !important;
 }
 
 .compact-calendar-panel table th {
-    padding: 0.2rem !important;
+    padding: 0.25rem !important;
 }
 
 .compact-calendar-panel table td {
-    padding: 0.1rem !important;
+    padding: 2px !important;
 }
 
 .compact-calendar-panel table td span {
-    width: 1.6rem !important;
-    height: 1.6rem !important;
-    line-height: 1.6rem !important;
-    border-radius: 50% !important;
+    width: 100% !important;
+    height: 32px !important;
+    /* Fixed height to match width and make it look squared */
+    line-height: 32px !important;
+    border-radius: 4px !important;
+    /* Square-ish with small rounding */
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Custom Input Calendar styling */
