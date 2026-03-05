@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import SupplierForm from './SupplierForm';
 import { StatusBadge } from '../../components/ui/Badges';
 import { useSupplier } from '../../hooks/useSupplier';
@@ -10,8 +10,12 @@ import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 const SupplierDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialEditMode = queryParams.get('mode') === 'edit';
+
   const { supplierData, loading, updateSupplier } = useSupplier(id);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditMode);
 
   const handleSave = async (data) => {
     const success = await updateSupplier(data);

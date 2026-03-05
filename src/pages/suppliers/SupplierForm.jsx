@@ -20,6 +20,8 @@ import { InputMask } from 'primereact/inputmask';
 import { classNames } from 'primereact/utils';
 import { base64ToBlobUrl } from '../../utils/fileUtils';
 import { fileService } from '../../services/fileService';
+import { requirementService } from '../../services/requirementService';
+import { groupService } from '../../services/groupService';
 import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 
 const EMPTY_ARRAY = [];
@@ -29,13 +31,13 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
     const isWizardMode = !readOnly && !partialEdit;
 
-    console.log("SupplierForm - RBAC Debug:", {
-        currentRole,
-        isAdmin,
-        readOnly,
-        partialEdit,
-        isWizardMode
-    });
+    // console.log("SupplierForm - RBAC Debug:", {
+    //     currentRole,
+    //     isAdmin,
+    //     readOnly,
+    //     partialEdit,
+    //     isWizardMode
+    // });
 
     // State único para todo el formulario
     const [formData, setFormData] = useState({
@@ -137,16 +139,16 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
 
     // Debug logs
     useEffect(() => {
-        console.log("SupplierForm - Groups Prop:", groups);
-        console.log("SupplierForm - Companies Prop:", availableCompanies);
-        console.log("SupplierForm - Computed groupDefinitions:", groupDefinitions);
-        console.log("SupplierForm - Computed empresasByGrupo:", empresasByGrupo);
+        // console.log("SupplierForm - Groups Prop:", groups);
+        // console.log("SupplierForm - Companies Prop:", availableCompanies);
+        // console.log("SupplierForm - Computed groupDefinitions:", groupDefinitions);
+        // console.log("SupplierForm - Computed empresasByGrupo:", empresasByGrupo);
     }, [groups, availableCompanies, groupDefinitions, empresasByGrupo]);
 
     // --- SYNC GROUP ID ON ASYNC LOAD ---
     useEffect(() => {
         if (groups && groups.length > 0 && formData.grupo && !formData.id_group) {
-            console.log("Syncing group ID from description:", formData.grupo);
+            // console.log("Syncing group ID from description:", formData.grupo);
             const matchedGroup = groups.find(g => (g.description || '').toUpperCase() === (formData.grupo || '').toUpperCase());
             if (matchedGroup) {
                 setFormData(prev => ({ ...prev, id_group: matchedGroup.idGroup }));
@@ -165,6 +167,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     const [customPeriodicity, setCustomPeriodicity] = useState('UNICA VEZ');
 
     const [dbActives, setDbActives] = useState([]);
+    const [localGroups, setLocalGroups] = useState([]);
+    const [localAvailableReqs, setLocalAvailableReqs] = useState([]);
 
     useEffect(() => {
         const fetchActives = async () => {
@@ -176,8 +180,45 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                 console.error("Error fetching available actives in SupplierForm:", error);
             }
         };
+
+        const fetchGroupsIfNeeded = async () => {
+            if (groups && groups.length > 0) return;
+            try {
+                const data = await groupService.getAll();
+                setLocalGroups(data || []);
+            } catch (error) {
+                console.error("Error fetching groups in SupplierForm:", error);
+            }
+        };
+
         fetchActives();
-    }, []);
+        fetchGroupsIfNeeded();
+    }, [groups]);
+
+    const effectiveGroups = groups && groups.length > 0 ? groups : localGroups;
+
+    useEffect(() => {
+        const fetchRequirements = async () => {
+            if (availableRequirements && availableRequirements.length > 0) return;
+            if (!formData.id_group) return;
+
+            try {
+                // console.log("SupplierForm - Auto-fetching requirements for group:", formData.id_group);
+                const data = await requirementService.getListRequirements({
+                    idGroup: formData.id_group,
+                    idActiveType: 5
+                });
+                setLocalAvailableReqs(data || []);
+            } catch (error) {
+                console.error("Error fetching requirements in SupplierForm:", error);
+            }
+        };
+        fetchRequirements();
+    }, [formData.id_group, availableRequirements]);
+
+    const effectiveAvailableRequirements = (availableRequirements && availableRequirements.length > 0)
+        ? availableRequirements
+        : localAvailableReqs;
 
     const uniqueActives = React.useMemo(() => {
         // Use the dbActives directly instead of deriving from availableRequirements
@@ -309,13 +350,14 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
 
 
     // Reset edit mode when changing steps, or auto-enable if there are unsaved changes
+    // SI ES ADMIN en partialEdit, habilitar edición por defecto
     useEffect(() => {
-        if (dirtySteps.has(currentStep)) {
+        if (dirtySteps.has(currentStep) || (partialEdit && isAdmin)) {
             setIsEditingStep(true);
         } else {
             setIsEditingStep(false);
         }
-    }, [currentStep, dirtySteps]);
+    }, [currentStep, dirtySteps, partialEdit, isAdmin]);
 
     const handleStartEdit = () => {
         setIsEditingStep(true);
@@ -329,7 +371,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
 
     useEffect(() => {
         if (initialData) {
-            console.log("SupplierForm: Syncing state with new initialData", initialData.cuit);
+            // console.log("SupplierForm: Syncing state with new initialData", initialData.cuit);
             setFormData({
                 razonSocial: initialData.razonSocial || '',
                 cuit: initialData.cuit || '',
@@ -443,7 +485,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
         // If stepScope is an event (object), treat as null (Global)
         const scope = (typeof stepScope === 'number') ? stepScope : null;
 
-        console.log(`HANDLING SUBMIT (Scope: ${scope || 'Global'}) - Current Docs:`, formData.documentacion);
+        // console.log(`HANDLING SUBMIT (Scope: ${scope || 'Global'}) - Current Docs:`, formData.documentacion);
 
         // Finalize document statuses before saving (Only if Global or Step 4)
         let updatedDocs = formData.documentacion;
@@ -452,7 +494,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             updatedDocs = formData.documentacion?.map(doc => {
                 // Only update status if the document was MODIFIED (file uploaded or date changed)
                 if (doc.modified && doc.archivo) {
-                    console.log(`[Submit] Updating ${doc.tipo} to EN REVISIÓN`);
+                    // console.log(`[Submit] Updating ${doc.tipo} to EN REVISIÓN`);
                     return { ...doc, estado: 'EN REVISIÓN' };
                 }
                 return doc;
@@ -486,7 +528,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             if (formData.internalId) partialPayload.internalId = formData.internalId;
             if (formData.id) partialPayload.id = formData.id;
 
-            console.log(`FINAL DATA TO SUBMIT (ACCUMULATIVE PARTIAL):`, partialPayload);
+            console.log("PAYLOAD ENVIADO AL BACKEND:", partialPayload);
             onSubmit(partialPayload);
 
             // Clear dirty flags for all steps included in this payload
@@ -497,7 +539,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             });
         } else {
             // GLOBAL SAVE: Submit everything
-            console.log("FINAL DATA TO SUBMIT (GLOBAL):", finalData);
+            console.log("PAYLOAD ENVIADO AL BACKEND:", finalData);
             const success = await onSubmit(finalData);
             if (success) {
                 // Return success to caller, responsibility moved up
@@ -531,7 +573,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             setLoadingDocs(prev => ({ ...prev, [docData.id]: true }));
 
             // Fetch file via backend service using the submitted file ID
-            console.log("SupplierForm: Fetching file with ID:", docData.id_file_submitted);
+            // console.log("SupplierForm: Fetching file with ID:", docData.id_file_submitted);
             const fileBlob = await fileService.getFile(docData.id_file_submitted);
 
             if (fileBlob && fileBlob.size > 0) {
@@ -669,6 +711,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     // Sync editDocMode when role or edit state changes
     useEffect(() => {
         if (!isWizardMode) {
+            // Admin can edit config if in partialEdit and the step is "active" for editing
             setEditDocMode(partialEdit && isAdmin && isEditingStep);
         }
     }, [partialEdit, isAdmin, isWizardMode, isEditingStep]);
@@ -680,7 +723,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     useEffect(() => {
         if (partialEdit || readOnly) {
             const existingDocs = formData.documentacion || [];
-            console.log("SupplierForm: Syncing requiredDocs from formData.documentacion", existingDocs.length);
+            // console.log("SupplierForm: Syncing requiredDocs from formData.documentacion", existingDocs.length);
 
             const dynamicRequirements = existingDocs.map(doc => {
                 const tipo = doc.tipo || 'DOCUMENTO';
@@ -1280,7 +1323,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                             const isStep4ConfigReadOnly = !isWizardMode && !isAdmin;
                             const isStep4ActionsEnabled = partialEdit && isEditingStep && !isAdmin;
 
-                            console.log("SupplierForm - formData:", formData);
+                            // console.log("SupplierForm - formData:", formData);
                             return (
                                 <div className="p-8 animate-fade-in relative">
                                     <StepHeader
@@ -2021,8 +2064,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                     </div>
                                                     <div className="p-2 max-h-[50vh] overflow-y-auto">
                                                         {/* Si tenemos requisitos disponibles de la API, usarlos agrupados. Si no, fallback a reglas estáticas */}
-                                                        {console.log(availableRequirements)}
-                                                        {(availableRequirements && availableRequirements.length > 0) ? (
+                                                        {/* console.log("Rendering available requirements:", effectiveAvailableRequirements) */}
+                                                        {(effectiveAvailableRequirements && effectiveAvailableRequirements.length > 0) ? (
                                                             (() => {
                                                                 const available = availableRequirements.filter(req => {
                                                                     const reqId = req.id_list_requirements || req.idListRequirements || req.id;
