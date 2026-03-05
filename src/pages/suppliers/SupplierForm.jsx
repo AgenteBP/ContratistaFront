@@ -8,8 +8,10 @@ import Label from '../../components/ui/Label';
 import UnsavedChangesModal from '../../components/ui/UnsavedChangesModal'; // IMPORT MODAL
 import ConfirmationModal from '../../components/ui/ConfirmationModal'; // IMPORT CONFIRMATION MODAL
 import { Country, State, City } from 'country-state-city';
+import { useAuth } from '../../context/AuthContext';
 import Dropdown from '../../components/ui/Dropdown';
 import MultiSelect from '../../components/ui/MultiSelect';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { Calendar } from 'primereact/calendar';
 import { Dialog } from 'primereact/dialog';
 import { StatusBadge } from '../../components/ui/Badges';
@@ -22,9 +24,18 @@ import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 
 const EMPTY_ARRAY = [];
 
-const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSubmit, onBack, title, subtitle, headerInfo, groups = EMPTY_ARRAY, availableCompanies = EMPTY_ARRAY, availableRequirements = EMPTY_ARRAY, onGroupChange }) => {
-    // Wizard Mode: Alta de Usuario (Not ReadOnly, Not PartialEdit)
+const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSaving = false, onSubmit, onBack, title, subtitle, headerInfo, groups = EMPTY_ARRAY, availableCompanies = EMPTY_ARRAY, availableRequirements = EMPTY_ARRAY, onGroupChange }) => {
+    const { currentRole } = useAuth();
+    const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
     const isWizardMode = !readOnly && !partialEdit;
+
+    console.log("SupplierForm - RBAC Debug:", {
+        currentRole,
+        isAdmin,
+        readOnly,
+        partialEdit,
+        isWizardMode
+    });
 
     // State único para todo el formulario
     const [formData, setFormData] = useState({
@@ -151,6 +162,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const [customDocName, setCustomDocName] = useState('');
     const [customActiveId, setCustomActiveId] = useState('');
+    const [customPeriodicity, setCustomPeriodicity] = useState('UNICA VEZ');
 
     const [dbActives, setDbActives] = useState([]);
 
@@ -229,6 +241,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             dirtySteps.size > 0 && !readOnly && currentLocation.pathname !== nextLocation.pathname
     );
 
+
     useEffect(() => {
         if (blocker.state === "blocked") {
             setShowLeaveModal(true);
@@ -238,25 +251,46 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
     const confirmDeleteFile = () => {
         if (!docToDelete) return;
 
+        const currentDocs = formData.documentacion || [];
+        const targetDoc = currentDocs.find(d =>
+            String(d.id) === String(docToDelete) ||
+            String(d.tipo) === String(docToDelete)
+        );
+
+        // BLOCK: If the document has audits, don't allow pure deletion — force replacement
+        if (targetDoc?.hasAudits) {
+            setValidationError(`El documento "${targetDoc.label || targetDoc.tipo}" ya fue auditado y no puede eliminarse. Debe reemplazarlo con un nuevo archivo.`);
+            setTimeout(() => setValidationError(null), 5000);
+            setDocToDelete(null);
+            setConfirmModalOpen(false);
+            return;
+        }
+
         setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
         setFormData(prev => {
-            const currentDocs = prev.documentacion || [];
-            const docIndex = currentDocs.findIndex(d => d.tipo === docToDelete);
+            const docs = prev.documentacion || [];
+            const docIndex = docs.findIndex(d =>
+                String(d.id) === String(docToDelete) ||
+                String(d.tipo) === String(docToDelete)
+            );
 
             if (docIndex >= 0) {
-                const newDocs = [...currentDocs];
+                const newDocs = [...docs];
                 newDocs[docIndex] = {
                     ...newDocs[docIndex],
                     archivo: null,
                     fileUrl: null,
+                    fileObject: null,
                     modified: true,
-                    fechaVencimiento: null
+                    fechaVencimiento: null,
+                    estado: 'PENDIENTE'
                 };
                 return { ...prev, documentacion: newDocs };
             }
             return prev;
         });
         setDocToDelete(null);
+        setConfirmModalOpen(false);
     };
 
     const handleLeaveConfirm = () => {
@@ -283,7 +317,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
     }, [currentStep, dirtySteps]);
 
-    const handleStartEdit = () => setIsEditingStep(true);
+    const handleStartEdit = () => {
+        setIsEditingStep(true);
+        markStepDirty(currentStep); // Auto-dirty to show button state if needed
+    };
     const handleStopEdit = () => {
         // Guardar cambios al salir del modo edición
         handleSubmit(currentStep);
@@ -292,13 +329,36 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     useEffect(() => {
         if (initialData) {
-            setFormData(prev => ({
-                ...prev,
-                ...initialData,
+            console.log("SupplierForm: Syncing state with new initialData", initialData.cuit);
+            setFormData({
+                razonSocial: initialData.razonSocial || '',
+                cuit: initialData.cuit || '',
+                nombreFantasia: initialData.nombreFantasia || '',
+                tipoPersona: initialData.tipoPersona || 'JURIDICA',
+                clasificacionAFIP: initialData.clasificacionAFIP || 'SELECCIONE CLASIFICACIÓN AFIP',
+                servicio: initialData.servicio || 'SELECCIONE SERVICIO',
+                email: initialData.email || '',
+                telefono: initialData.telefono || '',
                 empleadorAFIP: initialData.empleadorAFIP === 'Si' || initialData.empleadorAFIP === true,
                 esTemporal: initialData.esTemporal === 'Si' || initialData.esTemporal === true,
-                contactos: initialData.contactos || []
-            }));
+                grupo: initialData.grupo || '',
+                id_group: initialData.id_group || null,
+                empresas: initialData.empresas || [],
+                pais: initialData.pais || '',
+                paisCode: initialData.paisCode || '',
+                provincia: initialData.provincia || '',
+                provinciaCode: initialData.provinciaCode || '',
+                localidad: initialData.localidad || '',
+                codigoPostal: initialData.codigoPostal || '',
+                direccionFiscal: initialData.direccionFiscal || '',
+                direccionReal: initialData.direccionReal || '',
+                contactos: initialData.contactos || [],
+                documentacion: initialData.documentacion || [],
+                internalId: initialData.internalId || initialData.id,
+                id: initialData.id
+            });
+            // Al cambiar de proveedor, reseteamos el estado de "sucio"
+            setDirtySteps(new Set());
         }
     }, [initialData]);
 
@@ -379,7 +439,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         'Documentos': ['documentacion', 'id_group']
     };
 
-    const handleSubmit = (stepScope = null) => {
+    const handleSubmit = async (stepScope = null) => {
         // If stepScope is an event (object), treat as null (Global)
         const scope = (typeof stepScope === 'number') ? stepScope : null;
 
@@ -438,7 +498,11 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         } else {
             // GLOBAL SAVE: Submit everything
             console.log("FINAL DATA TO SUBMIT (GLOBAL):", finalData);
-            onSubmit(finalData);
+            const success = await onSubmit(finalData);
+            if (success) {
+                // Return success to caller, responsibility moved up
+                return true;
+            }
             setDirtySteps(new Set());
         }
     };
@@ -600,36 +664,50 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
     const [requiredDocs, setRequiredDocs] = useState([]);
     const [isCustomConfig, setIsCustomConfig] = useState(isWizardMode); // If Wizard, start customized (empty)
-    const [editDocMode, setEditDocMode] = useState(!readOnly && !partialEdit); // En Wizard Mode, editamos configuración por defecto
+    const [editDocMode, setEditDocMode] = useState(isWizardMode || (partialEdit && isAdmin)); // En Wizard Mode, o Admin en Edición, editamos configuración
+
+    // Sync editDocMode when role or edit state changes
+    useEffect(() => {
+        if (!isWizardMode) {
+            setEditDocMode(partialEdit && isAdmin && isEditingStep);
+        }
+    }, [partialEdit, isAdmin, isWizardMode, isEditingStep]);
+
     const [showDocModal, setShowDocModal] = useState(false);
     const [isStepperOpen, setIsStepperOpen] = useState(false); // Mobile Accordion State
 
     // Unified logic to sync requiredDocs with formData.documentation
     useEffect(() => {
-        if (partialEdit) {
+        if (partialEdit || readOnly) {
             const existingDocs = formData.documentacion || [];
+            console.log("SupplierForm: Syncing requiredDocs from formData.documentacion", existingDocs.length);
+
             const dynamicRequirements = existingDocs.map(doc => {
                 const tipo = doc.tipo || 'DOCUMENTO';
                 return {
                     id: doc.id || (Date.now() + Math.random()),
                     id_active: doc.id_active,
+                    id_attribute: doc.id_attribute,
+                    id_elements: doc.id_elements,
                     tipo: tipo,
                     label: doc.label || doc.tipoDescripcion || getDocLabel(tipo),
                     frecuencia: doc.frecuencia || getDocFrequency(tipo),
-                    obligatoriedad: doc.obligatoriedad || 'Requerido',
+                    obligatoriedad: doc.obligatoriedad || (doc.isOptional ? 'Opcional' : 'Obligatorio'),
+                    isOptional: doc.isOptional || doc.obligatoriedad === 'Opcional',
                     estado: doc.estado || 'PENDIENTE',
                     archivo: doc.archivo,
                     fechaVencimiento: doc.fechaVencimiento,
-                    observacion: doc.observacion
+                    observacion: doc.observacion,
+                    hasAudits: doc.hasAudits || false
                 };
             });
 
-            setRequiredDocs(prev => {
-                const changed = JSON.stringify(prev) !== JSON.stringify(dynamicRequirements);
-                return changed ? dynamicRequirements : prev;
-            });
+            // Only update if not currently editing config to avoid wiping local changes
+            if (!editDocMode || requiredDocs.length === 0) {
+                setRequiredDocs(dynamicRequirements);
+            }
         }
-    }, [partialEdit, formData.documentacion]);
+    }, [partialEdit, formData.documentacion]); // Removed editDocMode from deps to avoid loop
 
     // En modo lectura o edición inicial, cargar desde initialData si existe (simulado)
     useEffect(() => {
@@ -640,10 +718,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
         }
     }, [initialData]);
 
-    // CRITICAL: Sync requiredDocs → formData.documentacion in wizard mode
+    // CRITICAL: Sync requiredDocs → formData.documentacion in wizard mode OR Admin Edit
     // This ensures handleSubmit always has up-to-date docs in the payload
     useEffect(() => {
-        if (isWizardMode) {
+        if (isWizardMode || (isAdmin && editDocMode)) {
             setFormData(prev => {
                 const prevDocs = JSON.stringify(prev.documentacion);
                 const newDocs = JSON.stringify(requiredDocs);
@@ -651,7 +729,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 return { ...prev, documentacion: requiredDocs };
             });
         }
-    }, [requiredDocs, isWizardMode]);
+    }, [requiredDocs, isWizardMode, isAdmin, editDocMode]);
 
     const toggleDocRequirement = (docId) => {
         setIsCustomConfig(true);
@@ -670,8 +748,9 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
             const newReq = {
                 id: docId,
                 id_active: rule.id_attribute_template?.id_active?.id_active || rule.attributeTemplate?.id_active || rule.attributeTemplate?.idActive || null,
+                id_attribute: rule.id_attribute_template?.id_attributes || rule.attributeTemplate?.id_attributes || rule.attributeTemplate?.idAttributes || null,
                 label: rule.description,
-                frecuencia: 'Con Vencimiento',
+                frecuencia: 'ANUAL',
                 obligatoriedad: 'Manual'
             };
 
@@ -750,1258 +829,1282 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
 
         const currentLabel = steps[currentStep - 1];
 
-        // groupDefinitions and empresasByGrupo moved to component scope for clarity and logic
 
-        switch (currentLabel) {
-            case 'Proveedor':
-                // En partialEdit: 
-                // - Si NO edito: todo disabled.
-                // - Si edito: todo disabled MENOS email y telefono.
-                // En create/fullAdmin: todo enabled (menos lo que sea readOnly global).
+        return (
+            <>
+                <LoadingOverlay isVisible={isSaving} />
+                {(() => {
+                    switch (currentLabel) {
+                        case 'Proveedor':
+                            // En partialEdit: 
+                            // - Si NO edito: todo disabled.
+                            // - Si edito: todo disabled MENOS email y telefono.
+                            // En create/fullAdmin: todo enabled (menos lo que sea readOnly global).
 
-                const isStep1Disabled = readOnly || (partialEdit && !isEditingStep);
-                const isFiscalDataLocked = readOnly || partialEdit; // Siempre bloqueado en partialEdit
+                            const isStep1Disabled = readOnly || (partialEdit && !isEditingStep);
+                            const isFiscalDataLocked = readOnly || partialEdit; // Siempre bloqueado en partialEdit
 
-                return (
-                    <div className="p-0 md:p-8">
-                        <StepHeader title="Datos Fiscales" subtitle="Información registrada ante AFIP." />
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                            <Input
-                                label="Razón Social"
-                                name="razonSocial"
-                                value={formData.razonSocial || ''}
-                                onChange={handleChange}
-                                placeholder="Ingrese Razón Social"
-                                disabled={isFiscalDataLocked}
-                            />
-                            <div className="w-full">
-                                <Label>CUIT</Label>
-                                <InputMask
-                                    name="cuit"
-                                    mask="99-99999999-9"
-                                    value={formData.cuit || ''}
-                                    onChange={handleChange}
-                                    placeholder="XX-XXXXXXXX-X"
-                                    disabled={isFiscalDataLocked}
-                                    className={classNames('w-full border border-secondary/40 text-secondary-dark outline-none transition-all block shadow-sm hover:shadow-md focus:ring-2 focus:ring-primary/20 focus:border-primary p-2.5 text-sm rounded-lg', { 'bg-gray-50 opacity-90 cursor-not-allowed': isFiscalDataLocked })}
-                                />
-                            </div>
-                            <Input
-                                label="Nombre de Fantasía"
-                                name="nombreFantasia"
-                                value={formData.nombreFantasia || ''}
-                                onChange={handleChange}
-                                placeholder="Nombre comercial"
-                                disabled={isFiscalDataLocked}
-                            />
-                            <div className="w-full">
-                                <Label>Tipo de Persona</Label>
-                                {isFiscalDataLocked ? (
-                                    <Input value={formData.tipoPersona} disabled />
-                                ) : (
-                                    <Select
-                                        name="tipoPersona"
-                                        options={tiposPersona}
-                                        value={formData.tipoPersona}
-                                        onChange={handleChange}
-                                    />
-                                )}
-                            </div>
-                            <div className="w-full">
-                                <Label>Clasificación AFIP</Label>
-                                {isFiscalDataLocked ? (
-                                    <Input value={formData.clasificacionAFIP} disabled />
-                                ) : (
-                                    <Select
-                                        name="clasificacionAFIP"
-                                        options={clasificacionesAFIP}
-                                        value={formData.clasificacionAFIP}
-                                        onChange={handleChange}
-                                    />
-                                )}
-                            </div>
-                        </div>
-
-                        <SectionTitle title="Contacto y Operaciones" subtitle="Datos para la gestión diaria." />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <Input
-                                label="Email Corporativo"
-                                name="email"
-                                icon="pi-envelope"
-                                value={formData.email || ''}
-                                onChange={handleChange}
-                                placeholder="contacto@empresa.com"
-                                disabled={isStep1Disabled} // Este SÍ se habilita con Edit
-                            />
-                            <Input
-                                label="Teléfono"
-                                name="telefono"
-                                icon="pi-phone"
-                                value={formData.telefono || ''}
-                                onChange={handleChange}
-                                placeholder="+54 11 ..."
-                                disabled={isStep1Disabled} // Este SÍ se habilita con Edit
-                            />
-                            <div className="w-full">
-                                <Label>Servicio / Rubro</Label>
-                                {isFiscalDataLocked ? (
-                                    <Input value={formData.servicio} disabled />
-                                ) : (
-                                    <Select
-                                        name="servicio"
-                                        options={servicios}
-                                        value={formData.servicio}
-                                        onChange={handleChange}
-                                    />
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-6 mt-8 p-4 bg-secondary-light rounded-lg border border-secondary/20">
-                            <Toggle
-                                label="¿Es Empleador ante AFIP?"
-                                checked={formData.empleadorAFIP}
-                                onChange={() => handleToggle('empleadorAFIP')}
-                                disabled={isFiscalDataLocked}
-                            />
-                            <Toggle
-                                label="¿Contratación Temporal?"
-                                checked={formData.esTemporal}
-                                onChange={() => handleToggle('esTemporal')}
-                                disabled={isFiscalDataLocked}
-                            />
-                        </div>
-                    </div>
-                );
-            case 'Grupo y Empresa':
-                // Using groupDefinitions from outer scope
-
-                return (
-                    <div className="p-0 md:p-8">
-                        <StepHeader
-                            title="Grupo y Empresa"
-                            subtitle="Seleccione el grupo empresario y las empresas a las que el proveedor prestará servicio."
-                        />
-
-                        <div className="flex flex-col items-center justify-start mt-8">
-                            <div className="max-w-2xl w-full animate-fade-in text-center">
-
-                                <div className="mt-10">
-                                    <Label className="block text-center mb-6 text-base font-bold text-secondary-dark">¿A qué grupo pertenece?</Label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 px-4">
-                                        {groupDefinitions.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                onClick={() => {
-                                                    const groupName = (item.name || '').toUpperCase();
-                                                    setFormData(prev => ({ ...prev, grupo: groupName, id_group: item.id, empresas: [] }));
-                                                    setIsCustomConfig(false); // Reset docs config when group changes
-                                                    markStepDirty(currentStep);
-                                                    if (onGroupChange) onGroupChange(item.id);
-                                                }}
-                                                className={`
-                                                group relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 transition-all duration-300 cursor-pointer overflow-hidden
-                                                ${(formData.id_group === item.id || formData.grupo === item.id)
-                                                        ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.03] ring-1 ring-primary'
-                                                        : 'border-secondary/20 bg-white hover:border-primary/40 hover:shadow-lg hover:scale-[1.01]'
-                                                    }
-                                            `}
-                                            >
-                                                {/* Decoration background */}
-                                                <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full transition-all duration-500 opacity-10 group-hover:scale-150 ${formData.grupo === item.id ? 'bg-primary scale-150' : 'bg-secondary'}`}></div>
-
-                                                <div className={`p-4 rounded-2xl mb-5 transition-all duration-300 ${formData.grupo === item.id ? 'bg-primary text-white scale-110 shadow-lg' : 'bg-secondary-light text-secondary-dark group-hover:bg-primary/10 group-hover:text-primary'}`}>
-                                                    <i className={`pi ${item.icon} text-3xl`}></i>
-                                                </div>
-
-                                                <h3 className={`text-xl font-black transition-colors ${formData.grupo === item.id ? 'text-primary' : 'text-secondary-dark'}`}>
-                                                    {item.name}
-                                                </h3>
-
-                                                {(formData.id_group === item.id || formData.grupo === item.id) && (
-                                                    <div className="absolute top-4 right-4 animate-scale-in">
-                                                        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white shadow-sm ring-4 ring-white">
-                                                            <i className="pi pi-check text-[10px] font-bold"></i>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {formData.grupo && (
-                                    <div className="mt-12 animate-fade-in px-4">
-                                        <div className="max-w-md mx-auto p-8 rounded-2xl border border-primary/20 bg-white shadow-xl shadow-secondary/5 relative overflow-hidden">
-                                            {/* Accent stripe */}
-                                            <div className="absolute top-0 left-0 w-full h-1.5 bg-primary/20"></div>
-
-                                            <div className="text-left">
-                                                <Label className="text-sm font-bold text-secondary-dark mb-4 flex items-center gap-2">
-                                                    <i className="pi pi-building-cap text-primary"></i> Seleccionar empresas de {formData.grupo}
-                                                </Label>
-                                                <MultiSelect
-                                                    name="empresas"
-                                                    value={formData.empresas}
-                                                    options={empresasByGrupo[formData.id_group] || empresasByGrupo[formData.grupo] || []}
-                                                    onChange={(e) => {
-                                                        setFormData(prev => ({ ...prev, empresas: e.value }));
-                                                        markStepDirty(currentStep);
-                                                    }}
-                                                    placeholder="Elija una o más empresas"
-                                                    className="w-full"
-                                                    display="chip"
+                            return (
+                                <div className="p-0 md:p-8">
+                                    <StepHeader title="Datos Fiscales" subtitle="Información registrada ante AFIP." />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                        <Input
+                                            label="Razón Social"
+                                            name="razonSocial"
+                                            value={formData.razonSocial || ''}
+                                            onChange={handleChange}
+                                            placeholder="Ingrese Razón Social"
+                                            disabled={isFiscalDataLocked}
+                                        />
+                                        <div className="w-full">
+                                            <Label>CUIT</Label>
+                                            <InputMask
+                                                name="cuit"
+                                                mask="99-99999999-9"
+                                                value={formData.cuit || ''}
+                                                onChange={handleChange}
+                                                placeholder="XX-XXXXXXXX-X"
+                                                disabled={isFiscalDataLocked}
+                                                className={classNames('w-full border border-secondary/40 text-secondary-dark outline-none transition-all block shadow-sm hover:shadow-md focus:ring-2 focus:ring-primary/20 focus:border-primary p-2.5 text-sm rounded-lg', { 'bg-gray-50 opacity-90 cursor-not-allowed': isFiscalDataLocked })}
+                                            />
+                                        </div>
+                                        <Input
+                                            label="Nombre de Fantasía"
+                                            name="nombreFantasia"
+                                            value={formData.nombreFantasia || ''}
+                                            onChange={handleChange}
+                                            placeholder="Nombre comercial"
+                                            disabled={isFiscalDataLocked}
+                                        />
+                                        <div className="w-full">
+                                            <Label>Tipo de Persona</Label>
+                                            {isFiscalDataLocked ? (
+                                                <Input value={formData.tipoPersona} disabled />
+                                            ) : (
+                                                <Select
+                                                    name="tipoPersona"
+                                                    options={tiposPersona}
+                                                    value={formData.tipoPersona}
+                                                    onChange={handleChange}
                                                 />
-                                                <div className="mt-4 p-3 bg-secondary-light/40 rounded-lg flex items-start gap-3">
-                                                    <i className="pi pi-info-circle text-primary mt-0.5 text-sm"></i>
-                                                    <p className="text-[11px] text-secondary-dark/70 font-medium leading-relaxed italic">
-                                                        Podrá asociar más empresas o grupos adicionales una vez completado el registro inicial.
-                                                    </p>
-                                                </div>
-                                            </div>
+                                            )}
+                                        </div>
+                                        <div className="w-full">
+                                            <Label>Clasificación AFIP</Label>
+                                            {isFiscalDataLocked ? (
+                                                <Input value={formData.clasificacionAFIP} disabled />
+                                            ) : (
+                                                <Select
+                                                    name="clasificacionAFIP"
+                                                    options={clasificacionesAFIP}
+                                                    value={formData.clasificacionAFIP}
+                                                    onChange={handleChange}
+                                                />
+                                            )}
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                );
-            case 'Ubicación':
-                const isStep2Disabled = readOnly || (partialEdit && !isEditingStep);
-                return (
-                    <div className="p-0 md:p-8">
-                        <StepHeader title="Ubicación" subtitle="Domicilio fiscal y real." />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {/* Selector de País */}
-                            <div className="w-full">
-                                <Label>País</Label>
-                                <Dropdown
-                                    value={formData.paisCode}
-                                    options={countries}
-                                    onChange={(e) => handleLocationChange('pais', e.value, countries.find(c => c.value === e.value))}
-                                    optionLabel="label"
-                                    placeholder="Seleccione un país"
-                                    filter
-                                    className="w-full"
-                                    disabled={isStep2Disabled}
-                                />
-                            </div>
+                                    <SectionTitle title="Contacto y Operaciones" subtitle="Datos para la gestión diaria." />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                        <Input
+                                            label="Email Corporativo"
+                                            name="email"
+                                            icon="pi-envelope"
+                                            value={formData.email || ''}
+                                            onChange={handleChange}
+                                            placeholder="contacto@empresa.com"
+                                            disabled={isStep1Disabled} // Este SÍ se habilita con Edit
+                                        />
+                                        <Input
+                                            label="Teléfono"
+                                            name="telefono"
+                                            icon="pi-phone"
+                                            value={formData.telefono || ''}
+                                            onChange={handleChange}
+                                            placeholder="+54 11 ..."
+                                            disabled={isStep1Disabled} // Este SÍ se habilita con Edit
+                                        />
+                                        <div className="w-full">
+                                            <Label>Servicio / Rubro</Label>
+                                            {isFiscalDataLocked ? (
+                                                <Input value={formData.servicio} disabled />
+                                            ) : (
+                                                <Select
+                                                    name="servicio"
+                                                    options={servicios}
+                                                    value={formData.servicio}
+                                                    onChange={handleChange}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
 
-                            <div className="w-full">
-                                <Label>Provincia / Estado</Label>
-                                <Dropdown
-                                    value={formData.provinciaCode}
-                                    options={states}
-                                    onChange={(e) => handleLocationChange('provincia', e.value, states.find(s => s.value === e.value))}
-                                    optionLabel="label"
-                                    placeholder="Seleccione una provincia"
-                                    filter
-                                    className="w-full"
-                                    disabled={!formData.paisCode || isStep2Disabled}
-                                    emptyMessage="Seleccione un país primero"
-                                />
-                            </div>
-                            <div className="w-full">
-                                <Label>Localidad / Ciudad</Label>
-                                <Dropdown
-                                    value={formData.localidad} // Guardamos el NOMBRE (value es name en el map de cities)
-                                    options={cities}
-                                    onChange={(e) => handleLocationChange('localidad', e.value)}
-                                    optionLabel="label"
-                                    placeholder="Seleccione una localidad"
-                                    filter
-                                    className="w-full"
-                                    disabled={!formData.provinciaCode || isStep2Disabled}
-                                    emptyMessage="Seleccione una provincia primero"
-                                />
-                            </div>
-
-                            <Input
-                                label="Código Postal"
-                                name="codigoPostal"
-                                value={formData.codigoPostal}
-                                onChange={handleChange}
-                                placeholder="C.P."
-                                disabled={isStep2Disabled}
-                            />
-
-                            <Input
-                                label="Domicilio Fiscal"
-                                name="direccionFiscal"
-                                icon="pi-map-marker"
-                                value={formData.direccionFiscal}
-                                onChange={handleChange}
-                                placeholder="Calle, altura, piso..."
-                                disabled={isStep2Disabled}
-                                className="md:col-span-2"
-                            />
-
-                            <Input
-                                label="Domicilio Real / Operativo"
-                                name="direccionReal"
-                                icon="pi-map-marker"
-                                value={formData.direccionReal}
-                                onChange={handleChange}
-                                placeholder="Si difiere del fiscal"
-                                disabled={isStep2Disabled}
-                                className="md:col-span-3"
-                            />
-                        </div>
-                    </div>
-                );
-            case 'Contactos':
-                const isStep3Editing = !readOnly && (!partialEdit || (partialEdit && isEditingStep));
-                return (
-                    <div className="p-0 md:p-8">
-                        <StepHeader title="Contactos" subtitle="Personas autorizadas para gestiones." />
-
-                        {/* 1. Formulario de Alta (Solo si está en modo edición) */}
-                        {isStep3Editing && (
-                            <div className="bg-white border-2 border-dashed border-secondary/20 rounded-xl p-5 mb-8 animate-fade-in shadow-sm max-w-5xl mx-auto">
-                                <div className="mb-4">
-                                    <h4 className="text-md font-bold text-secondary-dark flex items-center gap-2">
-                                        <i className="pi pi-user-plus text-success"></i>
-                                        Datos de Contacto
-                                    </h4>
-                                    <p className="text-secondary text-[10px] mt-0.5">Información de representante.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    <Input
-                                        size="sm"
-                                        label="Nombres y Apellidos"
-                                        value={newContact.nombre}
-                                        onChange={(e) => setNewContact({ ...newContact, nombre: e.target.value })}
-                                        placeholder="Juan Pérez"
-                                    />
-                                    <Input
-                                        size="sm"
-                                        label="DNI"
-                                        value={newContact.dni}
-                                        onChange={(e) => setNewContact({ ...newContact, dni: e.target.value })}
-                                        placeholder="20.123.456"
-                                    />
-                                    <Input
-                                        size="sm"
-                                        label="Celular / WhatsApp"
-                                        value={newContact.movil}
-                                        onChange={(e) => setNewContact({ ...newContact, movil: e.target.value })}
-                                        placeholder="+54 9 11 ..."
-                                    />
-                                    <Input
-                                        size="sm"
-                                        label="Teléfono Fijo"
-                                        value={newContact.telefono}
-                                        onChange={(e) => setNewContact({ ...newContact, telefono: e.target.value })}
-                                        placeholder="+54 266 ..."
-                                    />
-                                    <Input
-                                        size="sm"
-                                        label="Correo electrónico"
-                                        value={newContact.email}
-                                        onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                                        placeholder="contacto@empresa.com"
-                                    />
-                                    <div className="w-full">
-                                        <Select
-                                            size="sm"
-                                            label="Tipo de contacto"
-                                            options={tiposContacto}
-                                            value={newContact.tipo}
-                                            onChange={(e) => setNewContact({ ...newContact, tipo: e.target.value })}
+                                    <div className="flex flex-col sm:flex-row gap-6 mt-8 p-4 bg-secondary-light rounded-lg border border-secondary/20">
+                                        <Toggle
+                                            label="¿Es Empleador ante AFIP?"
+                                            checked={formData.empleadorAFIP}
+                                            onChange={() => handleToggle('empleadorAFIP')}
+                                            disabled={isFiscalDataLocked}
+                                        />
+                                        <Toggle
+                                            label="¿Contratación Temporal?"
+                                            checked={formData.esTemporal}
+                                            onChange={() => handleToggle('esTemporal')}
+                                            disabled={isFiscalDataLocked}
                                         />
                                     </div>
                                 </div>
+                            );
+                        case 'Grupo y Empresa':
+                            // Using groupDefinitions from outer scope
 
-                                <div className="mt-5 flex justify-end">
-                                    <button
-                                        onClick={handleAddContact}
-                                        className="bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-5 py-2 rounded-lg font-bold shadow-md shadow-success/10 transition-all flex items-center gap-2 transform active:scale-95 text-xs"
-                                    >
-                                        <i className="pi pi-plus"></i> Agregar Nuevo
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                            return (
+                                <div className="p-0 md:p-8">
+                                    <StepHeader
+                                        title="Grupo y Empresa"
+                                        subtitle="Seleccione el grupo empresario y las empresas a las que el proveedor prestará servicio."
+                                    />
 
-                        {/* 2. Lista de Contactos (Cards) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {formData.contactos.map((contacto, index) => (
-                                <div key={contacto.id || index} className="bg-white border border-secondary/20 border-l-4 border-l-primary rounded-xl p-6 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all relative group animate-fade-in">
-                                    {isStep3Editing && (
-                                        <button
-                                            onClick={() => handleRemoveContact(contacto.id)}
-                                            className="absolute top-4 right-4 text-secondary/30 hover:text-red-500 transition-colors bg-white rounded-full p-1"
-                                            title="Eliminar contacto"
-                                        >
-                                            <i className="pi pi-times-circle text-lg"></i>
-                                        </button>
-                                    )}
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-sm shadow-sm ring-2 ring-offset-2 ring-primary/10 shrink-0">
-                                            {contacto.nombre ? contacto.nombre.charAt(0).toUpperCase() : '?'}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h5 className="font-bold text-secondary-dark text-base truncate" title={contacto.nombre}>{contacto.nombre || 'Sin nombre'}</h5>
-                                            <span className="text-[9px] text-primary font-bold uppercase tracking-wider bg-primary/5 px-2 py-0.5 rounded border border-primary/10 inline-block">
-                                                {contacto.tipo || 'General'}
-                                            </span>
-                                        </div>
-                                    </div>
+                                    <div className="flex flex-col items-center justify-start mt-8">
+                                        <div className="max-w-2xl w-full animate-fade-in text-center">
 
-                                    <div className="flex flex-col gap-2 text-xs font-medium text-gray-700 border-t border-secondary/10 pt-3">
-                                        {contacto.email && (
-                                            <div className="flex items-center gap-2">
-                                                <i className="pi pi-envelope text-primary/80 text-[11px]"></i>
-                                                <span className="truncate">{contacto.email}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex flex-wrap items-center gap-y-1 gap-x-4">
-                                            {contacto.movil && (
-                                                <div className="flex items-center gap-2">
-                                                    <i className="pi pi-whatsapp text-primary/80 text-[11px]"></i>
-                                                    <span>{contacto.movil}</span>
-                                                </div>
-                                            )}
-                                            {contacto.telefono && (
-                                                <div className="flex items-center gap-2">
-                                                    <i className="pi pi-phone text-primary/80 text-[11px]"></i>
-                                                    <span>{contacto.telefono}</span>
-                                                </div>
-                                            )}
-                                            {contacto.dni && (
-                                                <div className="flex items-center gap-2">
-                                                    <i className="pi pi-id-card text-primary/80 text-[11px]"></i>
-                                                    <span>{contacto.dni}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                            <div className="mt-10">
+                                                <Label className="block text-center mb-6 text-base font-bold text-secondary-dark">¿A qué grupo pertenece?</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 px-4">
+                                                    {groupDefinitions.map((item) => (
+                                                        <div
+                                                            key={item.id}
+                                                            onClick={() => {
+                                                                const groupName = (item.name || '').toUpperCase();
+                                                                setFormData(prev => ({ ...prev, grupo: groupName, id_group: item.id, empresas: [] }));
+                                                                setIsCustomConfig(false); // Reset docs config when group changes
+                                                                markStepDirty(currentStep);
+                                                                if (onGroupChange) onGroupChange(item.id);
+                                                            }}
+                                                            className={`
+                                                group relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 transition-all duration-300 cursor-pointer overflow-hidden
+                                                ${(formData.id_group === item.id || formData.grupo === item.id)
+                                                                    ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.03] ring-1 ring-primary'
+                                                                    : 'border-secondary/20 bg-white hover:border-primary/40 hover:shadow-lg hover:scale-[1.01]'
+                                                                }
+                                            `}
+                                                        >
+                                                            {/* Decoration background */}
+                                                            <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full transition-all duration-500 opacity-10 group-hover:scale-150 ${formData.grupo === item.id ? 'bg-primary scale-150' : 'bg-secondary'}`}></div>
 
-                            {formData.contactos.length === 0 && !isStep3Editing && (
-                                <div className="col-span-full text-center py-16 border-2 border-dashed border-secondary/20 rounded-xl text-secondary bg-secondary-light/20">
-                                    <i className="pi pi-users text-4xl mb-3 block opacity-20"></i>
-                                    <p className="font-medium">No hay contactos registrados.</p>
-                                    <p className="text-xs opacity-60">Haga clic en Modificar para agregar.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            case 'Documentos':
-                // Wizard Mode: Config Enabled, Uploads Disabled
-                // Partial Edit: Config Disabled, Uploads Enabled (if editing)
-                const isStep4ConfigReadOnly = !isWizardMode;
-                const isStep4ActionsEnabled = partialEdit && isEditingStep;
-
-                console.log("SupplierForm - formData:", formData);
-                return (
-                    <div className="p-8 animate-fade-in relative">
-                        <StepHeader
-                            title={`${isWizardMode ? "Configuración de Documentación" : "Documentación"}${formData.isMock ? " (MOCK)" : ""}`}
-                            subtitle={isWizardMode ? "Defina qué documentos se solicitarán al proveedor." : "Estado de la documentación."}
-                            extra={!isWizardMode && (
-                                <div className="flex bg-secondary-light/50 p-1 rounded-xl border border-secondary/10">
-                                    <button
-                                        onClick={() => setDocViewMode('grid')}
-                                        className={`p-2 rounded-lg transition-all ${docViewMode === 'grid' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-secondary-dark'}`}
-                                        title="Vista Mosaico"
-                                    >
-                                        <i className="pi pi-th-large"></i>
-                                    </button>
-                                    <button
-                                        onClick={() => setDocViewMode('table')}
-                                        className={`p-2 rounded-lg transition-all ${docViewMode === 'table' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-secondary-dark'}`}
-                                        title="Vista Tabla"
-                                    >
-                                        <i className="pi pi-bars"></i>
-                                    </button>
-                                </div>
-                            )}
-                        />
-
-                        {/* Indicar de dónde viene la configuración por defecto */}
-                        {isWizardMode && (
-                            <div className="mb-6 p-4 bg-primary/5 rounded-xl border border-primary/20 flex flex-col md:flex-row gap-4 items-center justify-between">
-                                <div className="flex flex-wrap gap-3 items-center">
-                                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-primary/10">Basado en:</span>
-                                    <div className="flex gap-2">
-                                        {formData.grupo && (
-                                            <span className="text-xs font-bold text-white px-2.5 py-1 bg-primary rounded-lg border border-primary/20 flex items-center gap-1.5">
-                                                <i className={`pi ${formData.grupo === 'EDESAL' ? 'pi-bolt' : 'pi-building'} text-[10px]`}></i>
-                                                {formData.grupo}
-                                            </span>
-                                        )}
-                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.tipoPersona}</span>
-                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.clasificacionAFIP}</span>
-                                        <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.servicio}</span>
-                                    </div>
-                                </div>
-                                {isCustomConfig && (
-                                    <button onClick={resetDocConfig} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-primary/20">
-                                        <i className="pi pi-refresh"></i> Restablecer sugeridos
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                        {!isStep4ConfigReadOnly && !editDocMode && isCustomConfig && (
-                            <div className="mb-4 bg-warning-light/50 border border-warning/30 rounded-lg p-3 flex items-center justify-between text-xs">
-                                <span className="text-warning-hover font-medium flex items-center gap-2">
-                                    <i className="pi pi-exclamation-triangle"></i> Configuración personalizada
-                                </span>
-                                <button onClick={resetDocConfig} className="text-secondary-dark hover:underline">Restablecer sugeridos</button>
-                            </div>
-                        )}
-
-                        {requiredDocs.length === 0 && (
-                            <div className="mb-8 p-6 bg-secondary-light/30 border-2 border-dashed border-secondary/20 rounded-2xl text-center animate-fade-in">
-                                <i className="pi pi-file-excel text-4xl text-secondary/30 mb-3 block"></i>
-                                <h4 className="text-secondary-dark font-bold mb-1">Sin documentación asignada</h4>
-                                <p className="text-xs text-secondary font-medium italic">No hay documentación a presentar asignada a este proveedor.</p>
-                            </div>
-                        )}
-
-                        {docViewMode === 'grid' || isWizardMode ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {/* Card para AGREGAR NUEVO (Solo en modo edición de CONFIGURACION) */}
-                                {!isStep4ConfigReadOnly && editDocMode && (
-                                    <button
-                                        onClick={() => setShowDocModal(true)}
-                                        className="border-2 border-dashed border-secondary/30 rounded-lg p-4 flex flex-col items-center justify-center gap-2 text-secondary hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all h-full min-h-[140px]"
-                                    >
-                                        <div className="bg-white p-2 rounded-full shadow-sm">
-                                            <i className="pi pi-plus text-lg"></i>
-                                        </div>
-                                        <span className="text-xs font-bold">Agregar Requisito</span>
-                                    </button>
-                                )}
-                                {requiredDocs.map(doc => {
-                                    return (
-                                        <div key={doc.id}>
-                                            {(() => {
-                                                const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
-
-                                                const status = docData ? docData.estado : 'PENDIENTE';
-                                                const getStatusColor = (s) => {
-                                                    switch (s) {
-                                                        case 'VIGENTE': return 'border-success/50 bg-success-light/10';
-                                                        case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
-                                                        case 'PENDIENTE': return 'border-secondary/50 bg-secondary-light/10';
-                                                        case 'EN REVISIÓN': return 'border-info/50 bg-info-light/10';
-                                                        case 'CON OBSERVACIÓN': return 'border-orange-500/50 bg-orange-50';
-                                                        default: return 'border-secondary/20 bg-secondary-light/10';
-                                                    }
-                                                };
-
-
-                                                const handleFileUpload = (e) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const fileUrl = URL.createObjectURL(file);
-                                                        setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
-
-                                                        setFormData(prev => {
-                                                            const currentDocs = prev.documentacion || [];
-                                                            const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
-
-                                                            let newDocs;
-                                                            if (docIndex >= 0) {
-                                                                // Update existing - PRESERVE STATUS until save
-                                                                newDocs = [...currentDocs];
-                                                                newDocs[docIndex] = {
-                                                                    ...newDocs[docIndex],
-                                                                    archivo: file.name,
-                                                                    fileUrl: fileUrl,
-                                                                    fileObject: file, // Store the File object
-                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
-                                                                    label: doc.label,
-                                                                    // Mark as modified so we know to update status on save
-                                                                    modified: true,
-                                                                    fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
-                                                                };
-                                                            } else {
-                                                                // Add new - Status PENDING until save
-                                                                newDocs = [...currentDocs, {
-                                                                    id: doc.id,
-                                                                    tipo: doc.id,
-                                                                    id_active: doc.id_active,
-                                                                    id_attribute: doc.id_attribute,
-                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion,
-                                                                    label: doc.label,
-                                                                    estado: 'PENDIENTE',
-                                                                    archivo: file.name,
-                                                                    fileUrl: fileUrl,
-                                                                    fileObject: file, // Store the File object
-                                                                    modified: true, // New docs are modified by definition
-                                                                    fechaVencimiento: null
-                                                                }];
-                                                            }
-                                                            return { ...prev, documentacion: newDocs };
-                                                        });
-                                                    }
-                                                };
-
-                                                const handleRemoveFile = (docId) => {
-                                                    setDocToDelete(docId);
-                                                    setConfirmModalOpen(true);
-                                                };
-
-                                                const handleDateChange = (docId, date) => {
-                                                    if (date) {
-                                                        setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
-                                                        setFormData(prev => {
-                                                            const currentDocs = prev.documentacion || [];
-                                                            const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
-                                                            let newDocs;
-
-                                                            // Format YYYY-MM-DD for consistency
-                                                            const year = date.getFullYear();
-                                                            const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                            const day = String(date.getDate()).padStart(2, '0');
-                                                            const formattedDate = `${year}-${month}-${day}`;
-
-                                                            if (docIndex >= 0) {
-                                                                newDocs = [...currentDocs];
-                                                                newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
-                                                            } else {
-                                                                newDocs = [...currentDocs, {
-                                                                    id: docId,
-                                                                    tipo: docId,
-                                                                    id_active: doc.id_active,
-                                                                    id_attribute: doc.id_attribute,
-                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion,
-                                                                    label: doc.label,
-                                                                    estado: 'PENDIENTE',
-                                                                    archivo: null,
-                                                                    modified: true,
-                                                                    fechaVencimiento: formattedDate
-                                                                }];
-                                                            }
-                                                            return { ...prev, documentacion: newDocs };
-                                                        });
-                                                    }
-                                                };
-
-                                                return (
-                                                    <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status)} group relative h-full min-h-[150px]`}>
-
-                                                        {/* Botón Eliminar (Solo edición config) */}
-                                                        {!isStep4ConfigReadOnly && editDocMode && (
-                                                            <button
-                                                                onClick={() => toggleDocRequirement(doc.id)}
-                                                                className="absolute -top-2 -right-2 bg-white text-red-500 shadow-md rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition-all z-10"
-                                                            >
-                                                                <i className="pi pi-times text-[10px] font-bold"></i>
-                                                            </button>
-                                                        )}
-
-
-                                                        <div className="flex-1 flex flex-col h-full">
-                                                            {/* Header: Icon + Title */}
-                                                            <div className="flex items-start gap-4 mb-3">
-                                                                <div
-                                                                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${docData?.archivo ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'} ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
-                                                                        (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
-                                                                            status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
-                                                                                status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
-                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
-                                                                                        'bg-secondary/10 border-secondary/20 text-secondary')}`}
-                                                                    onClick={(e) => {
-                                                                        if (docData?.archivo) {
-                                                                            e.stopPropagation();
-                                                                            handleViewFile(docData);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center gap-2 mb-1">
-                                                                        <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={docData?.label || doc.label}>{docData?.label || doc.label}</h4>
-                                                                    </div>
-                                                                    {doc.helpText && (
-                                                                        <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
-                                                                            {doc.helpText}
-                                                                        </p>
-                                                                    )}
-                                                                    {!isWizardMode && (
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
-                                                                                status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
-                                                                                    status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
-                                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                                            'bg-secondary/10 text-secondary border-secondary/20'
-                                                                                }`}>
-                                                                                {status}
-                                                                            </span>
-                                                                            {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
-                                                                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block bg-orange-50 text-orange-600 border-orange-200 shadow-sm animate-pulse-subtle">
-                                                                                    CON OBSERVACIÓN
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-
+                                                            <div className={`p-4 rounded-2xl mb-5 transition-all duration-300 ${formData.grupo === item.id ? 'bg-primary text-white scale-110 shadow-lg' : 'bg-secondary-light text-secondary-dark group-hover:bg-primary/10 group-hover:text-primary'}`}>
+                                                                <i className={`pi ${item.icon} text-3xl`}></i>
                                                             </div>
 
-                                                            {/* Divider Line */}
-                                                            {!isWizardMode && (
-                                                                <div className="w-[90%] h-px bg-secondary/10 mx-auto mb-4"></div>
-                                                            )}
+                                                            <h3 className={`text-xl font-black transition-colors ${formData.grupo === item.id ? 'text-primary' : 'text-secondary-dark'}`}>
+                                                                {item.name}
+                                                            </h3>
 
-                                                            {/* Observation Alert (Card Mode) */}
-                                                            {docData?.observacion && (
-                                                                expandedObservations[doc.id] ? (
-                                                                    <div
-                                                                        onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
-                                                                        className="mb-4 p-2.5 bg-orange-50 border border-orange-100 rounded-lg flex items-start gap-2 cursor-pointer hover:bg-orange-100/50 transition-colors animate-fade-in"
-                                                                    >
-                                                                        <i className="pi pi-exclamation-circle text-orange-500 mt-0.5 shadow-sm"></i>
-                                                                        <div className="flex-1">
-                                                                            <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Observación:</p>
-                                                                            <p className="text-[11px] text-orange-800 leading-tight italic font-medium">{docData.observacion}</p>
-                                                                        </div>
-                                                                        <i className="pi pi-chevron-up text-[10px] text-orange-400 mt-1"></i>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div
-                                                                        onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
-                                                                        className="mb-4 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors group/obs"
-                                                                    >
-                                                                        <i className="pi pi-exclamation-circle text-orange-500 text-sm group-hover/obs:scale-110 transition-transform"></i>
-                                                                        <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Ver Observación</span>
-                                                                        <i className="pi pi-chevron-down text-[10px] text-orange-400 ml-1"></i>
-                                                                    </div>
-                                                                )
-                                                            )}
-
-                                                            {/* Body: Configuration (Wizard Mode) */}
-                                                            {isWizardMode ? (
-                                                                <div className="mt-auto pt-4 border-t border-secondary/5 space-y-4">
-                                                                    <div className="flex flex-col gap-1.5">
-                                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
-                                                                            <i className="pi pi-history text-[9px]"></i> Periodicidad
-                                                                        </label>
-                                                                        <div className="relative">
-                                                                            <select
-                                                                                value={doc.frecuencia}
-                                                                                onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
-                                                                                className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
-                                                                            >
-                                                                                <option value="Mensual">Mensual</option>
-                                                                                <option value="Trimestral">Trimestral</option>
-                                                                                <option value="Semestral">Semestral</option>
-                                                                                <option value="Anual">Anual</option>
-                                                                                <option value="Única vez">Única vez</option>
-                                                                            </select>
-                                                                            <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="flex flex-col gap-1.5">
-                                                                        <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
-                                                                            <i className="pi pi-lock text-[9px]"></i> Requerimiento
-                                                                        </label>
-                                                                        <div
-                                                                            onClick={() => updateDocRequirement(doc.id, 'isOptional', !doc.isOptional)}
-                                                                            className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${doc.isOptional
-                                                                                ? 'bg-gray-50 border-secondary/10 opacity-70'
-                                                                                : 'bg-indigo-50/50 border-indigo-100'}`}
-                                                                        >
-                                                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${doc.isOptional ? 'bg-white text-secondary/40' : 'bg-indigo-500 text-white shadow-sm'}`}>
-                                                                                <i className={`pi ${doc.isOptional ? 'pi-circle' : 'pi-check-circle'} text-[11px]`}></i>
-                                                                            </div>
-                                                                            <span className={`text-[11px] font-bold ${doc.isOptional ? 'text-secondary' : 'text-indigo-700'}`}>
-                                                                                {doc.isOptional ? 'Opcional' : 'Obligatorio'}
-                                                                            </span>
-                                                                        </div>
+                                                            {(formData.id_group === item.id || formData.grupo === item.id) && (
+                                                                <div className="absolute top-4 right-4 animate-scale-in">
+                                                                    <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white shadow-sm ring-4 ring-white">
+                                                                        <i className="pi pi-check text-[10px] font-bold"></i>
                                                                     </div>
                                                                 </div>
-                                                            ) : (
-                                                                <div className="space-y-3">
-                                                                    <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
-                                                                        <i className="pi pi-clock text-primary text-[11px]"></i>
-                                                                        <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</span>
-                                                                    </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                                                    {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
-                                                                        <div className="flex flex-col w-full">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <i className="pi pi-calendar text-secondary/50 text-base"></i>
-                                                                                {isStep4ActionsEnabled ? (
-                                                                                    <Calendar
-                                                                                        value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
-                                                                                        onChange={(e) => handleDateChange(doc.id, e.value)}
-                                                                                        placeholder="Vencimiento"
-                                                                                        disabled={!docData?.archivo}
-                                                                                        minDate={new Date()}
-                                                                                        className={`compact-calendar-input w-full border border-secondary/50 rounded-lg ${!docData?.archivo ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
-                                                                                        panelClassName="compact-calendar-panel"
-                                                                                        dateFormat="dd/mm/yy"
-                                                                                    />
-                                                                                ) : (
-                                                                                    <span className="text-xs font-semibold text-secondary">Vence: {docData.fechaVencimiento || '-'}</span>
+                                            {formData.grupo && (
+                                                <div className="mt-12 animate-fade-in px-4">
+                                                    <div className="max-w-md mx-auto p-8 rounded-2xl border border-primary/20 bg-white shadow-xl shadow-secondary/5 relative overflow-hidden">
+                                                        {/* Accent stripe */}
+                                                        <div className="absolute top-0 left-0 w-full h-1.5 bg-primary/20"></div>
+
+                                                        <div className="text-left">
+                                                            <Label className="text-sm font-bold text-secondary-dark mb-4 flex items-center gap-2">
+                                                                <i className="pi pi-building-cap text-primary"></i> Seleccionar empresas de {formData.grupo}
+                                                            </Label>
+                                                            <MultiSelect
+                                                                name="empresas"
+                                                                value={formData.empresas}
+                                                                options={empresasByGrupo[formData.id_group] || empresasByGrupo[formData.grupo] || []}
+                                                                onChange={(e) => {
+                                                                    setFormData(prev => ({ ...prev, empresas: e.value }));
+                                                                    markStepDirty(currentStep);
+                                                                }}
+                                                                placeholder="Elija una o más empresas"
+                                                                className="w-full"
+                                                                display="chip"
+                                                            />
+                                                            <div className="mt-4 p-3 bg-secondary-light/40 rounded-lg flex items-start gap-3">
+                                                                <i className="pi pi-info-circle text-primary mt-0.5 text-sm"></i>
+                                                                <p className="text-[11px] text-secondary-dark/70 font-medium leading-relaxed italic">
+                                                                    Podrá asociar más empresas o grupos adicionales una vez completado el registro inicial.
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        case 'Ubicación':
+                            const isStep2Disabled = readOnly || (partialEdit && !isEditingStep);
+                            return (
+                                <div className="p-0 md:p-8">
+                                    <StepHeader title="Ubicación" subtitle="Domicilio fiscal y real." />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {/* Selector de País */}
+                                        <div className="w-full">
+                                            <Label>País</Label>
+                                            <Dropdown
+                                                value={formData.paisCode}
+                                                options={countries}
+                                                onChange={(e) => handleLocationChange('pais', e.value, countries.find(c => c.value === e.value))}
+                                                optionLabel="label"
+                                                placeholder="Seleccione un país"
+                                                filter
+                                                className="w-full"
+                                                disabled={isStep2Disabled}
+                                            />
+                                        </div>
+
+                                        <div className="w-full">
+                                            <Label>Provincia / Estado</Label>
+                                            <Dropdown
+                                                value={formData.provinciaCode}
+                                                options={states}
+                                                onChange={(e) => handleLocationChange('provincia', e.value, states.find(s => s.value === e.value))}
+                                                optionLabel="label"
+                                                placeholder="Seleccione una provincia"
+                                                filter
+                                                className="w-full"
+                                                disabled={!formData.paisCode || isStep2Disabled}
+                                                emptyMessage="Seleccione un país primero"
+                                            />
+                                        </div>
+                                        <div className="w-full">
+                                            <Label>Localidad / Ciudad</Label>
+                                            <Dropdown
+                                                value={formData.localidad} // Guardamos el NOMBRE (value es name en el map de cities)
+                                                options={cities}
+                                                onChange={(e) => handleLocationChange('localidad', e.value)}
+                                                optionLabel="label"
+                                                placeholder="Seleccione una localidad"
+                                                filter
+                                                className="w-full"
+                                                disabled={!formData.provinciaCode || isStep2Disabled}
+                                                emptyMessage="Seleccione una provincia primero"
+                                            />
+                                        </div>
+
+                                        <Input
+                                            label="Código Postal"
+                                            name="codigoPostal"
+                                            value={formData.codigoPostal}
+                                            onChange={handleChange}
+                                            placeholder="C.P."
+                                            disabled={isStep2Disabled}
+                                        />
+
+                                        <Input
+                                            label="Domicilio Fiscal"
+                                            name="direccionFiscal"
+                                            icon="pi-map-marker"
+                                            value={formData.direccionFiscal}
+                                            onChange={handleChange}
+                                            placeholder="Calle, altura, piso..."
+                                            disabled={isStep2Disabled}
+                                            className="md:col-span-2"
+                                        />
+
+                                        <Input
+                                            label="Domicilio Real / Operativo"
+                                            name="direccionReal"
+                                            icon="pi-map-marker"
+                                            value={formData.direccionReal}
+                                            onChange={handleChange}
+                                            placeholder="Si difiere del fiscal"
+                                            disabled={isStep2Disabled}
+                                            className="md:col-span-3"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        case 'Contactos':
+                            const isStep3Editing = !readOnly && (!partialEdit || (partialEdit && isEditingStep));
+                            return (
+                                <div className="p-0 md:p-8">
+                                    <StepHeader title="Contactos" subtitle="Personas autorizadas para gestiones." />
+
+                                    {/* 1. Formulario de Alta (Solo si está en modo edición) */}
+                                    {isStep3Editing && (
+                                        <div className="bg-white border-2 border-dashed border-secondary/20 rounded-xl p-5 mb-8 animate-fade-in shadow-sm max-w-5xl mx-auto">
+                                            <div className="mb-4">
+                                                <h4 className="text-md font-bold text-secondary-dark flex items-center gap-2">
+                                                    <i className="pi pi-user-plus text-success"></i>
+                                                    Datos de Contacto
+                                                </h4>
+                                                <p className="text-secondary text-[10px] mt-0.5">Información de representante.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                <Input
+                                                    size="sm"
+                                                    label="Nombres y Apellidos"
+                                                    value={newContact.nombre}
+                                                    onChange={(e) => setNewContact({ ...newContact, nombre: e.target.value })}
+                                                    placeholder="Juan Pérez"
+                                                />
+                                                <Input
+                                                    size="sm"
+                                                    label="DNI"
+                                                    value={newContact.dni}
+                                                    onChange={(e) => setNewContact({ ...newContact, dni: e.target.value })}
+                                                    placeholder="20.123.456"
+                                                />
+                                                <Input
+                                                    size="sm"
+                                                    label="Celular / WhatsApp"
+                                                    value={newContact.movil}
+                                                    onChange={(e) => setNewContact({ ...newContact, movil: e.target.value })}
+                                                    placeholder="+54 9 11 ..."
+                                                />
+                                                <Input
+                                                    size="sm"
+                                                    label="Teléfono Fijo"
+                                                    value={newContact.telefono}
+                                                    onChange={(e) => setNewContact({ ...newContact, telefono: e.target.value })}
+                                                    placeholder="+54 266 ..."
+                                                />
+                                                <Input
+                                                    size="sm"
+                                                    label="Correo electrónico"
+                                                    value={newContact.email}
+                                                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                                                    placeholder="contacto@empresa.com"
+                                                />
+                                                <div className="w-full">
+                                                    <Select
+                                                        size="sm"
+                                                        label="Tipo de contacto"
+                                                        options={tiposContacto}
+                                                        value={newContact.tipo}
+                                                        onChange={(e) => setNewContact({ ...newContact, tipo: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-5 flex justify-end">
+                                                <button
+                                                    onClick={handleAddContact}
+                                                    className="bg-[#65a30d] hover:bg-[#4d7c0f] text-white px-5 py-2 rounded-lg font-bold shadow-md shadow-success/10 transition-all flex items-center gap-2 transform active:scale-95 text-xs"
+                                                >
+                                                    <i className="pi pi-plus"></i> Agregar Nuevo
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 2. Lista de Contactos (Cards) */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {formData.contactos.map((contacto, index) => (
+                                            <div key={contacto.id || index} className="bg-white border border-secondary/20 border-l-4 border-l-primary rounded-xl p-6 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all relative group animate-fade-in">
+                                                {isStep3Editing && (
+                                                    <button
+                                                        onClick={() => handleRemoveContact(contacto.id)}
+                                                        className="absolute top-4 right-4 text-secondary/30 hover:text-red-500 transition-colors bg-white rounded-full p-1"
+                                                        title="Eliminar contacto"
+                                                    >
+                                                        <i className="pi pi-times-circle text-lg"></i>
+                                                    </button>
+                                                )}
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-sm shadow-sm ring-2 ring-offset-2 ring-primary/10 shrink-0">
+                                                        {contacto.nombre ? contacto.nombre.charAt(0).toUpperCase() : '?'}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h5 className="font-bold text-secondary-dark text-base truncate" title={contacto.nombre}>{contacto.nombre || 'Sin nombre'}</h5>
+                                                        <span className="text-[9px] text-primary font-bold uppercase tracking-wider bg-primary/5 px-2 py-0.5 rounded border border-primary/10 inline-block">
+                                                            {contacto.tipo || 'General'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col gap-2 text-xs font-medium text-gray-700 border-t border-secondary/10 pt-3">
+                                                    {contacto.email && (
+                                                        <div className="flex items-center gap-2">
+                                                            <i className="pi pi-envelope text-primary/80 text-[11px]"></i>
+                                                            <span className="truncate">{contacto.email}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4">
+                                                        {contacto.movil && (
+                                                            <div className="flex items-center gap-2">
+                                                                <i className="pi pi-whatsapp text-primary/80 text-[11px]"></i>
+                                                                <span>{contacto.movil}</span>
+                                                            </div>
+                                                        )}
+                                                        {contacto.telefono && (
+                                                            <div className="flex items-center gap-2">
+                                                                <i className="pi pi-phone text-primary/80 text-[11px]"></i>
+                                                                <span>{contacto.telefono}</span>
+                                                            </div>
+                                                        )}
+                                                        {contacto.dni && (
+                                                            <div className="flex items-center gap-2">
+                                                                <i className="pi pi-id-card text-primary/80 text-[11px]"></i>
+                                                                <span>{contacto.dni}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {formData.contactos.length === 0 && !isStep3Editing && (
+                                            <div className="col-span-full text-center py-16 border-2 border-dashed border-secondary/20 rounded-xl text-secondary bg-secondary-light/20">
+                                                <i className="pi pi-users text-4xl mb-3 block opacity-20"></i>
+                                                <p className="font-medium">No hay contactos registrados.</p>
+                                                <p className="text-xs opacity-60">Haga clic en Modificar para agregar.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        case 'Documentos':
+                            // Wizard Mode: Config Enabled, Uploads Disabled
+                            // Admin Mode: Config Enabled (even in partial edit), Uploads Disabled
+                            // Supplier Mode: Config Disabled, Uploads Enabled (if editing)
+                            const isStep4ConfigReadOnly = !isWizardMode && !isAdmin;
+                            const isStep4ActionsEnabled = partialEdit && isEditingStep && !isAdmin;
+
+                            console.log("SupplierForm - formData:", formData);
+                            return (
+                                <div className="p-8 animate-fade-in relative">
+                                    <StepHeader
+                                        title={`${isWizardMode ? "Configuración de Documentación" : "Documentación"}${formData.isMock ? " (MOCK)" : ""}`}
+                                        subtitle={isWizardMode ? "Defina qué documentos se solicitarán al proveedor." : "Estado de la documentación."}
+                                        extra={!isWizardMode && (
+                                            <div className="flex bg-secondary-light/50 p-1 rounded-xl border border-secondary/10">
+                                                <button
+                                                    onClick={() => setDocViewMode('grid')}
+                                                    className={`p-2 rounded-lg transition-all ${docViewMode === 'grid' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-secondary-dark'}`}
+                                                    title="Vista Mosaico"
+                                                >
+                                                    <i className="pi pi-th-large"></i>
+                                                </button>
+                                                <button
+                                                    onClick={() => setDocViewMode('table')}
+                                                    className={`p-2 rounded-lg transition-all ${docViewMode === 'table' ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-secondary-dark'}`}
+                                                    title="Vista Tabla"
+                                                >
+                                                    <i className="pi pi-bars"></i>
+                                                </button>
+                                            </div>
+                                        )}
+                                    />
+
+                                    {/* Indicar de dónde viene la configuración por defecto */}
+                                    {isWizardMode && (
+                                        <div className="mb-6 p-4 bg-primary/5 rounded-xl border border-primary/20 flex flex-col md:flex-row gap-4 items-center justify-between">
+                                            <div className="flex flex-wrap gap-3 items-center">
+                                                <span className="text-[10px] font-bold text-primary uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm border border-primary/10">Basado en:</span>
+                                                <div className="flex gap-2">
+                                                    {formData.grupo && (
+                                                        <span className="text-xs font-bold text-white px-2.5 py-1 bg-primary rounded-lg border border-primary/20 flex items-center gap-1.5">
+                                                            <i className={`pi ${formData.grupo === 'EDESAL' ? 'pi-bolt' : 'pi-building'} text-[10px]`}></i>
+                                                            {formData.grupo}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.tipoPersona}</span>
+                                                    <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.clasificacionAFIP}</span>
+                                                    <span className="text-xs font-bold text-secondary-dark px-2.5 py-1 bg-white rounded-lg border border-secondary/20">{formData.servicio}</span>
+                                                </div>
+                                            </div>
+                                            {isCustomConfig && (
+                                                <button onClick={resetDocConfig} className="text-xs font-bold text-primary hover:underline flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-primary/20">
+                                                    <i className="pi pi-refresh"></i> Restablecer sugeridos
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {!isStep4ConfigReadOnly && !editDocMode && isCustomConfig && (
+                                        <div className="mb-4 bg-warning-light/50 border border-warning/30 rounded-lg p-3 flex items-center justify-between text-xs">
+                                            <span className="text-warning-hover font-medium flex items-center gap-2">
+                                                <i className="pi pi-exclamation-triangle"></i> Configuración personalizada
+                                            </span>
+                                            <button onClick={resetDocConfig} className="text-secondary-dark hover:underline">Restablecer sugeridos</button>
+                                        </div>
+                                    )}
+
+                                    {requiredDocs.length === 0 && (
+                                        <div className="mb-8 p-6 bg-secondary-light/30 border-2 border-dashed border-secondary/20 rounded-2xl text-center animate-fade-in">
+                                            <i className="pi pi-file-excel text-4xl text-secondary/30 mb-3 block"></i>
+                                            <h4 className="text-secondary-dark font-bold mb-1">Sin documentación asignada</h4>
+                                            <p className="text-xs text-secondary font-medium italic">No hay documentación a presentar asignada a este proveedor.</p>
+                                        </div>
+                                    )}
+
+                                    {docViewMode === 'grid' || isWizardMode ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {/* Card para AGREGAR NUEVO (Solo en modo edición de CONFIGURACION) */}
+                                            {!isStep4ConfigReadOnly && editDocMode && (
+                                                <button
+                                                    onClick={() => setShowDocModal(true)}
+                                                    className="border-2 border-dashed border-secondary/30 rounded-lg p-4 flex flex-col items-center justify-center gap-2 text-secondary hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all h-full min-h-[140px]"
+                                                >
+                                                    <div className="bg-white p-2 rounded-full shadow-sm">
+                                                        <i className="pi pi-plus text-lg"></i>
+                                                    </div>
+                                                    <span className="text-xs font-bold">Agregar Requisito</span>
+                                                </button>
+                                            )}
+                                            {requiredDocs.map(doc => {
+                                                return (
+                                                    <div key={doc.id}>
+                                                        {(() => {
+                                                            const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
+
+                                                            const status = docData ? docData.estado : 'PENDIENTE';
+                                                            const getStatusColor = (s) => {
+                                                                switch (s) {
+                                                                    case 'VIGENTE': return 'border-success/50 bg-success-light/10';
+                                                                    case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
+                                                                    case 'PENDIENTE': return 'border-secondary/50 bg-secondary-light/10';
+                                                                    case 'EN REVISIÓN': return 'border-info/50 bg-info-light/10';
+                                                                    case 'CON OBSERVACIÓN': return 'border-orange-500/50 bg-orange-50';
+                                                                    default: return 'border-secondary/20 bg-secondary-light/10';
+                                                                }
+                                                            };
+
+
+                                                            const handleFileUpload = (e) => {
+                                                                const file = e.target.files[0];
+                                                                if (file) {
+                                                                    const fileUrl = URL.createObjectURL(file);
+                                                                    setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
+
+                                                                    setFormData(prev => {
+                                                                        const currentDocs = prev.documentacion || [];
+                                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
+
+                                                                        let newDocs;
+                                                                        if (docIndex >= 0) {
+                                                                            // Update existing - PRESERVE STATUS until save
+                                                                            newDocs = [...currentDocs];
+                                                                            newDocs[docIndex] = {
+                                                                                ...newDocs[docIndex],
+                                                                                archivo: file.name,
+                                                                                fileUrl: fileUrl,
+                                                                                fileObject: file, // Store the File object
+                                                                                tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
+                                                                                label: doc.label,
+                                                                                // Mark as modified so we know to update status on save
+                                                                                modified: true,
+                                                                                fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
+                                                                            };
+                                                                        } else {
+                                                                            // Add new - Status PENDING until save
+                                                                            newDocs = [...currentDocs, {
+                                                                                id: doc.id,
+                                                                                tipo: doc.id,
+                                                                                id_active: docData ? docData.id_active : doc.id_active,
+                                                                                id_attribute: docData ? docData.id_attribute : doc.id_attribute,
+                                                                                id_elements: docData ? docData.id_elements : null,
+                                                                                tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                                                label: doc.label,
+                                                                                estado: 'PENDIENTE',
+                                                                                archivo: file.name,
+                                                                                fileUrl: fileUrl,
+                                                                                fileObject: file, // Store the File object
+                                                                                modified: true, // New docs are modified by definition
+                                                                                fechaVencimiento: null
+                                                                            }];
+                                                                        }
+                                                                        return { ...prev, documentacion: newDocs };
+                                                                    });
+                                                                }
+                                                            };
+
+                                                            const handleRemoveFile = (docId) => {
+                                                                setDocToDelete(docId);
+                                                                setConfirmModalOpen(true);
+                                                            };
+
+                                                            const handleDateChange = (docId, date) => {
+                                                                if (date) {
+                                                                    setDirtySteps(prev => new Set(prev).add(getStepIdx('Documentos')));
+                                                                    setFormData(prev => {
+                                                                        const currentDocs = prev.documentacion || [];
+                                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
+                                                                        let newDocs;
+
+                                                                        // Format YYYY-MM-DD for consistency
+                                                                        const year = date.getFullYear();
+                                                                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                        const day = String(date.getDate()).padStart(2, '0');
+                                                                        const formattedDate = `${year}-${month}-${day}`;
+
+                                                                        if (docIndex >= 0) {
+                                                                            newDocs = [...currentDocs];
+                                                                            newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
+                                                                        } else {
+                                                                            newDocs = [...currentDocs, {
+                                                                                id: docId,
+                                                                                tipo: docId,
+                                                                                id_active: docData ? docData.id_active : doc.id_active,
+                                                                                id_attribute: docData ? docData.id_attribute : doc.id_attribute,
+                                                                                id_elements: docData ? docData.id_elements : null,
+                                                                                tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                                                label: doc.label,
+                                                                                estado: 'PENDIENTE',
+                                                                                archivo: null,
+                                                                                modified: true,
+                                                                                fechaVencimiento: formattedDate
+                                                                            }];
+                                                                        }
+                                                                        return { ...prev, documentacion: newDocs };
+                                                                    });
+                                                                }
+                                                            };
+
+                                                            return (
+                                                                <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status)} group relative h-full min-h-[150px]`}>
+
+                                                                    {/* Botón Eliminar (Solo edición config) */}
+                                                                    {!isStep4ConfigReadOnly && editDocMode && (
+                                                                        <button
+                                                                            onClick={() => toggleDocRequirement(doc.id)}
+                                                                            className="absolute -top-2 -right-2 bg-white text-red-500 shadow-md rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition-all z-10"
+                                                                        >
+                                                                            <i className="pi pi-times text-[10px] font-bold"></i>
+                                                                        </button>
+                                                                    )}
+
+
+                                                                    <div className="flex-1 flex flex-col h-full">
+                                                                        {/* Header: Icon + Title */}
+                                                                        <div className="flex items-start gap-4 mb-3">
+                                                                            <div
+                                                                                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border transition-all duration-300 ${docData?.archivo ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'} ${isWizardMode ? 'bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 text-primary' :
+                                                                                    (status === 'VIGENTE' ? 'bg-success/10 border-success/20 text-success' :
+                                                                                        status === 'VENCIDO' ? 'bg-danger/10 border-danger/20 text-danger' :
+                                                                                            status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
+                                                                                                status === 'CON OBSERVACIÓN' ? 'bg-orange-100 border-orange-200 text-orange-600' :
+                                                                                                    'bg-secondary/10 border-secondary/20 text-secondary')}`}
+                                                                                onClick={(e) => {
+                                                                                    if (docData?.archivo) {
+                                                                                        e.stopPropagation();
+                                                                                        handleViewFile(docData);
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
+                                                                            </div>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                    <h4 className="font-bold text-secondary-dark text-[13px] leading-tight break-words pr-2 line-clamp-2" title={docData?.label || doc.label}>{docData?.label || doc.label}</h4>
+                                                                                </div>
+                                                                                {doc.helpText && (
+                                                                                    <p className="text-[10px] text-secondary/70 leading-snug mb-2 font-medium uppercase">
+                                                                                        {doc.helpText}
+                                                                                    </p>
+                                                                                )}
+                                                                                {!isWizardMode && (
+                                                                                    <div className="flex flex-wrap gap-1">
+                                                                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
+                                                                                            status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                                                                status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
+                                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                                        'bg-secondary/10 text-secondary border-secondary/20'
+                                                                                            }`}>
+                                                                                            {status}
+                                                                                        </span>
+                                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
+                                                                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block bg-orange-50 text-orange-600 border-orange-200 shadow-sm animate-pulse-subtle">
+                                                                                                CON OBSERVACIÓN
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
                                                                                 )}
                                                                             </div>
-                                                                            {isStep4ActionsEnabled && !docData?.archivo && (
-                                                                                <span className="text-[10px] text-warning font-medium ml-6 mt-1.5">
-                                                                                    * Requiere archivo para editar fecha
-                                                                                </span>
-                                                                            )}
+
+
                                                                         </div>
-                                                                    )}
 
-                                                                    {/* ACTION AREA: Placeholder / Upload / File Info */}
-                                                                    {/* 1. Pending + No File => Placeholder or Upload Zone */}
-                                                                    {!docData?.archivo && (
-                                                                        isStep4ActionsEnabled ? (
-                                                                            <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
-                                                                                <input
-                                                                                    type="file"
-                                                                                    id={`file-${doc.id}`}
-                                                                                    onChange={handleFileUpload}
-                                                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                                                />
-                                                                                <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-secondary/20 rounded-xl bg-secondary/5 text-secondary/60 group-hover/upload:border-primary/50 group-hover/upload:bg-primary/5 group-hover/upload:text-primary transition-all p-4">
-                                                                                    <i className="pi pi-cloud-upload text-3xl mb-2"></i>
-                                                                                    <span className="text-[11px] font-bold uppercase tracking-widest text-center">Subir Archivo</span>
-                                                                                    <span className="text-[9px] font-medium text-secondary/40 mt-1">o arrastrar aquí</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : null
-                                                                    )}
+                                                                        {/* Divider Line */}
+                                                                        {!isWizardMode && (
+                                                                            <div className="w-[90%] h-px bg-secondary/10 mx-auto mb-4"></div>
+                                                                        )}
 
-                                                                    {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
-                                                                    {(docData?.archivo && isStep4ActionsEnabled) && (
-                                                                        <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
-                                                                            onClick={() => handleViewFile(docData)}
-                                                                        >
-                                                                            <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                                                                <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
-                                                                                    <i className="pi pi-file-pdf text-xs"></i>
-                                                                                </div>
-                                                                                <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
-                                                                                    {docData.archivo}
-                                                                                </span>
-                                                                            </div>
-
-                                                                            {isStep4ActionsEnabled ? (
-                                                                                <button
-                                                                                    onClick={(e) => { e.stopPropagation(); handleRemoveFile(doc.id); }}
-                                                                                    className="text-secondary/40 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all shrink-0 z-10"
-                                                                                    title="Eliminar archivo"
+                                                                        {/* Observation Alert (Card Mode) */}
+                                                                        {docData?.observacion && (
+                                                                            expandedObservations[doc.id] ? (
+                                                                                <div
+                                                                                    onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
+                                                                                    className="mb-4 p-2.5 bg-orange-50 border border-orange-100 rounded-lg flex items-start gap-2 cursor-pointer hover:bg-orange-100/50 transition-colors animate-fade-in"
                                                                                 >
-                                                                                    <i className="pi pi-trash text-xs"></i>
-                                                                                </button>
+                                                                                    <i className="pi pi-exclamation-circle text-orange-500 mt-0.5 shadow-sm"></i>
+                                                                                    <div className="flex-1">
+                                                                                        <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Observación:</p>
+                                                                                        <p className="text-[11px] text-orange-800 leading-tight italic font-medium">{docData.observacion}</p>
+                                                                                    </div>
+                                                                                    <i className="pi pi-chevron-up text-[10px] text-orange-400 mt-1"></i>
+                                                                                </div>
                                                                             ) : (
-                                                                                loadingDocs[docData?.id] ? (
-                                                                                    <i className="pi pi-spin pi-spinner text-primary text-xs mr-1"></i>
-                                                                                ) : (
-                                                                                    <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
-                                                                                )
-                                                                            )}
-                                                                        </div>
-                                                                    )}
+                                                                                <div
+                                                                                    onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
+                                                                                    className="mb-4 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-center gap-2 cursor-pointer hover:bg-orange-100 transition-colors group/obs"
+                                                                                >
+                                                                                    <i className="pi pi-exclamation-circle text-orange-500 text-sm group-hover/obs:scale-110 transition-transform"></i>
+                                                                                    <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Ver Observación</span>
+                                                                                    <i className="pi pi-chevron-down text-[10px] text-orange-400 ml-1"></i>
+                                                                                </div>
+                                                                            )
+                                                                        )}
 
-                                                                    {/* 3. Read-Only Mode + File Exists => Absolute External Link Icon */}
-                                                                    {(!isStep4ActionsEnabled && docData?.archivo) && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleViewFile(docData);
-                                                                            }}
-                                                                            className="absolute bottom-3 right-3 text-secondary/40 hover:text-primary hover:scale-110 transition-all z-10 p-2"
-                                                                            title="Ver Documento"
-                                                                        >
-                                                                            {loadingDocs[docData?.id] ? (
-                                                                                <i className="pi pi-spin pi-spinner text-lg text-primary"></i>
-                                                                            ) : (
-                                                                                <i className="pi pi-external-link text-lg"></i>
-                                                                            )}
-                                                                        </button>
-                                                                    )}
+                                                                        {/* Body: Configuration (Wizard Mode) */}
+                                                                        {/* Body: Configuration (Wizard Mode OR Admin Edit) */}
+                                                                        {(isWizardMode || (isAdmin && editDocMode)) ? (
+                                                                            <div className="mt-auto pt-4 border-t border-secondary/5 space-y-4">
+                                                                                <div className="flex flex-col gap-1.5">
+                                                                                    <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                                                        <i className="pi pi-history text-[9px]"></i> Periodicidad
+                                                                                    </label>
+                                                                                    <div className="relative">
+                                                                                        <select
+                                                                                            value={doc.frecuencia}
+                                                                                            onChange={(e) => updateDocRequirement(doc.id, 'frecuencia', e.target.value)}
+                                                                                            className="w-full text-xs font-semibold py-2 px-3 bg-secondary-light/30 border border-secondary/10 rounded-xl hover:border-primary/30 transition-all focus:outline-none appearance-none cursor-pointer pr-8"
+                                                                                        >
+                                                                                            <option value="ANUAL">Anual</option>
+                                                                                            <option value="MENSUAL">Mensual</option>
+                                                                                            <option value="SEMANAL">Semanal</option>
+                                                                                            <option value="UNICA VEZ">Única vez</option>
+                                                                                        </select>
+                                                                                        <i className="pi pi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-secondary/40 pointer-events-none"></i>
+                                                                                    </div>
+                                                                                </div>
 
-                                                                    {/* File Control (Partial Edit Only) */}
+                                                                                <div className="flex flex-col gap-1.5">
+                                                                                    <label className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest flex items-center gap-1.5">
+                                                                                        <i className="pi pi-lock text-[9px]"></i> Requerimiento
+                                                                                    </label>
+                                                                                    <div
+                                                                                        onClick={() => updateDocRequirement(doc.id, 'isOptional', !doc.isOptional)}
+                                                                                        className={`flex items-center gap-2 p-1.5 rounded-xl border cursor-pointer transition-all duration-300 ${doc.isOptional
+                                                                                            ? 'bg-gray-50 border-secondary/10 opacity-70'
+                                                                                            : 'bg-indigo-50/50 border-indigo-100'}`}
+                                                                                    >
+                                                                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${doc.isOptional ? 'bg-white text-secondary/40' : 'bg-indigo-500 text-white shadow-sm'}`}>
+                                                                                            <i className={`pi ${doc.isOptional ? 'pi-circle' : 'pi-check-circle'} text-[11px]`}></i>
+                                                                                        </div>
+                                                                                        <span className={`text-[11px] font-bold ${doc.isOptional ? 'text-secondary' : 'text-indigo-700'}`}>
+                                                                                            {doc.isOptional ? 'Opcional' : 'Obligatorio'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="space-y-3">
+                                                                                <div className="flex items-center gap-2.5 bg-secondary-light/30 p-2 rounded-lg border border-secondary/5">
+                                                                                    <i className="pi pi-clock text-primary text-[11px]"></i>
+                                                                                    <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' || doc.isOptional ? ' — Opcional' : ''}</span>
+                                                                                </div>
+
+                                                                                {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
+                                                                                    <div className="flex flex-col w-full">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <i className="pi pi-calendar text-secondary/50 text-base"></i>
+                                                                                            {isStep4ActionsEnabled ? (
+                                                                                                <Calendar
+                                                                                                    value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
+                                                                                                    onChange={(e) => handleDateChange(doc.id, e.value)}
+                                                                                                    placeholder="Vencimiento"
+                                                                                                    disabled={!docData?.archivo}
+                                                                                                    minDate={new Date()}
+                                                                                                    className={`compact-calendar-input w-full border border-secondary/50 rounded-lg ${!docData?.archivo ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                                                                                                    panelClassName="compact-calendar-panel"
+                                                                                                    dateFormat="dd/mm/yy"
+                                                                                                />
+                                                                                            ) : (
+                                                                                                <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : docData.fechaVencimiento; })() : '-'}</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        {isStep4ActionsEnabled && !docData?.archivo && (
+                                                                                            <span className="text-[10px] text-warning font-medium ml-6 mt-1.5">
+                                                                                                * Requiere archivo para editar fecha
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* ACTION AREA: Placeholder / Upload / File Info */}
+                                                                                {/* 1. Pending + No File => Placeholder or Upload Zone */}
+                                                                                {!docData?.archivo && (
+                                                                                    isStep4ActionsEnabled ? (
+                                                                                        <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
+                                                                                            <input
+                                                                                                type="file"
+                                                                                                id={`file-${doc.id}`}
+                                                                                                onChange={handleFileUpload}
+                                                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                                                            />
+                                                                                            <div className="w-full h-full flex flex-col items-center justify-center border-2 border-dashed border-secondary/20 rounded-xl bg-secondary/5 text-secondary/60 group-hover/upload:border-primary/50 group-hover/upload:bg-primary/5 group-hover/upload:text-primary transition-all p-4">
+                                                                                                <i className="pi pi-cloud-upload text-3xl mb-2"></i>
+                                                                                                <span className="text-[11px] font-bold uppercase tracking-widest text-center">Subir Archivo</span>
+                                                                                                <span className="text-[9px] font-medium text-secondary/40 mt-1">o arrastrar aquí</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : null
+                                                                                )}
+
+                                                                                {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
+                                                                                {(docData?.archivo && isStep4ActionsEnabled) && (
+                                                                                    <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
+                                                                                        onClick={() => handleViewFile(docData)}
+                                                                                    >
+                                                                                        <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                                            <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
+                                                                                                <i className="pi pi-file-pdf text-xs"></i>
+                                                                                            </div>
+                                                                                            <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
+                                                                                                {docData.archivo}
+                                                                                            </span>
+                                                                                        </div>
+
+                                                                                        {isStep4ActionsEnabled ? (
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); handleRemoveFile(doc.id); }}
+                                                                                                className="text-secondary/40 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all shrink-0 z-10"
+                                                                                                title="Eliminar archivo"
+                                                                                            >
+                                                                                                <i className="pi pi-trash text-xs"></i>
+                                                                                            </button>
+                                                                                        ) : (
+                                                                                            loadingDocs[docData?.id] ? (
+                                                                                                <i className="pi pi-spin pi-spinner text-primary text-xs mr-1"></i>
+                                                                                            ) : (
+                                                                                                <i className="pi pi-external-link text-primary/50 text-xs mr-1"></i>
+                                                                                            )
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* 3. Read-Only Mode + File Exists => Absolute External Link Icon */}
+                                                                                {(!isStep4ActionsEnabled && docData?.archivo) && (
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            handleViewFile(docData);
+                                                                                        }}
+                                                                                        className="absolute bottom-3 right-3 text-secondary/40 hover:text-primary hover:scale-110 transition-all z-10 p-2"
+                                                                                        title="Ver Documento"
+                                                                                    >
+                                                                                        {loadingDocs[docData?.id] ? (
+                                                                                            <i className="pi pi-spin pi-spinner text-lg text-primary"></i>
+                                                                                        ) : (
+                                                                                            <i className="pi pi-external-link text-lg"></i>
+                                                                                        )}
+                                                                                    </button>
+                                                                                )}
+
+                                                                                {/* File Control (Partial Edit Only) */}
+                                                                            </div>
+                                                                        )
+                                                                        }
+                                                                    </div>
                                                                 </div>
-                                                            )
-                                                            }
-                                                        </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 );
-                                            })()}
+                                            })}
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="bg-white rounded-xl border border-secondary/10 overflow-hidden shadow-sm">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-secondary-light/30 border-b border-secondary/10">
-                                            <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest w-[40%]">Documento</th>
-                                            <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-center w-[20%]">Estado</th>
-                                            <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-center w-[20%]">Vigencia</th>
-                                            <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-right w-[20%]">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-secondary/5">
-                                        {requiredDocs.map(doc => {
-                                            const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
-                                            const status = docData ? docData.estado : 'PENDIENTE';
+                                    ) : (
+                                        <div className="bg-white rounded-xl border border-secondary/10 overflow-hidden shadow-sm">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-secondary-light/30 border-b border-secondary/10">
+                                                        <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest w-[40%]">Documento</th>
+                                                        <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-center w-[20%]">Estado</th>
+                                                        <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-center w-[20%]">Vigencia</th>
+                                                        <th className="px-6 py-4 text-[10px] font-bold text-secondary/60 uppercase tracking-widest text-right w-[20%]">Acciones</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-secondary/5">
+                                                    {requiredDocs.map(doc => {
+                                                        const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
+                                                        const status = docData ? docData.estado : 'PENDIENTE';
 
-                                            const handleFileUpload = (e) => {
-                                                const file = e.target.files[0];
-                                                if (file) {
-                                                    const fileUrl = URL.createObjectURL(file);
-                                                    setDirtySteps(prev => new Set(prev).add(4));
-                                                    setFormData(prev => {
-                                                        const currentDocs = prev.documentacion || [];
-                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
-                                                        let newDocs;
-                                                        if (docIndex >= 0) {
-                                                            newDocs = [...currentDocs];
-                                                            newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
-                                                        } else {
-                                                            newDocs = [...currentDocs, { id: Date.now(), tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
-                                                        }
-                                                        return { ...prev, documentacion: newDocs };
-                                                    });
-                                                }
-                                            };
+                                                        const handleFileUpload = (e) => {
+                                                            const file = e.target.files[0];
+                                                            if (file) {
+                                                                const fileUrl = URL.createObjectURL(file);
+                                                                setDirtySteps(prev => new Set(prev).add(4));
+                                                                setFormData(prev => {
+                                                                    const currentDocs = prev.documentacion || [];
+                                                                    const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id) || String(d.tipo) === String(doc.id));
+                                                                    let newDocs;
+                                                                    if (docIndex >= 0) {
+                                                                        newDocs = [...currentDocs];
+                                                                        newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
+                                                                    } else {
+                                                                        newDocs = [...currentDocs, { id: doc.id, tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
+                                                                    }
+                                                                    return { ...prev, documentacion: newDocs };
+                                                                });
+                                                            }
+                                                        };
 
-                                            const handleRemoveFile = (docId) => {
-                                                setDocToDelete(docId);
-                                                setConfirmModalOpen(true);
-                                            };
+                                                        const handleRemoveFile = (docId) => {
+                                                            setDocToDelete(docId);
+                                                            setConfirmModalOpen(true);
+                                                        };
 
-                                            const handleDateChange = (docId, date) => {
-                                                if (date) {
-                                                    setDirtySteps(prev => new Set(prev).add(4));
-                                                    setFormData(prev => {
-                                                        const currentDocs = prev.documentacion || [];
-                                                        const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
-                                                        const year = date.getFullYear();
-                                                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                        const day = String(date.getDate()).padStart(2, '0');
-                                                        const formattedDate = `${year}-${month}-${day}`;
-                                                        let newDocs;
-                                                        if (docIndex >= 0) {
-                                                            newDocs = [...currentDocs];
-                                                            newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
-                                                        } else {
-                                                            newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'PENDIENTE', archivo: null, modified: true, fechaVencimiento: formattedDate }];
-                                                        }
-                                                        return { ...prev, documentacion: newDocs };
-                                                    });
-                                                }
-                                            };
+                                                        const handleDateChange = (docId, date) => {
+                                                            if (date) {
+                                                                setDirtySteps(prev => new Set(prev).add(4));
+                                                                setFormData(prev => {
+                                                                    const currentDocs = prev.documentacion || [];
+                                                                    const docIndex = currentDocs.findIndex(d => String(d.id) === String(docId));
+                                                                    const year = date.getFullYear();
+                                                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                    const day = String(date.getDate()).padStart(2, '0');
+                                                                    const formattedDate = `${year}-${month}-${day}`;
+                                                                    let newDocs;
+                                                                    if (docIndex >= 0) {
+                                                                        newDocs = [...currentDocs];
+                                                                        newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate, modified: true };
+                                                                    } else {
+                                                                        newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'PENDIENTE', archivo: null, modified: true, fechaVencimiento: formattedDate }];
+                                                                    }
+                                                                    return { ...prev, documentacion: newDocs };
+                                                                });
+                                                            }
+                                                        };
 
-                                            return (
-                                                <tr key={doc.id} className="hover:bg-secondary-light/10 transition-colors group">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="bg-secondary-light p-2 rounded-lg text-secondary group-hover:text-primary group-hover:bg-primary/5 transition-all">
-                                                                <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file'} text-sm`}></i>
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-bold text-secondary-dark text-xs">{doc.label}</p>
-                                                                <p className="text-[10px] text-secondary/60">{doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <div className="flex flex-col gap-1 items-center">
-                                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
-                                                                status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
-                                                                    status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
-                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                            'bg-secondary/5 text-secondary border-secondary/20'
-                                                                }`}>
-                                                                {status}
-                                                            </span>
-                                                            {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
-                                                                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-600 animate-pulse-subtle">
-                                                                    CON OBSERVACIÓN
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        {(doc.obligatoriedad === 'No aplica' || doc.frecuencia === 'Única vez') ? (
-                                                            <span className="text-[11px] font-bold text-secondary/40">N/A</span>
-                                                        ) : (
-                                                            <div className="flex flex-col items-center">
-                                                                {isStep4ActionsEnabled ? (
-                                                                    <Calendar
-                                                                        value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
-                                                                        onChange={(e) => handleDateChange(doc.id, e.value)}
-                                                                        placeholder="dd/mm/yy"
-                                                                        disabled={!docData?.archivo}
-                                                                        minDate={new Date()}
-                                                                        className="compact-calendar-input scale-90 w-32"
-                                                                        panelClassName="compact-calendar-panel"
-                                                                        dateFormat="dd/mm/yy"
-                                                                    />
-                                                                ) : (
-                                                                    <span className="text-[11px] font-semibold text-secondary-dark">{docData?.fechaVencimiento || '-'}</span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            {/* Ver Observación (Solo si existe) */}
-                                                            {docData?.observacion && (
-                                                                <button
-                                                                    className="p-2 text-orange-600 bg-orange-100 hover:bg-orange-200 transition-colors rounded-lg flex items-center gap-1 shadow-sm border border-orange-200"
-                                                                    title={`Observación: ${docData.observacion}`}
-                                                                    onClick={() => {
-                                                                        setSelectedObs({ title: doc.label, content: docData.observacion });
-                                                                        setObsModalVisible(true);
-                                                                    }}
-                                                                >
-                                                                    <i className="pi pi-exclamation-triangle text-sm"></i>
-                                                                    <span className="text-[9px] font-bold uppercase">Ver Obs.</span>
-                                                                </button>
-                                                            )}
-
-                                                            {/* Ver/Subir Archivo */}
-                                                            {isStep4ActionsEnabled ? (
-                                                                docData?.archivo ? (
-                                                                    <div className="flex items-center gap-1 bg-primary/5 rounded-lg p-1">
-                                                                        <button
-                                                                            onClick={() => handleViewFile(docData)}
-                                                                            className="p-1 text-primary hover:bg-white rounded shadow-sm transition-all flex items-center justify-center w-6 h-6"
-                                                                            title="Ver archivo"
-                                                                        >
-                                                                            {loadingDocs[docData?.id] ? (
-                                                                                <i className="pi pi-spin pi-spinner text-xs"></i>
+                                                        return (
+                                                            <tr key={doc.id} className="hover:bg-secondary-light/10 transition-colors group">
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="bg-secondary-light p-2 rounded-lg text-secondary group-hover:text-primary group-hover:bg-primary/5 transition-all">
+                                                                            <i className={`pi ${String(doc.id).includes('AFIP') ? 'pi-verified' : String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file'} text-sm`}></i>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="font-bold text-secondary-dark text-xs">{doc.label}</p>
+                                                                            <p className="text-[10px] text-secondary/60">{doc.frecuencia}{doc.obligatoriedad === 'Opcional' ? ' — Opcional' : ''}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <div className="flex flex-col gap-1 items-center">
+                                                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
+                                                                            status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
+                                                                                status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
+                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                        'bg-secondary/5 text-secondary border-secondary/20'
+                                                                            }`}>
+                                                                            {status}
+                                                                        </span>
+                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
+                                                                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-600 animate-pulse-subtle">
+                                                                                CON OBSERVACIÓN
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    {(doc.obligatoriedad === 'No aplica' || doc.frecuencia === 'Única vez') ? (
+                                                                        <span className="text-[11px] font-bold text-secondary/40">N/A</span>
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center">
+                                                                            {isStep4ActionsEnabled ? (
+                                                                                <Calendar
+                                                                                    value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
+                                                                                    onChange={(e) => handleDateChange(doc.id, e.value)}
+                                                                                    placeholder="dd/mm/yy"
+                                                                                    disabled={!docData?.archivo}
+                                                                                    minDate={new Date()}
+                                                                                    className="compact-calendar-input scale-90 w-32"
+                                                                                    panelClassName="compact-calendar-panel"
+                                                                                    dateFormat="dd/mm/yy"
+                                                                                />
                                                                             ) : (
-                                                                                <i className="pi pi-eye text-xs"></i>
+                                                                                <span className="text-[11px] font-semibold text-secondary-dark">{docData?.fechaVencimiento || '-'}</span>
                                                                             )}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleRemoveFile(doc.id)}
-                                                                            className="p-1 text-red-400 hover:text-red-600 hover:bg-white rounded transition-all"
-                                                                            title="Eliminar"
-                                                                        >
-                                                                            <i className="pi pi-trash text-xs"></i>
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="relative">
-                                                                        <input
-                                                                            type="file"
-                                                                            onChange={handleFileUpload}
-                                                                            className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
-                                                                            accept=".pdf,.jpg,.jpeg,.png"
-                                                                        />
-                                                                        <button className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">
-                                                                            Subir
-                                                                        </button>
-                                                                    </div>
-                                                                )
-                                                            ) : (
-                                                                docData?.archivo && (
-                                                                    <button
-                                                                        onClick={() => handleViewFile(docData)}
-                                                                        className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all min-w-[50px] flex justify-center items-center"
-                                                                    >
-                                                                        {loadingDocs[docData?.id] ? (
-                                                                            <i className="pi pi-spin pi-spinner text-xs"></i>
-                                                                        ) : "Ver"}
-                                                                    </button>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )
-                        }
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        {/* Ver Observación (Solo si existe) */}
+                                                                        {docData?.observacion && (
+                                                                            <button
+                                                                                className="p-2 text-orange-600 bg-orange-100 hover:bg-orange-200 transition-colors rounded-lg flex items-center gap-1 shadow-sm border border-orange-200"
+                                                                                title={`Observación: ${docData.observacion}`}
+                                                                                onClick={() => {
+                                                                                    setSelectedObs({ title: doc.label, content: docData.observacion });
+                                                                                    setObsModalVisible(true);
+                                                                                }}
+                                                                            >
+                                                                                <i className="pi pi-exclamation-triangle text-sm"></i>
+                                                                                <span className="text-[9px] font-bold uppercase">Ver Obs.</span>
+                                                                            </button>
+                                                                        )}
 
-                        {/* --- MODAL AGREGAR DOCUMENTO --- */}
-                        {
-                            showDocModal && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                                        <div className="bg-secondary-light px-6 py-4 border-b border-secondary/10 flex justify-between items-center">
-                                            <h3 className="font-bold text-secondary-dark">Agregar Documento</h3>
-                                            <button onClick={() => setShowDocModal(false)} className="text-secondary hover:text-red-500 transition-colors">
-                                                <i className="pi pi-times"></i>
-                                            </button>
+                                                                        {/* Ver/Subir Archivo */}
+                                                                        {isStep4ActionsEnabled ? (
+                                                                            docData?.archivo ? (
+                                                                                <div className="flex items-center gap-1 bg-primary/5 rounded-lg p-1">
+                                                                                    <button
+                                                                                        onClick={() => handleViewFile(docData)}
+                                                                                        className="p-1 text-primary hover:bg-white rounded shadow-sm transition-all flex items-center justify-center w-6 h-6"
+                                                                                        title="Ver archivo"
+                                                                                    >
+                                                                                        {loadingDocs[docData?.id] ? (
+                                                                                            <i className="pi pi-spin pi-spinner text-xs"></i>
+                                                                                        ) : (
+                                                                                            <i className="pi pi-eye text-xs"></i>
+                                                                                        )}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleRemoveFile(doc.id)}
+                                                                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-white rounded transition-all"
+                                                                                        title="Eliminar"
+                                                                                    >
+                                                                                        <i className="pi pi-trash text-xs"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="relative">
+                                                                                    <input
+                                                                                        type="file"
+                                                                                        onChange={handleFileUpload}
+                                                                                        className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
+                                                                                        accept=".pdf,.jpg,.jpeg,.png"
+                                                                                    />
+                                                                                    <button className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">
+                                                                                        Subir
+                                                                                    </button>
+                                                                                </div>
+                                                                            )
+                                                                        ) : (
+                                                                            docData?.archivo && (
+                                                                                <button
+                                                                                    onClick={() => handleViewFile(docData)}
+                                                                                    className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all min-w-[50px] flex justify-center items-center"
+                                                                                >
+                                                                                    {loadingDocs[docData?.id] ? (
+                                                                                        <i className="pi pi-spin pi-spinner text-xs"></i>
+                                                                                    ) : "Ver"}
+                                                                                </button>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                        <div className="p-4 border-b border-secondary/10 bg-gray-50/50">
-                                            <p className="text-xs font-bold text-secondary-dark mb-2">Crear requisito personalizado</p>
-                                            <div className="flex flex-col gap-2">
-                                                <div className="relative">
-                                                    <select
-                                                        value={customActiveId}
-                                                        onChange={(e) => setCustomActiveId(e.target.value)}
-                                                        className={`w-full text-sm py-2 pl-3 pr-10 bg-white border rounded-lg appearance-none focus:outline-none focus:ring-1 shadow-sm transition-colors ${!customActiveId ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500 text-amber-900/70' : 'border-secondary/20 focus:border-primary focus:ring-primary text-secondary-dark'}`}
-                                                    >
-                                                        <option value="" disabled className="text-gray-400">Seleccione el Activo (Obligatorio)</option>
-                                                        {uniqueActives.map(active => (
-                                                            <option key={active.id} value={active.id} className="text-secondary-dark">{active.description}</option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">
-                                                        <i className="pi pi-chevron-down text-xs"></i>
+                                    )
+                                    }
+
+                                    {/* --- MODAL AGREGAR DOCUMENTO --- */}
+                                    {
+                                        showDocModal && (
+                                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                                                <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                                                    <div className="bg-secondary-light px-6 py-4 border-b border-secondary/10 flex justify-between items-center">
+                                                        <h3 className="font-bold text-secondary-dark">Agregar Documento</h3>
+                                                        <button onClick={() => setShowDocModal(false)} className="text-secondary hover:text-red-500 transition-colors">
+                                                            <i className="pi pi-times"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div className="p-4 border-b border-secondary/10 bg-gray-50/50">
+                                                        <p className="text-xs font-bold text-secondary-dark mb-2">Crear requisito personalizado</p>
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={customActiveId}
+                                                                    onChange={(e) => setCustomActiveId(e.target.value)}
+                                                                    className={`w-full text-sm py-2 pl-3 pr-10 bg-white border rounded-lg appearance-none focus:outline-none focus:ring-1 shadow-sm transition-colors ${!customActiveId ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500 text-amber-900/70' : 'border-secondary/20 focus:border-primary focus:ring-primary text-secondary-dark'}`}
+                                                                >
+                                                                    <option value="" disabled className="text-gray-400">Seleccione el Activo (Obligatorio)</option>
+                                                                    {uniqueActives.map(active => (
+                                                                        <option key={active.id} value={active.id} className="text-secondary-dark">{active.description}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">
+                                                                    <i className="pi pi-chevron-down text-xs"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={customPeriodicity}
+                                                                    onChange={(e) => setCustomPeriodicity(e.target.value)}
+                                                                    className="w-full text-sm py-2 px-3 bg-white border border-secondary/20 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm appearance-none pr-10 text-secondary-dark"
+                                                                >
+                                                                    <option value="ANUAL">Anual</option>
+                                                                    <option value="MENSUAL">Mensual</option>
+                                                                    <option value="SEMANAL">Semanal</option>
+                                                                    <option value="UNICA VEZ">Única vez</option>
+                                                                </select>
+                                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">
+                                                                    <i className="pi pi-clock text-xs"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={customDocName}
+                                                                    onChange={(e) => setCustomDocName(e.target.value)}
+                                                                    placeholder="Nombre del documento..."
+                                                                    className="flex-1 text-sm py-2 px-3 bg-white border border-secondary/20 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm"
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' && customDocName.trim() && customActiveId) {
+                                                                            e.preventDefault();
+
+                                                                            // Generar descripción estandarizada para el atributo en el backend
+                                                                            const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+                                                                            const newCustomReq = {
+                                                                                id: 'CUSTOM_' + Date.now(),
+                                                                                id_active: Number(customActiveId),
+                                                                                label: customDocName.trim(),
+                                                                                attribute_description: normalizedName,
+                                                                                frecuencia: customPeriodicity,
+                                                                                obligatoriedad: 'Manual'
+                                                                            };
+                                                                            setIsCustomConfig(true);
+                                                                            setRequiredDocs(prev => [...prev, newCustomReq]);
+                                                                            setCustomDocName('');
+                                                                            setCustomActiveId('');
+                                                                            setShowDocModal(false);
+                                                                            markStepDirty(currentStep);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (!customDocName.trim() || !customActiveId) return;
+
+                                                                        // Generar descripción estandarizada para el atributo en el backend
+                                                                        const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+
+                                                                        const newCustomReq = {
+                                                                            id: 'CUSTOM_' + Date.now(),
+                                                                            id_active: Number(customActiveId),
+                                                                            label: customDocName.trim(),
+                                                                            attribute_description: normalizedName,
+                                                                            frecuencia: customPeriodicity,
+                                                                            obligatoriedad: 'Manual'
+                                                                        };
+                                                                        setIsCustomConfig(true);
+                                                                        setRequiredDocs(prev => [...prev, newCustomReq]);
+                                                                        setCustomDocName('');
+                                                                        setCustomActiveId('');
+                                                                        setShowDocModal(false);
+                                                                        markStepDirty(currentStep);
+                                                                    }}
+                                                                    disabled={!customDocName.trim() || !customActiveId}
+                                                                    className="bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold shadow-sm transition-all text-sm"
+                                                                >
+                                                                    Crear
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-2 max-h-[50vh] overflow-y-auto">
+                                                        {/* Si tenemos requisitos disponibles de la API, usarlos agrupados. Si no, fallback a reglas estáticas */}
+                                                        {console.log(availableRequirements)}
+                                                        {(availableRequirements && availableRequirements.length > 0) ? (
+                                                            (() => {
+                                                                const available = availableRequirements.filter(req => {
+                                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                                    return !requiredDocs.some(r => String(r.id) === String(reqId));
+                                                                });
+
+                                                                if (available.length === 0) return null;
+
+                                                                const groups = {};
+                                                                available.forEach(req => {
+                                                                    const template = req.id_attribute_template || req.attributeTemplate;
+                                                                    const activeObj = template?.id_active || template?.actives;
+
+                                                                    const activeId = activeObj?.id_active || activeObj?.idActive || 'UNCLASSIFIED';
+                                                                    const activeName = activeObj?.description || 'Otros Requisitos';
+
+                                                                    if (!groups[activeId]) {
+                                                                        groups[activeId] = { id: activeId, name: activeName, reqs: [] };
+                                                                    }
+                                                                    groups[activeId].reqs.push(req);
+                                                                });
+
+                                                                return Object.values(groups).map(group => (
+                                                                    <div key={group.id} className="mb-4 last:mb-0">
+                                                                        <h4 className="text-xs font-bold text-primary mb-2 px-2 uppercase tracking-wider bg-primary/5 py-1.5 rounded-md flex items-center gap-2">
+                                                                            <i className="pi pi-folder-open text-[10px]"></i>
+                                                                            {group.name}
+                                                                        </h4>
+                                                                        <div className="space-y-1">
+                                                                            {group.reqs.map(req => {
+                                                                                const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={reqId}
+                                                                                        onClick={() => {
+                                                                                            const newReq = {
+                                                                                                id: reqId,
+                                                                                                // Conservar ambos tipos por seguridad
+                                                                                                id_active: req.id_attribute_template?.id_active?.id_active || req.attributeTemplate?.id_active || req.attributeTemplate?.idActive || null,
+                                                                                                label: req.description,
+                                                                                                frecuencia: 'ANUAL',
+                                                                                                obligatoriedad: 'Manual'
+                                                                                            };
+                                                                                            setIsCustomConfig(true); // Mark as custom to prevent auto-reset
+                                                                                            setRequiredDocs(prev => [...prev, newReq]);
+                                                                                            setShowDocModal(false);
+                                                                                            markStepDirty(currentStep);
+                                                                                        }}
+                                                                                        className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
+                                                                                    >
+                                                                                        <div>
+                                                                                            <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{req.description}</p>
+                                                                                        </div>
+                                                                                        <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                ));
+                                                            })()
+                                                        ) : null}
+
+                                                        {((availableRequirements || []).filter(req => {
+                                                            const reqId = req.id_list_requirements || req.idListRequirements || req.id;
+                                                            return !requiredDocs.some(r => String(r.id) === String(reqId));
+                                                        }).length === 0) && (
+                                                                <p className="text-center text-sm text-secondary py-8 italic">No hay más documentos disponibles.</p>
+                                                            )}
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={customDocName}
-                                                        onChange={(e) => setCustomDocName(e.target.value)}
-                                                        placeholder="Nombre del documento..."
-                                                        className="flex-1 text-sm py-2 px-3 bg-white border border-secondary/20 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm"
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' && customDocName.trim() && customActiveId) {
-                                                                e.preventDefault();
-
-                                                                // Generar descripción estandarizada para el atributo en el backend
-                                                                const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
-                                                                const newCustomReq = {
-                                                                    id: 'CUSTOM_' + Date.now(),
-                                                                    id_active: Number(customActiveId),
-                                                                    label: customDocName.trim(),
-                                                                    attribute_description: normalizedName,
-                                                                    frecuencia: 'Con Vencimiento',
-                                                                    obligatoriedad: 'Manual'
-                                                                };
-                                                                setIsCustomConfig(true);
-                                                                setRequiredDocs(prev => [...prev, newCustomReq]);
-                                                                setCustomDocName('');
-                                                                setCustomActiveId('');
-                                                                setShowDocModal(false);
-                                                                markStepDirty(currentStep);
-                                                            }
-                                                        }}
-                                                    />
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!customDocName.trim() || !customActiveId) return;
-
-                                                            // Generar descripción estandarizada para el atributo en el backend
-                                                            const normalizedName = customDocName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
-
-                                                            const newCustomReq = {
-                                                                id: 'CUSTOM_' + Date.now(),
-                                                                id_active: Number(customActiveId),
-                                                                label: customDocName.trim(),
-                                                                attribute_description: normalizedName,
-                                                                frecuencia: 'Con Vencimiento',
-                                                                obligatoriedad: 'Manual'
-                                                            };
-                                                            setIsCustomConfig(true);
-                                                            setRequiredDocs(prev => [...prev, newCustomReq]);
-                                                            setCustomDocName('');
-                                                            setCustomActiveId('');
-                                                            setShowDocModal(false);
-                                                            markStepDirty(currentStep);
-                                                        }}
-                                                        disabled={!customDocName.trim() || !customActiveId}
-                                                        className="bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold shadow-sm transition-all text-sm"
-                                                    >
-                                                        Crear
-                                                    </button>
-                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="p-2 max-h-[50vh] overflow-y-auto">
-                                            {/* Si tenemos requisitos disponibles de la API, usarlos agrupados. Si no, fallback a reglas estáticas */}
-                                            {console.log(availableRequirements)}
-                                            {(availableRequirements && availableRequirements.length > 0) ? (
-                                                (() => {
-                                                    const available = availableRequirements.filter(req => {
-                                                        const reqId = req.id_list_requirements || req.idListRequirements || req.id;
-                                                        return !requiredDocs.some(r => String(r.id) === String(reqId));
-                                                    });
-
-                                                    if (available.length === 0) return null;
-
-                                                    const groups = {};
-                                                    available.forEach(req => {
-                                                        const template = req.id_attribute_template || req.attributeTemplate;
-                                                        const activeObj = template?.id_active || template?.actives;
-
-                                                        const activeId = activeObj?.id_active || activeObj?.idActive || 'UNCLASSIFIED';
-                                                        const activeName = activeObj?.description || 'Otros Requisitos';
-
-                                                        if (!groups[activeId]) {
-                                                            groups[activeId] = { id: activeId, name: activeName, reqs: [] };
-                                                        }
-                                                        groups[activeId].reqs.push(req);
-                                                    });
-
-                                                    return Object.values(groups).map(group => (
-                                                        <div key={group.id} className="mb-4 last:mb-0">
-                                                            <h4 className="text-xs font-bold text-primary mb-2 px-2 uppercase tracking-wider bg-primary/5 py-1.5 rounded-md flex items-center gap-2">
-                                                                <i className="pi pi-folder-open text-[10px]"></i>
-                                                                {group.name}
-                                                            </h4>
-                                                            <div className="space-y-1">
-                                                                {group.reqs.map(req => {
-                                                                    const reqId = req.id_list_requirements || req.idListRequirements || req.id;
-                                                                    return (
-                                                                        <button
-                                                                            key={reqId}
-                                                                            onClick={() => {
-                                                                                const newReq = {
-                                                                                    id: reqId,
-                                                                                    // Conservar ambos tipos por seguridad
-                                                                                    id_active: req.id_attribute_template?.id_active?.id_active || req.attributeTemplate?.id_active || req.attributeTemplate?.idActive || null,
-                                                                                    label: req.description,
-                                                                                    frecuencia: 'Con Vencimiento',
-                                                                                    obligatoriedad: 'Manual'
-                                                                                };
-                                                                                setIsCustomConfig(true); // Mark as custom to prevent auto-reset
-                                                                                setRequiredDocs(prev => [...prev, newReq]);
-                                                                                setShowDocModal(false);
-                                                                                markStepDirty(currentStep);
-                                                                            }}
-                                                                            className="w-full text-left p-3 hover:bg-primary/5 rounded-lg flex items-center justify-between group transition-colors border-b border-secondary/5 last:border-0"
-                                                                        >
-                                                                            <div>
-                                                                                <p className="font-bold text-sm text-secondary-dark group-hover:text-primary">{req.description}</p>
-                                                                            </div>
-                                                                            <i className="pi pi-plus text-primary opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 p-1.5 rounded-full"></i>
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    ));
-                                                })()
-                                            ) : null}
-
-                                            {((availableRequirements || []).filter(req => {
-                                                const reqId = req.id_list_requirements || req.idListRequirements || req.id;
-                                                return !requiredDocs.some(r => String(r.id) === String(reqId));
-                                            }).length === 0) && (
-                                                    <p className="text-center text-sm text-secondary py-8 italic">No hay más documentos disponibles.</p>
-                                                )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        }
-                    </div >
-                );
-            default:
-                return null;
-        }
+                                        )
+                                    }
+                                </div >
+                            );
+                        default:
+                            return null;
+                    }
+                })()}
+            </>
+        );
     };
 
     return (
@@ -2018,7 +2121,14 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                                 {headerInfo.docStatus && (
                                     <div className="flex items-center gap-2">
                                         <span className="text-secondary/50 text-xs font-bold uppercase hidden md:inline-block">Documentación:</span>
-                                        <StatusBadge status={headerInfo.docStatus} />
+                                        <StatusBadge status={(() => {
+                                            const docs = formData.documentacion || [];
+                                            if (docs.length === 0) return 'SIN ASIGNAR';
+                                            if (docs.some(d => d.estado === 'VENCIDO')) return 'VENCIDO';
+                                            if (docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION')) return 'OBSERVADO';
+                                            const allDocsValid = docs.every(d => d.estado === 'VIGENTE' || d.estado === 'PRESENTADO' || d.estado === 'EN REVISIÓN');
+                                            return allDocsValid ? 'COMPLETO' : 'PENDIENTE';
+                                        })()} />
                                     </div>
                                 )}
                             </div>
@@ -2065,13 +2175,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                 } else if (currentStep === 3) {
                     if (formData.contactos.length === 0) { status = 'invalid'; msg = 'Sin contactos'; }
                 } else if (currentStep === 4) {
+                    const docs = formData.documentacion || [];
                     const missingDocs = requiredDocs.some(req => {
-                        // Skip validation for optional docs
                         if (req.obligatoriedad === 'Opcional' || req.isOptional) return false;
-                        const doc = formData.documentacion?.find(d => d.tipo === req.id);
-                        return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                        const doc = docs.find(d => String(d.tipo) === String(req.id) || (req.id_active && String(d.id_active) === String(req.id_active)));
+                        return !doc || !doc.archivo || doc.estado === 'VENCIDO' || doc.estado === 'CON OBSERVACIÓN' || doc.estado === 'OBSERVADO' || doc.estado === 'CON OBSERVACION';
                     });
-                    if (missingDocs) { status = 'invalid'; msg = 'Doc. pendiente'; }
+                    if (missingDocs) {
+                        status = 'invalid';
+                        const hasObs = docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION');
+                        msg = hasObs ? 'Observado' : 'Doc. pendiente';
+                    }
                 }
 
                 const isDirtyState = dirtySteps.has(currentStep);
@@ -2162,15 +2276,16 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, onSu
                             missingMsg = 'Sin contactos';
                         }
                     } else if (step === 'Documentos' && !isWizardMode) {
+                        const docs = formData.documentacion || [];
                         const missingDocs = requiredDocs.some(req => {
-                            // Skip validation for optional docs
                             if (req.obligatoriedad === 'Opcional' || req.isOptional) return false;
-                            const doc = formData.documentacion?.find(d => d.tipo === req.id);
-                            return !doc || !doc.archivo || doc.estado === 'VENCIDO';
+                            const doc = docs.find(d => String(d.tipo) === String(req.id) || (req.id_active && String(d.id_active) === String(req.id_active)));
+                            return !doc || !doc.archivo || doc.estado === 'VENCIDO' || doc.estado === 'CON OBSERVACIÓN' || doc.estado === 'OBSERVADO' || doc.estado === 'CON OBSERVACION';
                         });
                         if (missingDocs) {
                             isInvalid = true;
-                            missingMsg = 'Doc. pendiente';
+                            const hasObs = docs.some(d => d.estado === 'CON OBSERVACIÓN' || d.estado === 'OBSERVADO' || d.estado === 'CON OBSERVACION');
+                            missingMsg = hasObs ? 'Observado' : 'Doc. pendiente';
                         }
                     }
 

@@ -9,17 +9,18 @@ import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
 import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
 
 
-import { DOC_TYPE_LABELS } from '../data/documentConstants';
+import { DOC_TYPE_LABELS, PERIODICITY_MAP } from '../data/documentConstants';
 
 
-export const useSupplier = () => {
+export const useSupplier = (explicitCuit = null) => {
     const { user, currentRole } = useAuth();
     const { showSuccess, showError } = useNotification();
     const [supplierData, setSupplierData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [legajoActives, setLegajoActives] = useState([]);
 
-    const fetchSupplierData = useCallback(async () => {
+    const fetchSupplierData = useCallback(async (isSilent = false) => {
         console.group("useSupplier: DIAGNOSTIC");
         console.log("Context State:", { user, currentRole });
 
@@ -30,9 +31,11 @@ export const useSupplier = () => {
             return;
         }
 
-        // CRITICAL: Reset data when starting fetch to avoid showing stale data from previous profile
-        setSupplierData(null);
-        setLoading(true);
+        // Only reset if NOT silent (initial load or full refresh)
+        if (!isSilent) {
+            setSupplierData(null);
+            setLoading(true);
+        }
 
         try {
             // 1. Fetch Actives for Legajo Proveedor (Type 5)
@@ -42,8 +45,8 @@ export const useSupplier = () => {
             setLegajoActives(actives);
 
             // 2. Identify the active CUIT based on currentRole or Fallback
-            // currentRole usually contains the CUIT of the selected entity
-            const activeCuit = currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
+            // Prioritize explicitCuit (Admin View) over Role-based CUIT (Supplier View)
+            const activeCuit = explicitCuit || currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
 
             console.log("Active CUIT identified:", activeCuit);
 
@@ -112,16 +115,21 @@ export const useSupplier = () => {
                                             else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
                                             else finalStatus = 'EN REVISIÓN';
                                         } else {
-                                            const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
-                                            if (expDateStr) {
-                                                const expDate = new Date(expDateStr);
-                                                const today = new Date();
-                                                expDate.setHours(0, 0, 0, 0);
-                                                today.setHours(0, 0, 0, 0);
+                                            const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
+                                            if (rawVencForStatus) {
+                                                try {
+                                                    const [year, month, day] = String(rawVencForStatus).split('T')[0].split('-');
+                                                    const expDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
 
-                                                if (expDate < today) {
-                                                    finalStatus = 'VENCIDO';
-                                                } else {
+                                                    if (expDate < today) {
+                                                        finalStatus = 'VENCIDO';
+                                                    } else {
+                                                        finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                                    }
+                                                } catch (e) {
+                                                    console.warn("Invalid date format:", rawVencForStatus);
                                                     finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
                                                 }
                                             } else {
@@ -129,9 +137,10 @@ export const useSupplier = () => {
                                             }
                                         }
 
-                                        const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
-                                        const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
-                                        const finalVenc = folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
+                                        const finalObs = submittedFile?.observacion || folderMeta?.observacion || null;
+                                        const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
                                         docMap.set(key, {
                                             id: key,
@@ -139,7 +148,7 @@ export const useSupplier = () => {
                                             id_list_req: listReq.id_list_requirements || listReq.idListRequirements,
                                             id_attribute: attrs?.id_attributes || attrs?.idAttributes,
                                             id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
-                                            id_element: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
+                                            id_elements: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
                                             id_active: attrTempl?.id_active || attrTempl?.idActive,
                                             tipo: docKey,
                                             label: cleanLabel,
@@ -149,6 +158,7 @@ export const useSupplier = () => {
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
                                             fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
+                                            hasAudits: submittedFile?.has_audits || false,
                                             modified: false
                                         });
                                     }
@@ -221,33 +231,60 @@ export const useSupplier = () => {
                 const finalIdActive = doc.id_active || active?.id_active;
 
                 if (finalIdActive && (doc.modified || doc.fileObject)) {
+                    // Prepare fileDto 
                     let fileDto = null;
                     if (doc.fileObject) {
                         const base64Data = await fileToBase64(doc.fileObject);
                         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
 
-                        // New DB Architecture payload fields 
                         fileDto = {
                             id_file_submitted: doc.id_file_submitted || null,
                             id_attribute: doc.id_attribute || 1,
-                            period: new Date().getFullYear().toString(),
+                            period: doc.period || new Date().getFullYear().toString(),
                             file_name: doc.archivo,
                             file_size: doc.fileObject.size,
                             file_type: doc.fileObject.type,
                             file_content: pureBase64,
-                            date_submitted: new Date().toISOString().split('T')[0]
+                            date_submitted: new Date().toISOString().split('T')[0],
+                            expiration_date: doc.fechaVencimiento || null
+                        };
+                    } else if (doc.modified && !doc.archivo) {
+                        // DELETION SIGNAL
+                        fileDto = {
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
+                            period: doc.period || new Date().getFullYear().toString(),
+                            file_name: null,
+                            file_size: null,
+                            file_type: null,
+                            file_content: null,
+                            date_submitted: null,
+                            expiration_date: doc.fechaVencimiento || null
+                        };
+                    } else if (doc.modified && doc.archivo && !doc.fileObject) {
+                        // CASE: Updated metadata (like expiration date) but NO new file
+                        fileDto = {
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
+                            period: doc.period || new Date().getFullYear().toString(),
+                            file_name: doc.archivo,
+                            file_size: null,
+                            file_type: null,
+                            file_content: null,
+                            date_submitted: null,
+                            expiration_date: doc.fechaVencimiento || null
                         };
                     }
 
                     elementsList.push({
-                        id_element: doc.id_element || null,
+                        id_elements: doc.id_elements || null,
                         id_active: finalIdActive,
                         element_data: {
                             tipo: doc.tipo,
                             estado: doc.estado,
                             archivo: doc.archivo,
                             observacion: doc.observacion,
-                            fechaVencimiento: doc.fechaVencimiento
+                            id_periodicity: PERIODICITY_MAP[doc.frecuencia?.toUpperCase()] || 1
                         },
                         file_submitted: fileDto
                     });
@@ -282,6 +319,7 @@ export const useSupplier = () => {
                     estado: d.estado,
                     archivo: d.archivo,
                     observacion: d.observacion,
+                    id_periodicity: PERIODICITY_MAP[d.frecuencia?.toUpperCase()] || 1, // Default ANUAL if missing
                     fechaVencimiento: d.fechaVencimiento instanceof Date
                         ? d.fechaVencimiento.toISOString().split('T')[0]
                         : (typeof d.fechaVencimiento === 'string' ? d.fechaVencimiento.split('T')[0] : d.fechaVencimiento),
@@ -290,24 +328,27 @@ export const useSupplier = () => {
             elements: elementsList
         };
 
+        setIsSaving(true);
         try {
             if (mergedData.internalId) {
                 await supplierService.update(mergedData.internalId, backendPayload);
-                showSuccess('Éxito', 'Datos actualizados correctamente.');
-                await fetchSupplierData(); // Refresh data
+
+                // UX: Minimal delay to avoid flickering
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                await fetchSupplierData(true); // Silent refresh to avoid visual flicker
                 return true;
             }
             return false;
-        } catch (error) {
-            console.error("Update error:", error);
-            showError('Error', 'No se pudieron actualizar los datos.');
-            throw error;
+        } finally {
+            setIsSaving(false);
         }
     };
 
     return {
         supplierData,
         loading,
+        isSaving,
         updateSupplier,
         refresh: fetchSupplierData
     };

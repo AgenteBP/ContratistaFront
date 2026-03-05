@@ -7,6 +7,7 @@ import SupplierForm from './SupplierForm';
 import AuditorForm from '../auditors/AuditorForm';
 import CompanyForm from '../companies/CompanyForm';
 import SelectionToggle from '../../components/ui/SelectionToggle';
+import LoadingOverlay from '../../components/ui/LoadingOverlay';
 import { userService } from '../../services/userService';
 import { supplierService } from '../../services/supplierService';
 import { auditorService } from '../../services/auditorService';
@@ -19,6 +20,7 @@ import { MOCK_USERS } from '../../data/mockUsers';
 import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { formatCUIT } from '../../utils/formatUtils';
 import Dropdown from '../../components/ui/Dropdown';
+import { PERIODICITY_MAP } from '../../data/documentConstants';
 
 const NewSupplier = () => {
   const { id } = useParams(); // ID del usuario si estamos agregando rol
@@ -37,6 +39,8 @@ const NewSupplier = () => {
   const [selectedRole, setSelectedRole] = useState(searchParams.get('role') || null);
   const [createdUser, setCreatedUser] = useState(null);
   const [selectedExistingSupplier, setSelectedExistingSupplier] = useState(null);
+  const [overlayStatus, setOverlayStatus] = useState('loading');
+  const [showOverlay, setShowOverlay] = useState(false);
 
   // Real Data State
   const [users, setUsers] = useState([]);
@@ -186,6 +190,9 @@ const NewSupplier = () => {
 
   // Paso 3: Entidad completada (Supplier)
   const handleSupplierSubmit = async (supplierFormData) => {
+    setOverlayStatus('loading');
+    setShowOverlay(true);
+    setLoading(true);
     try {
       // 1. Prepare Data for Backend
       // We need to send a SupplierInsertDTO which includes the user RegisterRequest
@@ -201,7 +208,7 @@ const NewSupplier = () => {
       // Construct RegisterRequest part
       const registerRequest = {
         userName: userData.username,
-        password: userData.password || 'default123', // Handle password if missing in existing
+        password: userData.password || '123', // Handle password if missing in existing
         firstName: userData.firstName,
         lastName: userData.lastName,
         role: backendRole, // 'SUPPLIER', 'AUDITOR', 'CUSTOMER'
@@ -255,28 +262,20 @@ const NewSupplier = () => {
             id_company: supplierFormData.empresas?.[0] || null,
             groupRequirements: supplierFormData.id_group && supplierFormData.documentacion?.length > 0 ?
               supplierFormData.documentacion.map(req => {
-                // If it's a custom requirement (ID starts with CUSTOM_), build the full InsertDTO structure
-                if (String(req.id).startsWith('CUSTOM_')) {
-                  return {
-                    id_group: supplierFormData.id_group,
-                    list_requirements: {
-                      description: req.label,
-                      id_type_requirements: 1, // 1 = LEGAL (único tipo en la BD)
-                      id_active: req.id_active,
-                      attributes: {
-                        description: req.attribute_description || req.label.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''),
-                        extension: "ALFA_NUM",
-                        id_periodicity: 1 // Default to 'Única vez' or calculate better based on req.frecuencia
-                      }
-                    }
-                  };
-                }
-
-                // Existing requirement from API, just link by ID
+                // Unified structure for all requirements to ensure periodicity is sent
                 return {
                   id_group: supplierFormData.id_group,
                   list_requirements: {
-                    id_list_requirements: req.id
+                    id_list_requirements: String(req.id).startsWith('CUSTOM_') ? null : req.id,
+                    description: req.label,
+                    id_type_requirements: 1, // 1 = LEGAL
+                    id_active: req.id_active,
+                    id_periodicity: PERIODICITY_MAP[req.frecuencia?.toUpperCase()] || 1,
+                    attributes: {
+                      description: req.attribute_description || req.label?.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''),
+                      extension: "ALFA_NUM",
+                      id_periodicity: PERIODICITY_MAP[req.frecuencia?.toUpperCase()] || 1
+                    }
                   }
                 };
               }) : null,
@@ -372,10 +371,18 @@ const NewSupplier = () => {
         }
       }
 
+      // UX: Success phase in overlay
+      setOverlayStatus('success');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setShowOverlay(false);
+
       setCurrentStep(4);
     } catch (error) {
       console.error("Error en el wizard:", error);
       alert("Hubo un error al crear los registros. Verifique consola.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -899,6 +906,7 @@ const NewSupplier = () => {
       )}
 
       {renderStep()}
+      <LoadingOverlay isVisible={showOverlay} status={overlayStatus} />
     </div>
   );
 };

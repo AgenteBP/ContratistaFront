@@ -23,6 +23,8 @@ import AuditorsList from './pages/auditors/AuditorsList';
 import AuditorDetail from './pages/auditors/AuditorDetail';
 import TechnicalAudit from './pages/auditors/TechnicalAudit';
 import AuditHistory from './pages/auditors/AuditHistory';
+import LegalAuditDashboard from './pages/auditors/LegalAuditDashboard';
+import GlobalAuditInbox from './pages/auditors/GlobalAuditInbox';
 import CompanyList from './pages/companies/CompanyList';
 import NewCompany from './pages/companies/NewCompany';
 
@@ -63,6 +65,10 @@ const router = createBrowserRouter(
                 <Route path="/auditores/tecnica" element={<TechnicalAudit />} />
                 <Route path="/auditores/tecnica/historial" element={<AuditHistory />} />
                 <Route path="/auditores/:id" element={<AuditorDetail />} />
+
+                {/* Auditoría Legal */}
+                <Route path="/auditoria-legal" element={<LegalAuditDashboard />} />
+                <Route path="/auditoria-legal/inbox" element={<GlobalAuditInbox />} />
 
                 {/* Empresas */}
                 <Route path="/empresas" element={<CompanyList />} />

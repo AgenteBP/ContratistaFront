@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { requirementService } from '../../services/requirementService';
 import { groupService } from '../../services/groupService';
 import { fileService } from '../../services/fileService';
+import { auditorService } from '../../services/auditorService';
 import { useAuth } from '../../context/AuthContext';
 import { Column } from 'primereact/column';
 import AppTable from '../ui/AppTable';
@@ -15,7 +16,7 @@ import { Calendar } from 'primereact/calendar';
 
 const DocumentEntityTable = ({ type, filterStatus }) => {
     const navigate = useNavigate();
-    const { user, currentRole } = useAuth();
+    const { user, currentRole, isAuditorLegal } = useAuth();
     const { supplierData, updateSupplier } = useSupplier();
     const [data, setData] = useState([]);
     const [filteredData, setFilteredData] = useState(null);
@@ -31,6 +32,12 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadDate, setUploadDate] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
+
+    // Audit States
+    const [auditModalVisible, setAuditModalVisible] = useState(false);
+    const [auditingDoc, setAuditingDoc] = useState(null);
+    const [auditForm, setAuditForm] = useState({ status: 'APROBADO', observation: '' });
+    const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
 
     const initFilters = () => {
         setFilters({
@@ -367,9 +374,53 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
     // Toggle logic for clicking the header
     // Toggle logic and RowGroup implementation removed for standard table layout.
 
+    // --- AUDIT ACTIONS ---
+    const openAuditModal = (rowData) => {
+        setAuditingDoc(rowData);
+        setAuditForm({ status: 'APROBADO', observation: '' });
+        setAuditModalVisible(true);
+    };
+
+    const handleSaveAudit = async () => {
+        if (!auditingDoc?.id_file_submitted) {
+            alert("No hay un archivo válido para auditar.");
+            return;
+        }
+
+        setIsSubmittingAudit(true);
+        try {
+            const auditData = {
+                id_company_auditor: currentRole?.id_auditor || user?.id, // Fallback if id_auditor is not in currentRole
+                id_file_submitted: auditingDoc.id_file_submitted,
+                status: auditForm.status,
+                observation: auditForm.observation,
+                date_audit: new Date().toISOString()
+            };
+
+            await auditorService.saveFileAudit(auditData);
+            await loadData();
+            setAuditModalVisible(false);
+        } catch (error) {
+            console.error("Error saving audit", error);
+            alert("Error al guardar la auditoría.");
+        } finally {
+            setIsSubmittingAudit(false);
+        }
+    };
+
     const actionTemplate = (rowData) => (
         <div className="flex justify-end gap-2 pr-2">
-            {rowData.observacion && (
+            {isAuditorLegal && rowData.id_file_submitted && (
+                <button
+                    onClick={() => openAuditModal(rowData)}
+                    className="text-white bg-info hover:bg-info-hover rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 shadow-sm"
+                    title="Intervenir Documento"
+                >
+                    <i className="pi pi-shield"></i> AUDITAR
+                </button>
+            )}
+
+            {!isAuditorLegal && rowData.observacion && (
                 <button
                     onClick={() => {
                         setSelectedObservation({
@@ -511,9 +562,87 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                     if (r.frecuencia === 'Única vez') return <span className="text-[10px] font-bold text-secondary/30 italic">N/A</span>;
                     return <span className="text-[10px] font-bold text-orange-400">No cargado</span>;
                 }} sortable></Column>
-                <Column field="estado" header="Estado" body={statusBodyTemplate} sortable className="text-center"></Column>
-                <Column header="Acción" body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
+                <Column field="estado" header={isAuditorLegal ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center"></Column>
+                <Column header={isAuditorLegal ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
             </AppTable>
+
+            {/* MODAL DE AUDITORÍA LEGAL */}
+            <Dialog
+                header={null}
+                visible={auditModalVisible}
+                onHide={() => !isSubmittingAudit && setAuditModalVisible(false)}
+                className="w-[90vw] max-w-[450px]"
+                closable={false}
+                pt={{
+                    mask: { className: 'backdrop-blur-sm' },
+                    content: { className: 'p-0 rounded-2xl overflow-hidden bg-white shadow-2xl' }
+                }}
+            >
+                <div className="flex flex-col">
+                    <div className="px-6 py-4 border-b border-secondary/10 flex justify-between items-center bg-slate-50/50">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-info/10 flex items-center justify-center">
+                                <i className="pi pi-shield text-info"></i>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-secondary-dark text-base leading-tight">Intervención Legal</h3>
+                                <p className="text-[10px] text-secondary font-medium uppercase tracking-wider">{auditingDoc?.label}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setAuditModalVisible(false)} className="w-8 h-8 rounded-full hover:bg-slate-200/50 flex items-center justify-center transition-all">
+                            <i className="pi pi-times text-[10px] text-secondary"></i>
+                        </button>
+                    </div>
+
+                    <div className="p-6 space-y-5">
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setAuditForm({ ...auditForm, status: 'APROBADO' })}
+                                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${auditForm.status === 'APROBADO' ? 'border-success bg-success/5 text-success' : 'border-slate-50 text-secondary/40 hover:border-success/20'}`}
+                            >
+                                <i className="pi pi-check-circle text-xl"></i>
+                                <span className="font-bold uppercase text-[10px]">Aprobar</span>
+                            </button>
+                            <button
+                                onClick={() => setAuditForm({ ...auditForm, status: 'OBSERVADO' })}
+                                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${auditForm.status === 'OBSERVADO' ? 'border-warning bg-warning/5 text-warning-hover' : 'border-slate-50 text-secondary/40 hover:border-warning/20'}`}
+                            >
+                                <i className="pi pi-exclamation-triangle text-xl"></i>
+                                <span className="font-bold uppercase text-[10px]">Observar</span>
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Comentarios</label>
+                            <textarea
+                                value={auditForm.observation}
+                                onChange={(e) => setAuditForm({ ...auditForm, observation: e.target.value })}
+                                rows={3}
+                                className="w-full rounded-xl border border-secondary/20 focus:border-info focus:ring-4 focus:ring-info/5 transition-all p-3 text-secondary-dark text-sm bg-slate-50 outline-none resize-none"
+                                placeholder="Indique el motivo de la observación o detalles adicionales..."
+                            />
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-slate-50/50 border-t border-secondary/10 flex gap-3">
+                        <button
+                            onClick={() => setAuditModalVisible(false)}
+                            className="flex-1 py-2.5 bg-white border border-secondary/20 rounded-xl text-secondary font-bold hover:bg-slate-100 transition-all text-xs uppercase"
+                            disabled={isSubmittingAudit}
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleSaveAudit}
+                            disabled={isSubmittingAudit}
+                            className="flex-[1.5] py-2.5 bg-info hover:bg-info-hover text-white font-bold rounded-xl shadow-lg shadow-info/10 transition-all text-xs uppercase flex items-center justify-center gap-2"
+                        >
+                            {isSubmittingAudit ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-save"></i>}
+                            Confirmar
+                        </button>
+                    </div>
+                </div>
+            </Dialog>
 
             <Dialog
                 header={<span className="sr-only">Subir Documento</span>}

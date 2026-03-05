@@ -47,7 +47,8 @@ export const getAvailableRoles = (userProfile) => {
                 role: 'PROVEEDOR',
                 entities: userProfile.suppliers.map(s => ({
                     id: s.id_supplier,
-                    name: s.company_name
+                    name: s.company_name,
+                    cuit: s.cuit
                 }))
             });
         }
