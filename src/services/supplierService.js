@@ -66,6 +66,7 @@ export const supplierService = {
                         id_file_submitted: latestFile?.id_file_submitted || null,
                         hasAudits: latestFile?.has_audits || false,
                         period: latestFile?.period || null,
+                        frecuencia: elementData?.active?.attribute_template?.attributes?.periodicity_description || null,
                         modified: false
                     };
                 })

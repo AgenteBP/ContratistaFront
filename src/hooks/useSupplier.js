@@ -9,17 +9,18 @@ import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
 import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
 
 
-import { DOC_TYPE_LABELS } from '../data/documentConstants';
+import { DOC_TYPE_LABELS, PERIODICITY_MAP } from '../data/documentConstants';
 
 
-export const useSupplier = () => {
+export const useSupplier = (explicitCuit = null) => {
     const { user, currentRole } = useAuth();
     const { showSuccess, showError } = useNotification();
     const [supplierData, setSupplierData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [legajoActives, setLegajoActives] = useState([]);
 
-    const fetchSupplierData = useCallback(async () => {
+    const fetchSupplierData = useCallback(async (isSilent = false) => {
         console.group("useSupplier: DIAGNOSTIC");
         console.log("Context State:", { user, currentRole });
 
@@ -30,9 +31,11 @@ export const useSupplier = () => {
             return;
         }
 
-        // CRITICAL: Reset data when starting fetch to avoid showing stale data from previous profile
-        setSupplierData(null);
-        setLoading(true);
+        // Only reset if NOT silent (initial load or full refresh)
+        if (!isSilent) {
+            setSupplierData(null);
+            setLoading(true);
+        }
 
         try {
             // 1. Fetch Actives for Legajo Proveedor (Type 5)
@@ -42,8 +45,8 @@ export const useSupplier = () => {
             setLegajoActives(actives);
 
             // 2. Identify the active CUIT based on currentRole or Fallback
-            // currentRole usually contains the CUIT of the selected entity
-            const activeCuit = currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
+            // Prioritize explicitCuit (Admin View) over Role-based CUIT (Supplier View)
+            const activeCuit = explicitCuit || currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
 
             console.log("Active CUIT identified:", activeCuit);
 
@@ -280,7 +283,8 @@ export const useSupplier = () => {
                             tipo: doc.tipo,
                             estado: doc.estado,
                             archivo: doc.archivo,
-                            observacion: doc.observacion
+                            observacion: doc.observacion,
+                            id_periodicity: PERIODICITY_MAP[doc.frecuencia?.toUpperCase()] || 1
                         },
                         file_submitted: fileDto
                     });
@@ -315,6 +319,7 @@ export const useSupplier = () => {
                     estado: d.estado,
                     archivo: d.archivo,
                     observacion: d.observacion,
+                    id_periodicity: PERIODICITY_MAP[d.frecuencia?.toUpperCase()] || 1, // Default ANUAL if missing
                     fechaVencimiento: d.fechaVencimiento instanceof Date
                         ? d.fechaVencimiento.toISOString().split('T')[0]
                         : (typeof d.fechaVencimiento === 'string' ? d.fechaVencimiento.split('T')[0] : d.fechaVencimiento),
@@ -323,24 +328,27 @@ export const useSupplier = () => {
             elements: elementsList
         };
 
+        setIsSaving(true);
         try {
             if (mergedData.internalId) {
                 await supplierService.update(mergedData.internalId, backendPayload);
-                showSuccess('Éxito', 'Datos actualizados correctamente.');
-                await fetchSupplierData(); // Refresh data
+
+                // UX: Minimal delay to avoid flickering
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                await fetchSupplierData(true); // Silent refresh to avoid visual flicker
                 return true;
             }
             return false;
-        } catch (error) {
-            console.error("Update error:", error);
-            showError('Error', 'No se pudieron actualizar los datos.');
-            throw error;
+        } finally {
+            setIsSaving(false);
         }
     };
 
     return {
         supplierData,
         loading,
+        isSaving,
         updateSupplier,
         refresh: fetchSupplierData
     };
