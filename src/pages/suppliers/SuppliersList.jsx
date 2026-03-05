@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supplierService } from '../../services/supplierService';
+import { useAuth } from '../../context/AuthContext';
 
 // --- IMPORTACIONES DE PRIME REACT ---
 import { Column } from 'primereact/column';
@@ -22,6 +23,9 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 
 const SuppliersList = () => {
     const navigate = useNavigate();
+    const { currentRole } = useAuth();
+    const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
+
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     // Estado para los datos y carga
@@ -127,8 +131,13 @@ const SuppliersList = () => {
         {
             label: 'Editar',
             icon: 'pi pi-pencil',
+            visible: isAdmin, // Only show for admins
             command: () => {
-                console.log("Editando a:", selectedRow?.razonSocial);
+                if (selectedRow?.rawCuit) {
+                    navigate(`/proveedores/${selectedRow.rawCuit}?mode=edit`);
+                } else {
+                    console.error("No CUIT available for navigation", selectedRow);
+                }
             }
         },
         { separator: true },

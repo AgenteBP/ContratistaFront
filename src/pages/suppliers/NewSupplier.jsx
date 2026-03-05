@@ -21,6 +21,7 @@ import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
 import { formatCUIT } from '../../utils/formatUtils';
 import Dropdown from '../../components/ui/Dropdown';
 import { PERIODICITY_MAP } from '../../data/documentConstants';
+import { useNotification } from '../../context/NotificationContext';
 
 const NewSupplier = () => {
   const { id } = useParams(); // ID del usuario si estamos agregando rol
@@ -52,6 +53,7 @@ const NewSupplier = () => {
   const [filteredCompanies, setFilteredCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [availableRequirements, setAvailableRequirements] = useState([]);
+  const { showError, showSuccess } = useNotification();
 
   // Load Users and Suppliers on Mount
   // Load Users and Suppliers on Mount
@@ -371,16 +373,28 @@ const NewSupplier = () => {
         }
       }
 
-      // UX: Success phase in overlay
-      setOverlayStatus('success');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
       setShowOverlay(false);
-
       setCurrentStep(4);
     } catch (error) {
       console.error("Error en el wizard:", error);
-      alert("Hubo un error al crear los registros. Verifique consola.");
+
+      // Extract specific backend message if available
+      let errorMessage = "Hubo un error al procesar la solicitud.";
+
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setShowOverlay(false); // Fix: Hide overlay so notification is visible
+      showError("Error en Registro", errorMessage);
     } finally {
       setLoading(false);
     }

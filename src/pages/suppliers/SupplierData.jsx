@@ -22,18 +22,14 @@ const SupplierData = () => {
         const result = await updateSupplier(data);
 
         if (result) {
-            setOverlayStatus('success');
             showSuccess('Actualizado', 'Los datos del proveedor han sido guardados correctamente.');
-
-            // Wait for 1.5s to show the success message in the overlay
-            await new Promise(resolve => setTimeout(resolve, 1500));
         }
 
         setShowOverlay(false);
         return result;
     };
 
-    console.log("SupplierData Render:", { loading, hasData: !!supplierData });
+    // console.log("SupplierData Render:", { loading, hasData: !!supplierData });
 
     const getDocStatus = (data) => {
         const docs = data.documentacion || [];

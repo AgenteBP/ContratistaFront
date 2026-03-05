@@ -340,6 +340,23 @@ export const useSupplier = (explicitCuit = null) => {
                 return true;
             }
             return false;
+        } catch (error) {
+            console.error("Error updating supplier:", error);
+
+            // Extract specific backend message
+            let errorMessage = "No se pudieron guardar los cambios.";
+            if (error.response?.data) {
+                if (typeof error.response.data === 'string') {
+                    errorMessage = error.response.data;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            showError("Error de Guardado", errorMessage);
+            return false;
         } finally {
             setIsSaving(false);
         }
