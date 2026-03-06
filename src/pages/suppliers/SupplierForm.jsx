@@ -501,11 +501,11 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             });
         }
 
-        // Clean up 'modified' flags
-        const cleanDocs = updatedDocs?.map(({ modified, ...rest }) => rest);
+        // DO NOT Clean up 'modified' flags because useSupplier needs them to know what to save
+        // const cleanDocs = updatedDocs?.map(({ modified, ...rest }) => rest);
 
         // Update local state first (always full sync for UI consistency)
-        const finalData = { ...formData, documentacion: cleanDocs };
+        const finalData = { ...formData, documentacion: updatedDocs };
         setFormData(finalData);
 
         if (scope) {
@@ -1434,40 +1434,62 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                         const currentDocs = prev.documentacion || [];
                                                                         const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
 
-                                                                        let newDocs;
-                                                                        if (docIndex >= 0) {
-                                                                            // Update existing - PRESERVE STATUS until save
-                                                                            newDocs = [...currentDocs];
-                                                                            newDocs[docIndex] = {
-                                                                                ...newDocs[docIndex],
-                                                                                archivo: file.name,
-                                                                                fileUrl: fileUrl,
-                                                                                fileObject: file, // Store the File object
-                                                                                tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
-                                                                                label: doc.label,
-                                                                                // Mark as modified so we know to update status on save
-                                                                                modified: true,
-                                                                                fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
-                                                                            };
-                                                                        } else {
-                                                                            // Add new - Status PENDING until save
-                                                                            newDocs = [...currentDocs, {
-                                                                                id: doc.id,
-                                                                                tipo: doc.id,
-                                                                                id_active: docData ? docData.id_active : doc.id_active,
-                                                                                id_attribute: docData ? docData.id_attribute : doc.id_attribute,
-                                                                                id_elements: docData ? docData.id_elements : null,
-                                                                                tipoDescripcion: doc.label || doc.tipoDescripcion,
-                                                                                label: doc.label,
-                                                                                estado: 'PENDIENTE',
-                                                                                archivo: file.name,
-                                                                                fileUrl: fileUrl,
-                                                                                fileObject: file, // Store the File object
-                                                                                modified: true, // New docs are modified by definition
-                                                                                fechaVencimiento: null
-                                                                            }];
-                                                                        }
-                                                                        return { ...prev, documentacion: newDocs };
+                                                                            let defaultDate = null;
+                                                                            if (doc.frecuencia && doc.frecuencia !== 'Única vez') {
+                                                                                const today = new Date();
+                                                                                const freqLower = doc.frecuencia.toLowerCase();
+                                                                                if (freqLower.includes('anual')) {
+                                                                                    defaultDate = new Date(today.setFullYear(today.getFullYear() + 1));
+                                                                                } else if (freqLower.includes('semestral')) {
+                                                                                    defaultDate = new Date(today.setMonth(today.getMonth() + 6));
+                                                                                } else if (freqLower.includes('trimestral')) {
+                                                                                    defaultDate = new Date(today.setMonth(today.getMonth() + 3));
+                                                                                } else if (freqLower.includes('mensual')) {
+                                                                                    defaultDate = new Date(today.setMonth(today.getMonth() + 1));
+                                                                                }
+                                                                            }
+
+                                                                            let formattedDate = null;
+                                                                            if(defaultDate) {
+                                                                                const year = defaultDate.getFullYear();
+                                                                                const month = String(defaultDate.getMonth() + 1).padStart(2, '0');
+                                                                                const day = String(defaultDate.getDate()).padStart(2, '0');
+                                                                                formattedDate = `${year}-${month}-${day}`;
+                                                                            }
+
+                                                                            if (docIndex >= 0) {
+                                                                                // Update existing - PRESERVE STATUS until save
+                                                                                newDocs = [...currentDocs];
+                                                                                newDocs[docIndex] = {
+                                                                                    ...newDocs[docIndex],
+                                                                                    archivo: file.name,
+                                                                                    fileUrl: fileUrl,
+                                                                                    fileObject: file, // Store the File object
+                                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion, // Preserve label
+                                                                                    label: doc.label,
+                                                                                    // Mark as modified so we know to update status on save
+                                                                                    modified: true,
+                                                                                    fechaVencimiento: newDocs[docIndex].fechaVencimiento || formattedDate
+                                                                                };
+                                                                            } else {
+                                                                                // Add new - Status PENDING until save
+                                                                                newDocs = [...currentDocs, {
+                                                                                    id: doc.id,
+                                                                                    tipo: doc.id,
+                                                                                    id_active: docData ? docData.id_active : doc.id_active,
+                                                                                    id_attribute: docData ? docData.id_attribute : doc.id_attribute,
+                                                                                    id_elements: docData ? docData.id_elements : null,
+                                                                                    tipoDescripcion: doc.label || doc.tipoDescripcion,
+                                                                                    label: doc.label,
+                                                                                    estado: 'PENDIENTE',
+                                                                                    archivo: file.name,
+                                                                                    fileUrl: fileUrl,
+                                                                                    fileObject: file, // Store the File object
+                                                                                    modified: true, // New docs are modified by definition
+                                                                                    fechaVencimiento: formattedDate
+                                                                                }];
+                                                                            }
+                                                                            return { ...prev, documentacion: newDocs };
                                                                     });
                                                                 }
                                                             };
@@ -1664,7 +1686,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                             <i className="pi pi-calendar text-secondary/50 text-base"></i>
                                                                                             {isStep4ActionsEnabled ? (
                                                                                                 <Calendar
-                                                                                                    value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
+                                                                                                    value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('T')[0].split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
                                                                                                     onChange={(e) => handleDateChange(doc.id, e.value)}
                                                                                                     placeholder="Vencimiento"
                                                                                                     disabled={!docData?.archivo}
@@ -1674,7 +1696,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                                     dateFormat="dd/mm/yy"
                                                                                                 />
                                                                                             ) : (
-                                                                                                <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : docData.fechaVencimiento; })() : '-'}</span>
+                                                                                                <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const dateStr = String(docData.fechaVencimiento).split('T')[0]; const p = dateStr.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr; })() : '-'}</span>
                                                                                             )}
                                                                                         </div>
                                                                                         {isStep4ActionsEnabled && !docData?.archivo && (

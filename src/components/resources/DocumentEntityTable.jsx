@@ -130,13 +130,20 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                                         } else {
                                             const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
                                             if (expDateStr) {
-                                                const expDate = new Date(expDateStr);
+                                                const dateStr = String(expDateStr);
+                                                let expDate;
+                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                if (match) {
+                                                    expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                                                } else {
+                                                    expDate = new Date(dateStr);
+                                                    expDate.setHours(0, 0, 0, 0);
+                                                }
+
                                                 const today = new Date();
-                                                // Reset time for accurate day comparison
-                                                expDate.setHours(0, 0, 0, 0);
                                                 today.setHours(0, 0, 0, 0);
 
-                                                if (expDate < today) {
+                                                if (isFile && expDate < today) {
                                                     finalStatus = 'VENCIDO';
                                                 } else {
                                                     finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
@@ -300,6 +307,13 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
         setIsUploading(true);
         try {
+            // Check required date locally in modal before sending upward
+            if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez' && !uploadDate) {
+                alert("Debe seleccionar una fecha de vencimiento obligatoriamente para este tipo de documento.");
+                setIsUploading(false);
+                return;
+            }
+
             setLoadingDocs(prev => ({ ...prev, [uploadingDoc.id]: true }));
             const updatedDocs = supplierData.documentacion.map(doc => {
                 if (doc.tipo === uploadingDoc.tipo) {
