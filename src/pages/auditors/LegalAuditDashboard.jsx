@@ -73,7 +73,7 @@ const LegalAuditDashboard = () => {
 
     const actionTemplate = (rowData) => (
         <button
-            onClick={() => navigate(`/proveedores/${rowData.id_supplier || rowData.id}`)}
+            onClick={() => navigate(`/proveedores/${rowData.cuit || rowData.id_supplier || rowData.id}`)}
             className="text-primary hover:text-white hover:bg-primary border border-primary/20 bg-primary/5 px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2"
         >
             <i className="pi pi-folder-open"></i> GESTIONAR
@@ -131,8 +131,8 @@ const LegalAuditDashboard = () => {
                     <Column header="Recursos (%)" body={(r) => complianceTemplate(r.complianceRecursos)} sortable className="text-center"></Column>
                     <Column header="Semáforo" body={(r) => (
                         <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${r.global > 80 ? 'bg-success/5 text-success border-success/20' :
-                                r.global > 50 ? 'bg-warning/5 text-warning border-warning/20' :
-                                    'bg-danger/5 text-danger border-danger/20'
+                            r.global > 50 ? 'bg-warning/5 text-warning border-warning/20' :
+                                'bg-danger/5 text-danger border-danger/20'
                             }`}>
                             {r.global > 80 ? 'ÓPTIMO' : r.global > 50 ? 'REGULAR' : 'CRÍTICO'}
                         </span>

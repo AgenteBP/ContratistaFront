@@ -50,7 +50,7 @@ export const useSupplier = (explicitCuit = null) => {
 
             console.log("Active CUIT identified:", activeCuit);
 
-            if (activeCuit) {
+            if (activeCuit && activeCuit !== 'undefined' && activeCuit !== 'null') {
                 console.log("Requesting data for CUIT:", activeCuit);
                 const data = await supplierService.getWithDocuments(activeCuit);
                 if (data) {
@@ -107,8 +107,11 @@ export const useSupplier = (explicitCuit = null) => {
 
                                         // Status logic based on Audit, Expiration, and File presence
                                         let finalStatus = 'PENDIENTE';
-                                        const hasAudit = submittedFile?.audit;
-                                        const auditStatus = submittedFile?.audit?.status;
+
+                                        // Support both snake_case (JsonProperty) and camelCase (default)
+                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
+                                        const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
+                                        const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
                                         if (hasAudit) {
                                             if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
@@ -120,7 +123,7 @@ export const useSupplier = (explicitCuit = null) => {
                                                 try {
                                                     // Parse securely handling both YYYY-MM-DD and full ISO strings
                                                     const dateStr = String(rawVencForStatus);
-                                                    
+
                                                     // By default, assume the string's YYYY-MM-DD prefix is correct
                                                     let expDate;
                                                     const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -128,7 +131,7 @@ export const useSupplier = (explicitCuit = null) => {
                                                         expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
                                                     } else {
                                                         expDate = new Date(dateStr);
-                                                        expDate.setHours(0,0,0,0);
+                                                        expDate.setHours(0, 0, 0, 0);
                                                     }
 
                                                     const today = new Date();
@@ -149,7 +152,7 @@ export const useSupplier = (explicitCuit = null) => {
                                         }
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
-                                        const finalObs = submittedFile?.observacion || folderMeta?.observacion || null;
+                                        const finalObs = hasAudit ? ((auditInfo?.audit_observations || auditInfo?.auditObservations) || folderMeta?.observacion || null) : null;
                                         const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
                                         const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
@@ -169,7 +172,7 @@ export const useSupplier = (explicitCuit = null) => {
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
                                             fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
-                                            hasAudits: submittedFile?.has_audits || false,
+                                            hasAudits: !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo),
                                             modified: false
                                         });
                                     }
@@ -243,25 +246,25 @@ export const useSupplier = (explicitCuit = null) => {
 
                 if (finalIdActive && (doc.modified || doc.fileObject)) {
                     // Prepare fileDto 
-                                let fileDto = null;
-                                if (doc.fileObject) {
-                                    const base64Data = await fileToBase64(doc.fileObject);
-                                    const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+                    let fileDto = null;
+                    if (doc.fileObject) {
+                        const base64Data = await fileToBase64(doc.fileObject);
+                        const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
 
-                                    fileDto = {
-                                        id_file_submitted: doc.id_file_submitted || null,
-                                        id_attribute: doc.id_attribute || 1,
-                                        period: doc.period || new Date().getFullYear().toString(),
-                                        file_name: doc.archivo,
-                                        file_size: doc.fileObject.size,
-                                        file_type: doc.fileObject.type,
-                                        file_content: pureBase64,
-                                        date_submitted: new Date().toISOString().split('T')[0],
-                                        // Send as noon UTC to prevent backend from shifting to previous day mapping
-                                        expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
-                                    };
-                                } else if (doc.modified && !doc.archivo) {
-                                    // DELETION SIGNAL
+                        fileDto = {
+                            id_file_submitted: doc.id_file_submitted || null,
+                            id_attribute: doc.id_attribute || 1,
+                            period: doc.period || new Date().getFullYear().toString(),
+                            file_name: doc.archivo,
+                            file_size: doc.fileObject.size,
+                            file_type: doc.fileObject.type,
+                            file_content: pureBase64,
+                            date_submitted: new Date().toISOString().split('T')[0],
+                            // Send as noon UTC to prevent backend from shifting to previous day mapping
+                            expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
+                        };
+                    } else if (doc.modified && !doc.archivo) {
+                        // DELETION SIGNAL
                         fileDto = {
                             id_file_submitted: doc.id_file_submitted || null,
                             id_attribute: doc.id_attribute || 1,
@@ -294,9 +297,9 @@ export const useSupplier = (explicitCuit = null) => {
                         id_active: finalIdActive,
                         element_data: {
                             tipo: doc.tipo,
-                            estado: doc.estado,
+                            estado: doc.fileObject ? 'EN REVISIÓN' : doc.estado,
                             archivo: doc.archivo,
-                            observacion: doc.observacion,
+                            observacion: doc.fileObject ? null : doc.observacion,
                             id_periodicity: PERIODICITY_MAP[doc.frecuencia?.toUpperCase()] || 1,
                             fechaVencimiento: doc.fechaVencimiento || null // Also place date in element json
                         },
@@ -305,7 +308,7 @@ export const useSupplier = (explicitCuit = null) => {
                 }
             }
         }
-        
+
         console.log("=== JSON PAYLOAD PARA ACTUALIZAR PROVEEDOR ===");
         console.log(JSON.stringify(elementsList, null, 2));
 

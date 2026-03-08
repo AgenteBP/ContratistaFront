@@ -19,18 +19,7 @@ const GlobalAuditInbox = () => {
         setLoading(true);
         try {
             const data = await auditorService.getPendingFiles();
-            // Assuming data is an array of objects that include provider info and file info
-            // For now, if getPendingFiles returns all audits, we might need to filter for those that need review
-            // For mock purposes, we'll map the results to a useful structure
-
-            // MOCK DATA for visualization
-            const mockPending = [
-                { id: 1, provider: 'Lalo Industries', resource: 'Empresa', doc: 'Seguro de Caución', date: '2024-03-01', waitTime: '2 días', fileId: 101 },
-                { id: 2, provider: 'Pepito Holdings', resource: 'Juan Perez (Empleado)', doc: 'Registro Conducir', date: '2024-03-02', waitTime: '1 día', fileId: 102 },
-                { id: 3, provider: 'Lalo Industries', resource: 'Camion IVECO', doc: 'VTV', date: '2024-03-03', waitTime: '4 horas', fileId: 103 },
-            ];
-
-            setPendingDocs(mockPending);
+            setPendingDocs(data);
         } catch (error) {
             console.error("Error loading pending audits", error);
         } finally {
@@ -40,7 +29,7 @@ const GlobalAuditInbox = () => {
 
     const actionTemplate = (rowData) => (
         <button
-            onClick={() => navigate(`/proveedores/${rowData.providerId || 1}`)} // In a real app we'd target the specific file
+            onClick={() => navigate(`/proveedores/${rowData.cuit || rowData.providerId || 1}`)} // In a real app we'd target the specific file
             className="bg-info hover:bg-info-hover text-white px-5 py-1.5 rounded-lg text-[10px] font-extrabold transition-all uppercase flex items-center gap-2"
         >
             <i className="pi pi-shield"></i> Auditar
