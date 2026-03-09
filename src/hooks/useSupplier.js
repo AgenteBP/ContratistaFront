@@ -50,7 +50,7 @@ export const useSupplier = (explicitCuit = null) => {
 
             console.log("Active CUIT identified:", activeCuit);
 
-            if (activeCuit) {
+            if (activeCuit && activeCuit !== 'undefined' && activeCuit !== 'null') {
                 console.log("Requesting data for CUIT:", activeCuit);
                 const data = await supplierService.getWithDocuments(activeCuit);
                 if (data) {
@@ -107,8 +107,11 @@ export const useSupplier = (explicitCuit = null) => {
 
                                         // Status logic based on Audit, Expiration, and File presence
                                         let finalStatus = 'PENDIENTE';
-                                        const hasAudit = submittedFile?.audit;
-                                        const auditStatus = submittedFile?.audit?.status;
+
+                                        // Support both snake_case (JsonProperty) and camelCase (default)
+                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
+                                        const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
+                                        const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
                                         if (hasAudit) {
                                             if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
@@ -118,12 +121,23 @@ export const useSupplier = (explicitCuit = null) => {
                                             const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
                                             if (rawVencForStatus) {
                                                 try {
-                                                    const [year, month, day] = String(rawVencForStatus).split('T')[0].split('-');
-                                                    const expDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                                                    // Parse securely handling both YYYY-MM-DD and full ISO strings
+                                                    const dateStr = String(rawVencForStatus);
+
+                                                    // By default, assume the string's YYYY-MM-DD prefix is correct
+                                                    let expDate;
+                                                    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                    if (match) {
+                                                        expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                                                    } else {
+                                                        expDate = new Date(dateStr);
+                                                        expDate.setHours(0, 0, 0, 0);
+                                                    }
+
                                                     const today = new Date();
                                                     today.setHours(0, 0, 0, 0);
 
-                                                    if (expDate < today) {
+                                                    if (isFile && expDate < today) {
                                                         finalStatus = 'VENCIDO';
                                                     } else {
                                                         finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
@@ -138,7 +152,7 @@ export const useSupplier = (explicitCuit = null) => {
                                         }
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
-                                        const finalObs = submittedFile?.observacion || folderMeta?.observacion || null;
+                                        const finalObs = hasAudit ? ((auditInfo?.audit_observations || auditInfo?.auditObservations) || folderMeta?.observacion || null) : null;
                                         const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
                                         const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
@@ -158,7 +172,7 @@ export const useSupplier = (explicitCuit = null) => {
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
                                             fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
-                                            hasAudits: submittedFile?.has_audits || false,
+                                            hasAudits: !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo),
                                             modified: false
                                         });
                                     }
@@ -246,7 +260,8 @@ export const useSupplier = (explicitCuit = null) => {
                             file_type: doc.fileObject.type,
                             file_content: pureBase64,
                             date_submitted: new Date().toISOString().split('T')[0],
-                            expiration_date: doc.fechaVencimiento || null
+                            // Send as noon UTC to prevent backend from shifting to previous day mapping
+                            expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
                         };
                     } else if (doc.modified && !doc.archivo) {
                         // DELETION SIGNAL
@@ -259,7 +274,7 @@ export const useSupplier = (explicitCuit = null) => {
                             file_type: null,
                             file_content: null,
                             date_submitted: null,
-                            expiration_date: doc.fechaVencimiento || null
+                            expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
                         };
                     } else if (doc.modified && doc.archivo && !doc.fileObject) {
                         // CASE: Updated metadata (like expiration date) but NO new file
@@ -272,7 +287,8 @@ export const useSupplier = (explicitCuit = null) => {
                             file_type: null,
                             file_content: null,
                             date_submitted: null,
-                            expiration_date: doc.fechaVencimiento || null
+                            // Send as noon UTC to prevent backend from shifting to previous day mapping
+                            expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
                         };
                     }
 
@@ -281,16 +297,20 @@ export const useSupplier = (explicitCuit = null) => {
                         id_active: finalIdActive,
                         element_data: {
                             tipo: doc.tipo,
-                            estado: doc.estado,
+                            estado: doc.fileObject ? 'EN REVISIÓN' : doc.estado,
                             archivo: doc.archivo,
-                            observacion: doc.observacion,
-                            id_periodicity: PERIODICITY_MAP[doc.frecuencia?.toUpperCase()] || 1
+                            observacion: doc.fileObject ? null : doc.observacion,
+                            id_periodicity: PERIODICITY_MAP[doc.frecuencia?.toUpperCase()] || 1,
+                            fechaVencimiento: doc.fechaVencimiento || null // Also place date in element json
                         },
                         file_submitted: fileDto
                     });
                 }
             }
         }
+
+        console.log("=== JSON PAYLOAD PARA ACTUALIZAR PROVEEDOR ===");
+        console.log(JSON.stringify(elementsList, null, 2));
 
         const backendPayload = {
             id_supplier: mergedData.internalId || mergedData.id,

@@ -64,7 +64,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
         const CURRENT_PROVIDER_CUIT = currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
 
-        if (!CURRENT_PROVIDER_CUIT && type === 'suppliers') {
+        if ((!CURRENT_PROVIDER_CUIT || String(CURRENT_PROVIDER_CUIT) === 'undefined' || String(CURRENT_PROVIDER_CUIT) === 'null') && type === 'suppliers') {
             setData([]);
             setLoading(false);
             return;
@@ -120,8 +120,16 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
                                         // Status logic based on Audit, Expiration, and File presence
                                         let finalStatus = 'PENDIENTE';
-                                        const hasAudit = submittedFile?.audit;
-                                        const auditStatus = submittedFile?.audit?.status;
+
+                                        // Support both snake_case (JsonProperty) and camelCase (default)
+                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
+
+                                        if (isFile) {
+                                            // Diagnostic log removed
+                                        }
+
+                                        const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
+                                        const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
                                         if (hasAudit) {
                                             if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
@@ -130,13 +138,20 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                                         } else {
                                             const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
                                             if (expDateStr) {
-                                                const expDate = new Date(expDateStr);
+                                                const dateStr = String(expDateStr);
+                                                let expDate;
+                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                if (match) {
+                                                    expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                                                } else {
+                                                    expDate = new Date(dateStr);
+                                                    expDate.setHours(0, 0, 0, 0);
+                                                }
+
                                                 const today = new Date();
-                                                // Reset time for accurate day comparison
-                                                expDate.setHours(0, 0, 0, 0);
                                                 today.setHours(0, 0, 0, 0);
 
-                                                if (expDate < today) {
+                                                if (isFile && expDate < today) {
                                                     finalStatus = 'VENCIDO';
                                                 } else {
                                                     finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
@@ -300,6 +315,13 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
         setIsUploading(true);
         try {
+            // Check required date locally in modal before sending upward
+            if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez' && !uploadDate) {
+                alert("Debe seleccionar una fecha de vencimiento obligatoriamente para este tipo de documento.");
+                setIsUploading(false);
+                return;
+            }
+
             setLoadingDocs(prev => ({ ...prev, [uploadingDoc.id]: true }));
             const updatedDocs = supplierData.documentacion.map(doc => {
                 if (doc.tipo === uploadingDoc.tipo) {
@@ -437,14 +459,26 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
             )}
 
             {rowData.estado === 'VIGENTE' || rowData.estado === 'EN REVISIÓN' ? (
-                <button
-                    onClick={() => handleViewFile(rowData)}
-                    disabled={loadingDocs[rowData.id]}
-                    className="text-secondary-dark bg-secondary-light/30 hover:bg-secondary-light hover:text-primary rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-wait"
-                    title="Ver Documento"
-                >
-                    {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-external-link"></i>} VER
-                </button>
+                <>
+                    <button
+                        onClick={() => handleViewFile(rowData)}
+                        disabled={loadingDocs[rowData.id]}
+                        className="text-secondary-dark bg-secondary-light/30 hover:bg-secondary-light hover:text-primary rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-wait"
+                        title="Ver Documento"
+                    >
+                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-external-link"></i>} VER
+                    </button>
+                    {rowData.estado === 'VIGENTE' && (
+                        <button
+                            onClick={() => openUploadModal(rowData)}
+                            disabled={loadingDocs[rowData.id]}
+                            className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
+                            title="Actualizar documento"
+                        >
+                            {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} ACTUALIZAR
+                        </button>
+                    )}
+                </>
             ) : (
                 <button
                     onClick={() => openUploadModal(rowData)}

@@ -501,11 +501,11 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             });
         }
 
-        // Clean up 'modified' flags
-        const cleanDocs = updatedDocs?.map(({ modified, ...rest }) => rest);
+        // DO NOT Clean up 'modified' flags because useSupplier needs them to know what to save
+        // const cleanDocs = updatedDocs?.map(({ modified, ...rest }) => rest);
 
         // Update local state first (always full sync for UI consistency)
-        const finalData = { ...formData, documentacion: cleanDocs };
+        const finalData = { ...formData, documentacion: updatedDocs };
         setFormData(finalData);
 
         if (scope) {
@@ -1434,12 +1434,36 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                         const currentDocs = prev.documentacion || [];
                                                                         const docIndex = currentDocs.findIndex(d => String(d.id) === String(doc.id));
 
+                                                                        let defaultDate = null;
+                                                                        if (doc.frecuencia && doc.frecuencia !== 'Única vez') {
+                                                                            const today = new Date();
+                                                                            const freqLower = doc.frecuencia.toLowerCase();
+                                                                            if (freqLower.includes('anual')) {
+                                                                                defaultDate = new Date(today.setFullYear(today.getFullYear() + 1));
+                                                                            } else if (freqLower.includes('semestral')) {
+                                                                                defaultDate = new Date(today.setMonth(today.getMonth() + 6));
+                                                                            } else if (freqLower.includes('trimestral')) {
+                                                                                defaultDate = new Date(today.setMonth(today.getMonth() + 3));
+                                                                            } else if (freqLower.includes('mensual')) {
+                                                                                defaultDate = new Date(today.setMonth(today.getMonth() + 1));
+                                                                            }
+                                                                        }
+
+                                                                        let formattedDate = null;
+                                                                        if (defaultDate) {
+                                                                            const year = defaultDate.getFullYear();
+                                                                            const month = String(defaultDate.getMonth() + 1).padStart(2, '0');
+                                                                            const day = String(defaultDate.getDate()).padStart(2, '0');
+                                                                            formattedDate = `${year}-${month}-${day}`;
+                                                                        }
+
                                                                         let newDocs;
                                                                         if (docIndex >= 0) {
                                                                             // Update existing - PRESERVE STATUS until save
                                                                             newDocs = [...currentDocs];
                                                                             newDocs[docIndex] = {
                                                                                 ...newDocs[docIndex],
+                                                                                oldArchivo: newDocs[docIndex].oldArchivo || newDocs[docIndex].archivo,
                                                                                 archivo: file.name,
                                                                                 fileUrl: fileUrl,
                                                                                 fileObject: file, // Store the File object
@@ -1447,7 +1471,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 label: doc.label,
                                                                                 // Mark as modified so we know to update status on save
                                                                                 modified: true,
-                                                                                fechaVencimiento: newDocs[docIndex].fechaVencimiento || null
+                                                                                fechaVencimiento: newDocs[docIndex].fechaVencimiento || formattedDate
                                                                             };
                                                                         } else {
                                                                             // Add new - Status PENDING until save
@@ -1464,7 +1488,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 fileUrl: fileUrl,
                                                                                 fileObject: file, // Store the File object
                                                                                 modified: true, // New docs are modified by definition
-                                                                                fechaVencimiento: null
+                                                                                fechaVencimiento: formattedDate
                                                                             }];
                                                                         }
                                                                         return { ...prev, documentacion: newDocs };
@@ -1609,6 +1633,26 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                             )
                                                                         )}
 
+                                                                        {/* Old File Info for Observed status */}
+                                                                        {status === 'CON OBSERVACIÓN' && docData?.archivo && (
+                                                                            <div className="mb-3 p-2 border border-orange-200 bg-orange-50/30 rounded-lg flex items-center justify-between group/oldfile transition-colors hover:bg-orange-50">
+                                                                                <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                                    <div className="bg-white p-1 rounded text-orange-400 shadow-sm">
+                                                                                        <i className="pi pi-file-pdf text-[10px]"></i>
+                                                                                    </div>
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="text-[8px] font-bold text-orange-600 uppercase tracking-wider">Archivo Auditado:</span>
+                                                                                        <span className="text-[10px] text-orange-800 font-medium truncate pr-2">{docData?.oldArchivo || docData?.archivo}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                {!docData?.modified && isStep4ActionsEnabled && (
+                                                                                    <button onClick={(e) => { e.stopPropagation(); handleViewFile(docData); }} className="text-orange-400 hover:text-orange-600 p-1">
+                                                                                        <i className="pi pi-eye text-xs"></i>
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+
                                                                         {/* Body: Configuration (Wizard Mode) */}
                                                                         {/* Body: Configuration (Wizard Mode OR Admin Edit) */}
                                                                         {(isWizardMode || (isAdmin && editDocMode)) ? (
@@ -1664,7 +1708,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                             <i className="pi pi-calendar text-secondary/50 text-base"></i>
                                                                                             {isStep4ActionsEnabled ? (
                                                                                                 <Calendar
-                                                                                                    value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
+                                                                                                    value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('T')[0].split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
                                                                                                     onChange={(e) => handleDateChange(doc.id, e.value)}
                                                                                                     placeholder="Vencimiento"
                                                                                                     disabled={!docData?.archivo}
@@ -1674,7 +1718,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                                     dateFormat="dd/mm/yy"
                                                                                                 />
                                                                                             ) : (
-                                                                                                <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : docData.fechaVencimiento; })() : '-'}</span>
+                                                                                                <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const dateStr = String(docData.fechaVencimiento).split('T')[0]; const p = dateStr.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr; })() : '-'}</span>
                                                                                             )}
                                                                                         </div>
                                                                                         {isStep4ActionsEnabled && !docData?.archivo && (
@@ -1686,8 +1730,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 )}
 
                                                                                 {/* ACTION AREA: Placeholder / Upload / File Info */}
-                                                                                {/* 1. Pending + No File => Placeholder or Upload Zone */}
-                                                                                {!docData?.archivo && (
+                                                                                {/* 1. Pending + No File OR Observado => Placeholder or Upload Zone */}
+                                                                                {(!docData?.archivo || (status === 'CON OBSERVACIÓN' && !docData?.modified)) && (
                                                                                     isStep4ActionsEnabled ? (
                                                                                         <div className="mt-auto pt-2 flex-1 relative group/upload min-h-[120px] cursor-pointer">
                                                                                             <input
@@ -1706,7 +1750,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 )}
 
                                                                                 {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
-                                                                                {(docData?.archivo && isStep4ActionsEnabled) && (
+                                                                                {(docData?.archivo && (status !== 'CON OBSERVACIÓN' || docData?.modified) && isStep4ActionsEnabled) && (
                                                                                     <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
                                                                                         onClick={() => handleViewFile(docData)}
                                                                                     >
@@ -1714,9 +1758,16 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                             <div className="bg-white p-1.5 rounded-md text-primary shadow-sm">
                                                                                                 <i className="pi pi-file-pdf text-xs"></i>
                                                                                             </div>
-                                                                                            <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
-                                                                                                {docData.archivo}
-                                                                                            </span>
+                                                                                            {status === 'CON OBSERVACIÓN' ? (
+                                                                                                <div className="flex flex-col">
+                                                                                                    <span className="text-[8px] font-bold text-primary uppercase tracking-wider">Nuevo a subir:</span>
+                                                                                                    <span className="text-[10px] font-bold text-primary-dark truncate pr-2">{docData.archivo}</span>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <span className="text-[10px] font-bold text-primary-dark truncate pr-2">
+                                                                                                    {docData.archivo}
+                                                                                                </span>
+                                                                                            )}
                                                                                         </div>
 
                                                                                         {isStep4ActionsEnabled ? (
@@ -1794,7 +1845,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                     let newDocs;
                                                                     if (docIndex >= 0) {
                                                                         newDocs = [...currentDocs];
-                                                                        newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
+                                                                        newDocs[docIndex] = { ...newDocs[docIndex], oldArchivo: newDocs[docIndex].oldArchivo || newDocs[docIndex].archivo, archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: newDocs[docIndex].fechaVencimiento || null };
                                                                     } else {
                                                                         newDocs = [...currentDocs, { id: doc.id, tipo: doc.id, estado: 'PENDIENTE', archivo: file.name, fileUrl: fileUrl, fileObject: file, modified: true, fechaVencimiento: null }];
                                                                     }
@@ -1900,53 +1951,47 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                         )}
 
                                                                         {/* Ver/Subir Archivo */}
-                                                                        {isStep4ActionsEnabled ? (
-                                                                            docData?.archivo ? (
-                                                                                <div className="flex items-center gap-1 bg-primary/5 rounded-lg p-1">
-                                                                                    <button
-                                                                                        onClick={() => handleViewFile(docData)}
-                                                                                        className="p-1 text-primary hover:bg-white rounded shadow-sm transition-all flex items-center justify-center w-6 h-6"
-                                                                                        title="Ver archivo"
-                                                                                    >
-                                                                                        {loadingDocs[docData?.id] ? (
-                                                                                            <i className="pi pi-spin pi-spinner text-xs"></i>
-                                                                                        ) : (
-                                                                                            <i className="pi pi-eye text-xs"></i>
-                                                                                        )}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleRemoveFile(doc.id)}
-                                                                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-white rounded transition-all"
-                                                                                        title="Eliminar"
-                                                                                    >
-                                                                                        <i className="pi pi-trash text-xs"></i>
-                                                                                    </button>
+                                                                        <div className="flex flex-col gap-1.5 w-full">
+                                                                            {status === 'CON OBSERVACIÓN' && docData?.archivo && (
+                                                                                <div className="flex items-center justify-between p-1 px-2 border border-orange-200 bg-orange-50/50 rounded flex-1 min-w-0" title="Archivo Auditado">
+                                                                                    <div className="flex items-center gap-1 overflow-hidden">
+                                                                                        <i className="pi pi-file-pdf text-orange-400 text-[10px]"></i>
+                                                                                        <span className="text-[9px] text-orange-800 truncate" title={docData?.oldArchivo || docData?.archivo}>{docData?.oldArchivo || docData?.archivo}</span>
+                                                                                    </div>
+                                                                                    {!docData?.modified && isStep4ActionsEnabled && (
+                                                                                        <button onClick={() => handleViewFile(docData)} className="ml-1 text-orange-500 hover:text-orange-700 shrink-0"><i className="pi pi-eye text-[10px]"></i></button>
+                                                                                    )}
                                                                                 </div>
+                                                                            )}
+
+                                                                            {isStep4ActionsEnabled ? (
+                                                                                (docData?.archivo && (status !== 'CON OBSERVACIÓN' || docData?.modified)) ? (
+                                                                                    <div className="flex items-center justify-between gap-1 bg-primary/5 rounded border border-primary/20 p-1 flex-1 min-w-0">
+                                                                                        <div className="flex items-center gap-1 overflow-hidden">
+                                                                                            {status === 'CON OBSERVACIÓN' && <span className="text-[8px] font-bold text-primary px-1 uppercase shrink-0">Nuevo</span>}
+                                                                                            <span className="text-[10px] text-primary-dark truncate" title={docData.archivo}>{docData.archivo}</span>
+                                                                                        </div>
+                                                                                        <div className="flex items-center shrink-0">
+                                                                                            <button onClick={() => handleViewFile(docData)} className="p-1 px-1.5 text-primary hover:bg-white rounded transition-all"><i className="pi pi-eye text-[10px]"></i></button>
+                                                                                            <button onClick={() => handleRemoveFile(doc.id)} className="p-1 px-1.5 text-red-500 hover:bg-red-50 rounded transition-all"><i className="pi pi-trash text-[10px]"></i></button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div className="relative flex-1">
+                                                                                        <input type="file" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full" accept=".pdf,.jpg,.jpeg,.png" />
+                                                                                        <button className="bg-primary/10 text-primary w-full py-1.5 rounded text-[10px] font-bold hover:bg-primary hover:text-white transition-all flex justify-center items-center gap-1 border border-primary/20 hover:border-transparent">
+                                                                                            <i className="pi pi-cloud-upload"></i> Subir Documento
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )
                                                                             ) : (
-                                                                                <div className="relative">
-                                                                                    <input
-                                                                                        type="file"
-                                                                                        onChange={handleFileUpload}
-                                                                                        className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
-                                                                                        accept=".pdf,.jpg,.jpeg,.png"
-                                                                                    />
-                                                                                    <button className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">
-                                                                                        Subir
+                                                                                docData?.archivo && status !== 'CON OBSERVACIÓN' && (
+                                                                                    <button onClick={() => handleViewFile(docData)} className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all min-w-[50px] flex justify-center items-center">
+                                                                                        {loadingDocs[docData?.id] ? <i className="pi pi-spin pi-spinner text-xs"></i> : "Ver"}
                                                                                     </button>
-                                                                                </div>
-                                                                            )
-                                                                        ) : (
-                                                                            docData?.archivo && (
-                                                                                <button
-                                                                                    onClick={() => handleViewFile(docData)}
-                                                                                    className="bg-secondary-light text-secondary px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all min-w-[50px] flex justify-center items-center"
-                                                                                >
-                                                                                    {loadingDocs[docData?.id] ? (
-                                                                                        <i className="pi pi-spin pi-spinner text-xs"></i>
-                                                                                    ) : "Ver"}
-                                                                                </button>
-                                                                            )
-                                                                        )}
+                                                                                )
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                 </td>
                                                             </tr>

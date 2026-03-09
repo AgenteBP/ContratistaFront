@@ -17,7 +17,7 @@ export const auditorService = {
      * Obtiene todos los archivos que requieren auditoría (EN REVISIÓN)
      */
     getPendingFiles: async () => {
-        const response = await api.get('/audit/all'); // Assuming backend supports filtering or we filter in front
+        const response = await api.get('/audit/pending');
         return response.data;
     },
 
