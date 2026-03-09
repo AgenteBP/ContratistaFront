@@ -13,12 +13,15 @@ import { DOC_TYPE_LABELS } from '../../data/documentConstants';
 import { useSupplier } from '../../hooks/useSupplier';
 import { Dialog } from 'primereact/dialog';
 import { Calendar } from 'primereact/calendar';
+import AuditDocumentModal from '../ui/AuditDocumentModal';
+import { TbBackhoe } from 'react-icons/tb';
 
-const DocumentEntityTable = ({ type, filterStatus }) => {
+const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete }) => {
     const navigate = useNavigate();
     const { user, currentRole, isAuditorLegal } = useAuth();
-    const { supplierData, updateSupplier } = useSupplier();
+    const { supplierData, updateSupplier } = useSupplier(explicitCuit);
     const [data, setData] = useState([]);
+    const [allRawDocs, setAllRawDocs] = useState([]);
     const [filteredData, setFilteredData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loadingDocs, setLoadingDocs] = useState({});
@@ -26,6 +29,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
     const [selectedObservation, setSelectedObservation] = useState(null);
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
+    const [activeCategory, setActiveCategory] = useState(5); // Default to Legajo (5)
 
     const [uploadModalVisible, setUploadModalVisible] = useState(false);
     const [uploadingDoc, setUploadingDoc] = useState(null);
@@ -54,15 +58,56 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
     const MOCK_MACHINERY = [];
     const generateDocsForResource = () => [];
 
+    const getCategoryFromDoc = (typeId, label) => {
+        const id = Number(typeId);
+        const name = String(label || '').toLowerCase();
+        
+        if (id === 1) return 1;
+        if (id === 2) return 2;
+        if (id === 3) return 3;
+        if (id === 5) return 5;
+
+        if (name.includes('seguro personal') || name.includes('accidentes personales') || name.includes('art')) {
+            return 5; // Force 'Seguro Personal' to Legajo (5)
+        }
+
+        if (name.includes('empleado') || name.includes('personal') || name.includes('recurso')) return 1;
+        if (name.includes('vehiculo') || name.includes('unidad') || name.includes('camion')) return 2;
+        if (name.includes('maquinaria') || name.includes('equipo') || name.includes('herramienta')) return 3;
+        
+        return 5; // Default to Legajo
+    };
+
     useEffect(() => {
         initFilters();
         loadData();
-    }, [type, filterStatus, user, currentRole]);
+    }, [type, user, currentRole, explicitCuit]);
+
+    useEffect(() => {
+        const filteredDocs = allRawDocs.filter(doc => {
+            // Category Filter (Legajo, Personal, etc)
+            if (activeCategory && Number(doc.id_active_type) !== activeCategory) return false;
+
+            if (filterStatus === 'general') return true;
+            const s = doc.estado || 'PENDIENTE';
+            switch (filterStatus) {
+                case 'pending_upload': return s === 'PENDIENTE' || s === 'INCOMPLETA';
+                case 'expiring': return s === 'VENCIDO' || s === 'POR VENCER';
+                case 'observed': return s === 'CON OBSERVACIÓN' || s === 'RECHAZADO' || s === 'OBSERVADO';
+                case 'in_review': return s === 'EN REVISIÓN';
+                case 'valid': return s === 'VIGENTE' || s === 'COMPLETA';
+                default: return true;
+            }
+        });
+
+        filteredDocs.sort((a, b) => (a.entityId || '').localeCompare(b.entityId || ''));
+        setData(filteredDocs);
+    }, [allRawDocs, activeCategory, filterStatus]);
 
     const loadData = async () => {
         setLoading(true);
 
-        const CURRENT_PROVIDER_CUIT = currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
+        const CURRENT_PROVIDER_CUIT = explicitCuit || currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
 
         if ((!CURRENT_PROVIDER_CUIT || String(CURRENT_PROVIDER_CUIT) === 'undefined' || String(CURRENT_PROVIDER_CUIT) === 'null') && type === 'suppliers') {
             setData([]);
@@ -74,10 +119,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
             let allDocuments = [];
 
             if (type === 'suppliers') {
-                // Fetch real data from backend
                 const response = await requirementService.getSupplierDocuments(CURRENT_PROVIDER_CUIT);
-                console.log("DocumentEntityTable: Fetching real supplier docs", response);
-
                 if (response) {
                     if (response.id_group) {
                         try {
@@ -90,7 +132,6 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
                                     const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
                                     const attrs = attrTempl?.attributes;
-
                                     const folderMeta = (listReq.folder_metadata || listReq.folderMetadata)?.data;
                                     const files = listReq.files || [];
                                     const submittedFile = files.length > 0 ? files[0] : null;
@@ -100,7 +141,6 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
                                     if (!docMap.has(key)) {
                                         const label = listReq.description || attrs?.description || 'Documento';
-
                                         let docKey = Object.keys(DOC_TYPE_LABELS).find(k =>
                                             DOC_TYPE_LABELS[k].label.toLowerCase() === label.toLowerCase()
                                         );
@@ -114,55 +154,41 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
                                         const isFile = !!submittedFile;
                                         const cleanLabel = label.replace(/ obligatorio/i, '').trim();
-
                                         const fileData = submittedFile?.data_pdf || submittedFile?.dataPdf || {};
                                         const directFileName = submittedFile?.file_name || submittedFile?.fileName;
 
-                                        // Status logic based on Audit, Expiration, and File presence
                                         let finalStatus = 'PENDIENTE';
-
-                                        // Support both snake_case (JsonProperty) and camelCase (default)
                                         const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
 
                                         if (isFile) {
-                                            // Diagnostic log removed
-                                        }
+                                            const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
+                                            const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
-                                        const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
-                                        const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
-
-                                        if (hasAudit) {
-                                            if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
-                                            else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
-                                            else finalStatus = 'EN REVISIÓN'; // Fallback if audit exists but status is unknown
-                                        } else {
-                                            const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
-                                            if (expDateStr) {
-                                                const dateStr = String(expDateStr);
-                                                let expDate;
-                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                                                if (match) {
-                                                    expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
-                                                } else {
-                                                    expDate = new Date(dateStr);
-                                                    expDate.setHours(0, 0, 0, 0);
-                                                }
-
-                                                const today = new Date();
-                                                today.setHours(0, 0, 0, 0);
-
-                                                if (isFile && expDate < today) {
-                                                    finalStatus = 'VENCIDO';
-                                                } else {
-                                                    finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
-                                                }
+                                            if (hasAudit) {
+                                                if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
+                                                else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
+                                                else finalStatus = 'EN REVISIÓN';
                                             } else {
-                                                finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                                const expDateStr = folderMeta?.fechaVencimiento || submittedFile?.date_submitted;
+                                                if (expDateStr) {
+                                                    const dateStr = String(expDateStr);
+                                                    let expDate;
+                                                    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                    if (match) {
+                                                        expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                                                    } else {
+                                                        expDate = new Date(dateStr);
+                                                        expDate.setHours(0, 0, 0, 0);
+                                                    }
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    if (expDate < today) finalStatus = 'VENCIDO';
+                                                    else finalStatus = 'EN REVISIÓN';
+                                                } else {
+                                                    finalStatus = 'EN REVISIÓN';
+                                                }
                                             }
                                         }
-
-                                        // Override with folderMeta status if it was explicitly set (optional, depending on architecture)
-                                        // finalStatus = folderMeta?.estado || finalStatus;
 
                                         const finalFileName = folderMeta?.archivo || directFileName || fileData?.file_name || fileData?.fileName || null;
                                         const finalObs = folderMeta?.observacion || submittedFile?.observacion || null;
@@ -175,6 +201,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                                             entityName: response.company_name,
                                             entityType: 'Proveedor',
                                             tipo: docKey,
+                                            id_active_type: getCategoryFromDoc(listReq.id_active_type || listReq.idActiveType, label),
                                             label: cleanLabel,
                                             estado: finalStatus,
                                             fechaVencimiento: finalVenc,
@@ -192,7 +219,6 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                         }
                     }
 
-                    // Fallback if specific group requirements not available but elements exist
                     if (allDocuments.length === 0 && response.elements) {
                         allDocuments = response.elements.map(el => ({
                             id: el.id_elements,
@@ -200,6 +226,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                             entityName: response.company_name,
                             entityType: 'Proveedor',
                             tipo: el.active?.description || 'DOCUMENTO',
+                            id_active_type: getCategoryFromDoc(el.active?.id_active_type || el.active?.idActiveType || el.id_active_type, el.active?.description),
                             label: el.active?.description || 'DOCUMENTO',
                             estado: el.data?.estado || 'PENDIENTE',
                             fechaVencimiento: el.data?.fechaVencimiento || null,
@@ -211,45 +238,18 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                     }
                 }
             } else {
-                // Keep resources with mock data for now, or update if endpoints exist
                 let validEntities = [];
                 const CURRENT_PROVIDER_NAME = 'PAEZ BRAIAN ANDRES';
-
                 switch (type) {
-                    case 'employees':
-                        validEntities = MOCK_EMPLOYEES.filter(e => e.proveedor === CURRENT_PROVIDER_NAME);
-                        break;
-                    case 'vehicles':
-                        validEntities = MOCK_VEHICLES.filter(v => v.proveedor === CURRENT_PROVIDER_NAME);
-                        break;
-                    case 'machinery':
-                        validEntities = MOCK_MACHINERY.filter(m => m.proveedor === CURRENT_PROVIDER_NAME);
-                        break;
+                    case 'employees': validEntities = MOCK_EMPLOYEES.filter(e => e.proveedor === CURRENT_PROVIDER_NAME); break;
+                    case 'vehicles': validEntities = MOCK_VEHICLES.filter(v => v.proveedor === CURRENT_PROVIDER_NAME); break;
+                    case 'machinery': validEntities = MOCK_MACHINERY.filter(m => m.proveedor === CURRENT_PROVIDER_NAME); break;
                     default: validEntities = [];
                 }
                 allDocuments = validEntities.flatMap(item => generateDocsForResource(item, type));
             }
 
-            const filteredDocs = allDocuments.filter(doc => {
-                if (filterStatus === 'general') return true;
-                const s = doc.estado || 'PENDIENTE';
-                switch (filterStatus) {
-                    case 'pending_upload': return s === 'PENDIENTE' || s === 'INCOMPLETA';
-                    case 'expiring': return s === 'VENCIDO' || s === 'POR VENCER';
-                    case 'observed': return s === 'CON OBSERVACIÓN' || s === 'RECHAZADO' || s === 'OBSERVADO';
-                    case 'in_review': return s === 'EN REVISIÓN';
-                    case 'valid': return s === 'VIGENTE' || s === 'COMPLETA';
-                    default: return true;
-                }
-            });
-
-            filteredDocs.sort((a, b) => {
-                if (a.entityId < b.entityId) return -1;
-                if (a.entityId > b.entityId) return 1;
-                return 0;
-            });
-
-            setData(filteredDocs);
+            setAllRawDocs(allDocuments);
         } catch (error) {
             console.error("DocumentEntityTable: Error loading data", error);
         } finally {
@@ -399,35 +399,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
     // --- AUDIT ACTIONS ---
     const openAuditModal = (rowData) => {
         setAuditingDoc(rowData);
-        setAuditForm({ status: 'APROBADO', observation: '' });
         setAuditModalVisible(true);
-    };
-
-    const handleSaveAudit = async () => {
-        if (!auditingDoc?.id_file_submitted) {
-            alert("No hay un archivo válido para auditar.");
-            return;
-        }
-
-        setIsSubmittingAudit(true);
-        try {
-            const auditData = {
-                id_company_auditor: currentRole?.id_auditor || user?.id, // Fallback if id_auditor is not in currentRole
-                id_file_submitted: auditingDoc.id_file_submitted,
-                status: auditForm.status,
-                observation: auditForm.observation,
-                date_audit: new Date().toISOString()
-            };
-
-            await auditorService.saveFileAudit(auditData);
-            await loadData();
-            setAuditModalVisible(false);
-        } catch (error) {
-            console.error("Error saving audit", error);
-            alert("Error al guardar la auditoría.");
-        } finally {
-            setIsSubmittingAudit(false);
-        }
     };
 
     const actionTemplate = (rowData) => (
@@ -468,7 +440,7 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                     >
                         {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-external-link"></i>} VER
                     </button>
-                    {rowData.estado === 'VIGENTE' && (
+                    {rowData.estado === 'VIGENTE' && !isAuditorLegal && (
                         <button
                             onClick={() => openUploadModal(rowData)}
                             disabled={loadingDocs[rowData.id]}
@@ -480,14 +452,16 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                     )}
                 </>
             ) : (
-                <button
-                    onClick={() => openUploadModal(rowData)}
-                    disabled={loadingDocs[rowData.id]}
-                    className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
-                    title="Subir documento"
-                >
-                    {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} SUBIR
-                </button>
+                !isAuditorLegal && (
+                    <button
+                        onClick={() => openUploadModal(rowData)}
+                        disabled={loadingDocs[rowData.id]}
+                        className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
+                        title="Subir documento"
+                    >
+                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} SUBIR
+                    </button>
+                )
             )}
         </div>
     );
@@ -566,6 +540,37 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
 
     return (
         <div className="w-full bg-white border border-secondary/10 rounded-xl shadow-sm overflow-hidden animate-fade-in">
+            {/* Category Navigation (Premium Tabs) */}
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border-b border-secondary/5">
+                {[
+                    { id: 5, label: 'Legajo', icon: <i className="pi pi-briefcase text-xs"></i> },
+                    { id: 1, label: 'Personal', icon: <i className="pi pi-users text-xs"></i> },
+                    { id: 2, label: 'Vehículos', icon: <i className="pi pi-car text-xs"></i> },
+                    { id: 3, label: 'Maquinaria', icon: <TbBackhoe className="text-sm" /> }
+                ].map(cat => {
+                    const count = allRawDocs.filter(d => Number(d.id_active_type) === cat.id).length;
+                    const isActive = activeCategory === cat.id;
+                    return (
+                        <button
+                            key={cat.id}
+                            onClick={() => {
+                                console.log("Category Change:", cat.label, cat.id);
+                                setActiveCategory(cat.id);
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all
+                                ${isActive 
+                                    ? 'bg-white text-primary shadow-sm border border-primary/10' 
+                                    : 'text-secondary/60 hover:text-secondary hover:bg-white/50'
+                                }`}
+                        >
+                            <span className={isActive ? 'text-primary' : 'text-secondary/40'}>{cat.icon}</span>
+                            {cat.label}
+                            {count > 0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[8px] ${isActive ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-secondary/40'}`}>{count}</span>}
+                        </button>
+                    );
+                })}
+            </div>
+
             <ObservationModal
                 visible={observationModalVisible}
                 onHide={() => setObservationModalVisible(false)}
@@ -600,83 +605,19 @@ const DocumentEntityTable = ({ type, filterStatus }) => {
                 <Column header={isAuditorLegal ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
             </AppTable>
 
-            {/* MODAL DE AUDITORÍA LEGAL */}
-            <Dialog
-                header={null}
-                visible={auditModalVisible}
-                onHide={() => !isSubmittingAudit && setAuditModalVisible(false)}
-                className="w-[90vw] max-w-[450px]"
-                closable={false}
-                pt={{
-                    mask: { className: 'backdrop-blur-sm' },
-                    content: { className: 'p-0 rounded-2xl overflow-hidden bg-white shadow-2xl' }
-                }}
-            >
-                <div className="flex flex-col">
-                    <div className="px-6 py-4 border-b border-secondary/10 flex justify-between items-center bg-slate-50/50">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-info/10 flex items-center justify-center">
-                                <i className="pi pi-shield text-info"></i>
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-secondary-dark text-base leading-tight">Intervención Legal</h3>
-                                <p className="text-[10px] text-secondary font-medium uppercase tracking-wider">{auditingDoc?.label}</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setAuditModalVisible(false)} className="w-8 h-8 rounded-full hover:bg-slate-200/50 flex items-center justify-center transition-all">
-                            <i className="pi pi-times text-[10px] text-secondary"></i>
-                        </button>
-                    </div>
-
-                    <div className="p-6 space-y-5">
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setAuditForm({ ...auditForm, status: 'APROBADO' })}
-                                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${auditForm.status === 'APROBADO' ? 'border-success bg-success/5 text-success' : 'border-slate-50 text-secondary/40 hover:border-success/20'}`}
-                            >
-                                <i className="pi pi-check-circle text-xl"></i>
-                                <span className="font-bold uppercase text-[10px]">Aprobar</span>
-                            </button>
-                            <button
-                                onClick={() => setAuditForm({ ...auditForm, status: 'OBSERVADO' })}
-                                className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${auditForm.status === 'OBSERVADO' ? 'border-warning bg-warning/5 text-warning-hover' : 'border-slate-50 text-secondary/40 hover:border-warning/20'}`}
-                            >
-                                <i className="pi pi-exclamation-triangle text-xl"></i>
-                                <span className="font-bold uppercase text-[10px]">Observar</span>
-                            </button>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Comentarios</label>
-                            <textarea
-                                value={auditForm.observation}
-                                onChange={(e) => setAuditForm({ ...auditForm, observation: e.target.value })}
-                                rows={3}
-                                className="w-full rounded-xl border border-secondary/20 focus:border-info focus:ring-4 focus:ring-info/5 transition-all p-3 text-secondary-dark text-sm bg-slate-50 outline-none resize-none"
-                                placeholder="Indique el motivo de la observación o detalles adicionales..."
-                            />
-                        </div>
-                    </div>
-
-                    <div className="p-6 bg-slate-50/50 border-t border-secondary/10 flex gap-3">
-                        <button
-                            onClick={() => setAuditModalVisible(false)}
-                            className="flex-1 py-2.5 bg-white border border-secondary/20 rounded-xl text-secondary font-bold hover:bg-slate-100 transition-all text-xs uppercase"
-                            disabled={isSubmittingAudit}
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSaveAudit}
-                            disabled={isSubmittingAudit}
-                            className="flex-[1.5] py-2.5 bg-info hover:bg-info-hover text-white font-bold rounded-xl shadow-lg shadow-info/10 transition-all text-xs uppercase flex items-center justify-center gap-2"
-                        >
-                            {isSubmittingAudit ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-save"></i>}
-                            Confirmar
-                        </button>
-                    </div>
-                </div>
-            </Dialog>
+            <AuditDocumentModal 
+                visible={auditModalVisible} 
+                onHide={() => setAuditModalVisible(false)} 
+                docData={auditingDoc} 
+                onAuditComplete={async () => {
+                    console.log("DocumentEntityTable: Audit complete wrapper calling loadData...");
+                    await loadData();
+                    if (onAuditComplete) {
+                        console.log("DocumentEntityTable: Notifying parent/dashboard of audit complete...");
+                        await onAuditComplete();
+                    }
+                }} 
+            />
 
             <Dialog
                 header={<span className="sr-only">Subir Documento</span>}

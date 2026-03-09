@@ -5,11 +5,14 @@ import { auditorService } from '../../services/auditorService';
 import AppTable from '../../components/ui/AppTable';
 import { Column } from 'primereact/column';
 import { StatusBadge } from '../../components/ui/Badges';
+import AuditDocumentModal from '../../components/ui/AuditDocumentModal';
 
 const GlobalAuditInbox = () => {
     const navigate = useNavigate();
     const [pendingDocs, setPendingDocs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [auditModalVisible, setAuditModalVisible] = useState(false);
+    const [auditingDoc, setAuditingDoc] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -27,9 +30,14 @@ const GlobalAuditInbox = () => {
         }
     };
 
+    const openAuditModal = (rowData) => {
+        setAuditingDoc(rowData);
+        setAuditModalVisible(true);
+    };
+
     const actionTemplate = (rowData) => (
         <button
-            onClick={() => navigate(`/proveedores/${rowData.cuit || rowData.providerId || 1}`)} // In a real app we'd target the specific file
+            onClick={() => openAuditModal(rowData)}
             className="bg-info hover:bg-info-hover text-white px-5 py-1.5 rounded-lg text-[10px] font-extrabold transition-all uppercase flex items-center gap-2"
         >
             <i className="pi pi-shield"></i> Auditar
@@ -70,6 +78,13 @@ const GlobalAuditInbox = () => {
                     <Column header="Acción" body={actionTemplate} className="text-right pr-6" headerClassName="text-right pr-6"></Column>
                 </AppTable>
             </div>
+
+            <AuditDocumentModal 
+                visible={auditModalVisible} 
+                onHide={() => setAuditModalVisible(false)} 
+                docData={auditingDoc} 
+                onAuditComplete={loadData} 
+            />
         </div>
     );
 };
