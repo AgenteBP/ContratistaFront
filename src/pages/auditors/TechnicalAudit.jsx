@@ -38,6 +38,9 @@ const TechnicalAudit = () => {
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [auditForm, setAuditForm] = useState({ status: 'APROBADO', observations: '' });
+    const [modalPeriod, setModalPeriod] = useState('Mensual');
+    const [modalTab, setModalTab] = useState('personal');
+    const [isResourceTableOpen, setIsResourceTableOpen] = useState(true);
 
     useEffect(() => {
         localStorage.setItem('technical_audit_params_v2', JSON.stringify(params));
@@ -58,6 +61,9 @@ const TechnicalAudit = () => {
         } else {
             setAuditForm({ status: 'APROBADO', observations: '' });
         }
+        setModalPeriod('Mensual');
+        setModalTab('personal');
+        setIsResourceTableOpen(true);
         setIsAuditModalOpen(true);
     };
 
@@ -181,88 +187,246 @@ const TechnicalAudit = () => {
                 onHide={() => setIsAuditModalOpen(false)}
                 header={null}
                 closable={false}
-                className="audit-dialog-sober"
-                breakpoints={{ '960px': '75vw', '641px': '95vw' }}
-                style={{ width: '32rem' }}
+                className="audit-dialog-sober transition-all duration-300"
+                breakpoints={{ '1200px': isResourceTableOpen ? '85vw' : '40rem', '960px': isResourceTableOpen ? '95vw' : '40rem', '641px': '100vw' }}
+                style={{ width: isResourceTableOpen ? '64rem' : '32rem', maxWidth: '100%' }}
                 pt={{
-                    root: { className: 'rounded-xl overflow-hidden border-none shadow-2xl' },
+                    root: { className: 'rounded-xl overflow-hidden border-none shadow-2xl transition-all duration-300' },
                     header: { className: 'hidden' },
                     content: { className: 'p-0 bg-white' }
                 }}
             >
-                <div className="flex flex-col h-full bg-white">
-                    {/* Header Minimalista */}
-                    <div className="px-6 py-4 border-b border-secondary/10 flex justify-between items-center bg-slate-50/50 shrink-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                <i className="pi pi-shield text-primary"></i>
+                <div className="flex flex-col md:flex-row h-full bg-white max-h-[90vh]">
+                    {/* PANEL IZQUIERDO: DETALLES DE RECURSOS (COLAPSABLE) */}
+                    {isResourceTableOpen && (
+                        <div className="w-full md:w-2/3 border-r border-secondary/10 flex flex-col bg-slate-50/30 overflow-hidden animate-fade-in">
+                            {/* Header Izquierdo */}
+                            <div className="bg-white border-b border-secondary/10">
+                                {/* Tabs de Recursos */}
+                                <div className="flex overflow-x-auto hide-scrollbar border-b border-secondary/5">
+                                    {[
+                                        { id: 'personal', label: 'PERSONAS' },
+                                        { id: 'vehiculo', label: 'VEHÍCULO' },
+                                        { id: 'camion', label: 'CAMIÓN' },
+                                        { id: 'grua25', label: 'GRÚAS HASTA 25TN' },
+                                        { id: 'gruaMas25', label: 'GRÚAS > 25TN' }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setModalTab(tab.id)}
+                                            className={`px-6 py-4 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${modalTab === tab.id ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-secondary/60 hover:text-secondary-dark hover:bg-slate-50'}`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Controles y Subtotal */}
+                                <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+                                    <div className="w-64">
+                                        <SelectionToggle
+                                            options={[
+                                                { label: 'Diario', value: 'Hora' },
+                                                { label: 'Mensual', value: 'Mensual' },
+                                                { label: 'Anual', value: 'Anual' }
+                                            ]}
+                                            value={modalPeriod}
+                                            onChange={setModalPeriod}
+                                            className="!p-1 !mb-0 bg-slate-100"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase text-secondary/50">Subtotal:</span>
+                                        <span className="text-sm font-bold text-secondary-dark tabular-nums">
+                                            {formatCurrency(selectedProvider ? (() => {
+                                                const daily = selectedProvider.itemDailyCosts[modalTab] || 0;
+                                                const diasMes = activeParams.jornada.diasMes || 22.5;
+                                                if (modalPeriod === 'Anual') return daily * diasMes * 12;
+                                                if (modalPeriod === 'Mensual') return daily * diasMes;
+                                                return daily;
+                                            })() : 0)}
+                                        </span>
+                                    </div>
+                                </div>
+                                {/* Filtros de Tabla Mockeada */}
+                                <div className="px-6 py-3 bg-slate-50 border-y border-secondary/5 flex items-center justify-between gap-4">
+                                    <div className="relative flex-1 max-w-sm">
+                                        <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-secondary/40 text-xs"></i>
+                                        <input type="text" placeholder="Buscar..." disabled className="w-full pl-8 pr-4 py-2 bg-white border border-secondary/10 rounded-lg text-xs outline-none" />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-secondary/10">
+                                        <span className="text-secondary/40 text-[10px] uppercase font-bold tracking-wider flex items-center gap-2">
+                                            <i className="pi pi-filter"></i> Filtros
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="px-6 py-2 bg-white flex text-[9px] uppercase font-bold text-secondary/50 items-center">
+                                    <span className="flex-1">MARCA <i className="pi pi-angle-down ml-1"></i></span>
+                                    <span className="flex-1">MODELO <i className="pi pi-angle-down ml-1"></i></span>
+                                    <span className="flex-1">ESTADO <i className="pi pi-angle-down ml-1"></i></span>
+                                    <div className="w-20 text-center flex flex-col items-center justify-center border-l border-secondary/10 pl-4 ml-4">
+                                        <span className="text-secondary-dark text-sm font-black leading-none">{selectedProvider?.resources[modalTab] || 0}</span>
+                                        <span className="text-[8px] tracking-wider mt-0.5">ITEMS</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-base text-secondary-dark leading-tight">Ejecutar Auditoría</h3>
-                                <p className="text-secondary text-[10px] font-medium leading-none mt-1 uppercase tracking-wider">{selectedProvider?.name}</p>
+
+                            {/* Tabla Mockeada Body */}
+                            <div className="flex-1 overflow-y-auto p-0 bg-white min-h-[250px]">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-slate-50/50 text-[10px] text-secondary font-bold uppercase sticky top-0 border-y border-secondary/10 z-10">
+                                        <tr>
+                                            <th className="px-6 py-3 font-bold">{modalTab === 'personal' ? 'DNI' : 'PATENTE'} <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold">MARCA <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold">MODELO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold">TIPO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold text-center">ESTADO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-secondary/5">
+                                        {selectedProvider && (() => {
+                                            const count = selectedProvider.resources[modalTab] || 0;
+                                            if (count === 0) {
+                                                return (
+                                                    <tr>
+                                                        <td colSpan="5" className="py-12 text-center text-secondary/40 text-xs">
+                                                            No hay registros para este recurso.
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+                                            return Array.from({ length: count }).map((_, i) => (
+                                                <tr key={i} className="hover:bg-slate-50 transition-colors group">
+                                                    <td className="px-6 py-3 flex items-center gap-3">
+                                                        <i className="pi pi-angle-right text-secondary/30 group-hover:text-primary transition-colors text-xs"></i>
+                                                        <span className="font-bold text-secondary-dark text-sm">{modalTab === 'personal' ? `2${Math.floor(1000000 + Math.random() * 9000000)}` : `AF${Math.floor(10 + Math.random() * 90)}${String.fromCharCode(65 + Math.random() * 26)}${String.fromCharCode(65 + Math.random() * 26)}`}</span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-secondary text-xs">{modalTab === 'personal' ? 'N/A' : (['Toyota', 'Ford', 'Chevrolet', 'Volkswagen', 'Mercedes-Benz', 'Scania'][i % 6])}</td>
+                                                    <td className="px-4 py-3 text-secondary text-xs">{modalTab === 'personal' ? 'Operario' : (['Hilux', 'Ranger', 'Amarok', 'Actros', 'FH'][i % 5])}</td>
+                                                    <td className="px-4 py-3 text-[10px] text-secondary/50 font-bold uppercase tracking-wider">{modalTab === 'personal' ? 'PERSONA' : modalTab === 'vehiculo' ? 'CAMIONETA' : 'PESADO'}</td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-success/10 text-success border border-success/20">ACTIVO</span>
+                                                    </td>
+                                                </tr>
+                                            ));
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {/* Paginación simple footer */}
+                            <div className="px-6 py-3 border-t border-secondary/10 flex justify-between items-center text-secondary/40 text-xs bg-white shrink-0">
+                                <i className="pi pi-angle-double-left cursor-not-allowed"></i>
+                                <i className="pi pi-angle-left cursor-not-allowed"></i>
+                                <span className="text-secondary-dark font-bold">1</span>
+                                <i className="pi pi-angle-right cursor-not-allowed"></i>
+                                <i className="pi pi-angle-double-right cursor-not-allowed"></i>
+                                <div className="border border-secondary/20 rounded-md px-2 py-1 flex items-center gap-2">
+                                    <span className="text-secondary-dark">5</span>
+                                    <i className="pi pi-angle-down"></i>
+                                </div>
                             </div>
                         </div>
-                        <button onClick={() => setIsAuditModalOpen(false)} className="w-8 h-8 rounded-full hover:bg-slate-200/50 flex items-center justify-center transition-all text-secondary">
-                            <i className="pi pi-times text-[10px]"></i>
-                        </button>
-                    </div>
+                    )}
 
-                    <div className="p-6 space-y-6 flex-1">
-                        {/* Estado Selector - Compacto */}
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Estado de Auditoría</label>
-                            <div className="flex gap-3">
+                    {/* PANEL DERECHO: ACCIONES DE AUDITORÍA */}
+                    <div className={`${isResourceTableOpen ? 'w-full md:w-1/3' : 'w-full'} flex flex-col bg-white transition-all duration-300`}>
+                        {/* Header Minimalista */}
+                        <div className="px-6 py-4 border-b border-secondary/10 flex justify-between items-center bg-slate-50/50 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                    <i className="pi pi-shield text-primary"></i>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-base text-secondary-dark leading-tight">Ejecutar Auditoría</h3>
+                                    <p className="text-secondary text-[10px] font-medium leading-none mt-1 uppercase tracking-wider">{selectedProvider?.name}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => setAuditForm({ ...auditForm, status: 'APROBADO' })}
-                                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${auditForm.status === 'APROBADO' ? 'border-success bg-success/5 text-success' : 'border-slate-50 text-secondary/40 hover:border-success/20 hover:text-success/60'}`}
+                                    onClick={() => setIsResourceTableOpen(!isResourceTableOpen)}
+                                    className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${isResourceTableOpen ? 'bg-white border-secondary/20 text-secondary hover:bg-slate-50' : 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20'}`}
+                                    title={isResourceTableOpen ? 'Ocultar desglose de recursos' : 'Ver desglose de recursos y tabla'}
                                 >
-                                    <i className="pi pi-check-circle text-lg"></i>
-                                    <span className="font-bold uppercase tracking-wider text-[11px]">Aprobado</span>
+                                    <i className={`pi ${isResourceTableOpen ? 'pi-angle-right' : 'pi-table'}`}></i>
+                                    <span className="hidden sm:inline">{isResourceTableOpen ? 'Ocultar panel' : 'Ver Recursos'}</span>
                                 </button>
-                                <button
-                                    onClick={() => setAuditForm({ ...auditForm, status: 'OBSERVADO' })}
-                                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${auditForm.status === 'OBSERVADO' ? 'border-warning bg-warning/5 text-warning-hover' : 'border-slate-50 text-secondary/40 hover:border-warning/20 hover:text-warning/60'}`}
-                                >
-                                    <i className="pi pi-exclamation-triangle text-lg"></i>
-                                    <span className="font-bold uppercase tracking-wider text-[11px]">Observado</span>
+                                <button onClick={() => setIsAuditModalOpen(false)} className="w-8 h-8 rounded-full hover:bg-slate-200/50 flex items-center justify-center transition-all text-secondary ml-2">
+                                    <i className="pi pi-times text-[10px]"></i>
                                 </button>
                             </div>
                         </div>
 
-                        {/* Observaciones - Compacto */}
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Detalles y Observaciones</label>
-                            <InputTextarea
-                                value={auditForm.observations}
-                                onChange={(e) => setAuditForm({ ...auditForm, observations: e.target.value })}
-                                rows={4}
-                                className="w-full rounded-xl border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all p-4 text-secondary-dark text-sm bg-slate-50 border outline-none"
-                                placeholder="Describa los hallazgos aquí..."
-                            />
+                        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                            {/* Subtotal General */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Subtotal General</label>
+                                <div className="bg-slate-50 border border-secondary/10 rounded-xl px-4 py-3 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">{modalPeriod}</span>
+                                    <span className="text-lg font-black text-primary tabular-nums">
+                                        {formatCurrency(selectedProvider ? (() => {
+                                            if (modalPeriod === 'Anual') return selectedProvider.subTotalAnual;
+                                            if (modalPeriod === 'Mensual') return selectedProvider.subTotalMensual;
+                                            return selectedProvider.subTotalDiario;
+                                        })() : 0)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Estado Selector - Compacto */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Estado de Auditoría</label>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setAuditForm({ ...auditForm, status: 'APROBADO' })}
+                                        className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${auditForm.status === 'APROBADO' ? 'border-success bg-success/5 text-success' : 'border-slate-50 text-secondary/40 hover:border-success/20 hover:text-success/60'}`}
+                                    >
+                                        <i className="pi pi-check-circle text-lg"></i>
+                                        <span className="font-bold uppercase tracking-wider text-[11px]">Aprobado</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setAuditForm({ ...auditForm, status: 'OBSERVADO' })}
+                                        className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${auditForm.status === 'OBSERVADO' ? 'border-warning bg-warning/5 text-warning-hover' : 'border-slate-50 text-secondary/40 hover:border-warning/20 hover:text-warning/60'}`}
+                                    >
+                                        <i className="pi pi-exclamation-triangle text-lg"></i>
+                                        <span className="font-bold uppercase tracking-wider text-[11px]">Observado</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Observaciones - Compacto */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-secondary/60 uppercase tracking-widest px-1">Detalles y Observaciones</label>
+                                <InputTextarea
+                                    value={auditForm.observations}
+                                    onChange={(e) => setAuditForm({ ...auditForm, observations: e.target.value })}
+                                    rows={4}
+                                    className="w-full rounded-xl border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all p-4 text-secondary-dark text-sm bg-slate-50 border outline-none"
+                                    placeholder="Describa los hallazgos aquí..."
+                                />
+                            </div>
+
+                            {selectedProvider && audits[selectedProvider.id] && (
+                                <div className="text-[10px] text-secondary/50 font-medium px-1 flex items-center gap-2">
+                                    <i className="pi pi-info-circle"></i>
+                                    Última auditoría realizada el {new Date(audits[selectedProvider.id].date).toLocaleDateString()}
+                                </div>
+                            )}
                         </div>
 
-                        {selectedProvider && audits[selectedProvider.id] && (
-                            <div className="text-[10px] text-secondary/50 font-medium px-1 flex items-center gap-2">
-                                <i className="pi pi-info-circle"></i>
-                                Última auditoría realizada el {new Date(audits[selectedProvider.id].date).toLocaleDateString()}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="p-6 bg-slate-50/50 border-t border-secondary/10 flex gap-3">
-                        <button
-                            onClick={() => setIsAuditModalOpen(false)}
-                            className="flex-1 py-3 bg-white border border-secondary/20 rounded-xl text-secondary font-bold hover:bg-slate-100 transition-all text-xs uppercase tracking-wider"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSaveAudit}
-                            className="flex-[1.5] py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-                        >
-                            <i className="pi pi-save"></i>
-                            Confirmar
-                        </button>
+                        <div className="p-6 bg-slate-50/50 border-t border-secondary/10 flex gap-3 mt-auto shrink-0">
+                            <button
+                                onClick={() => setIsAuditModalOpen(false)}
+                                className="flex-1 py-3 bg-white border border-secondary/20 rounded-xl text-secondary font-bold hover:bg-slate-100 transition-all text-xs uppercase tracking-wider"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveAudit}
+                                className="flex-[1.5] py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                            >
+                                <i className="pi pi-save"></i>
+                                Confirmar
+                            </button>
+                        </div>
                     </div>
                 </div>
             </Dialog>
