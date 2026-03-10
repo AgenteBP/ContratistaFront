@@ -20,15 +20,21 @@ const LoadingOverlay = ({ isVisible, status = 'loading', message }) => {
                         fill="transparent"
                         animationDuration=".8s"
                     />
+                ) : status === 'error' ? (
+                    <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center animate-scale-in">
+                        <i className="pi pi-times text-4xl text-danger"></i>
+                    </div>
                 ) : (
                     <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center animate-scale-in">
                         <i className="pi pi-check text-4xl text-success"></i>
                     </div>
                 )}
                 <div className="text-center">
-                    <h3 className="text-lg font-bold text-secondary mb-1">{displayMessage}</h3>
+                    <h3 className={`text-lg font-bold mb-1 ${status === 'error' ? 'text-danger' : 'text-secondary'}`}>{displayMessage}</h3>
                     <p className="text-sm text-gray-400 font-medium">
-                        {status === 'loading' ? 'Espere un momento, estamos aplicando sus cambios...' : 'La operación se completó con éxito.'}
+                        {status === 'loading' ? 'Espere un momento, estamos aplicando sus cambios...' : 
+                         status === 'error' ? 'Ocurrió un problema al procesar la solicitud.' : 
+                         'La operación se completó con éxito.'}
                     </p>
                 </div>
             </div>
