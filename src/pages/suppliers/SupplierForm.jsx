@@ -808,12 +808,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                 // Si modificamos una tarjeta predefinida que viene del grupo, 
                 // la desvinculamos y creamos una configuración personalizada (CUSTOM_)
                 const isAlreadyCustom = String(d.id).startsWith('CUSTOM_');
-                
+
                 if (!isAlreadyCustom) {
                     const baseLabel = d.label || 'Documento';
                     const normalizedName = baseLabel.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
                     const newId = `CUSTOM_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-                    
+
                     return {
                         ...d,
                         id: newId,
@@ -826,10 +826,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                         modified: true
                     };
                 }
-                
+
                 // Si ya era custom, solo actualizamos el campo
-                return { 
-                    ...d, 
+                return {
+                    ...d,
                     [field]: value,
                     obligatoriedad: field === 'isOptional' ? (value ? 'Opcional' : 'Manual') : d.obligatoriedad,
                     isOptional: field === 'isOptional' ? value : d.isOptional,
@@ -1622,7 +1622,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                             }`}>
                                                                                             {status}
                                                                                         </span>
-                                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
+                                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && status !== 'VIGENTE' && (
                                                                                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block bg-orange-50 text-orange-600 border-orange-200 shadow-sm animate-pulse-subtle">
                                                                                                 CON OBSERVACIÓN
                                                                                             </span>
@@ -1640,7 +1640,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                         )}
 
                                                                         {/* Observation Alert (Card Mode) */}
-                                                                        {docData?.observacion && (
+                                                                        {docData?.observacion && status !== 'VIGENTE' && (
                                                                             expandedObservations[doc.id] ? (
                                                                                 <div
                                                                                     onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
@@ -1936,7 +1936,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                             }`}>
                                                                             {status}
                                                                         </span>
-                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && (
+                                                                        {docData?.observacion && status !== 'CON OBSERVACIÓN' && status !== 'VIGENTE' && (
                                                                             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-600 animate-pulse-subtle">
                                                                                 CON OBSERVACIÓN
                                                                             </span>
@@ -1967,8 +1967,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                 </td>
                                                                 <td className="px-6 py-4 text-right">
                                                                     <div className="flex items-center justify-end gap-2">
-                                                                        {/* Ver Observación (Solo si existe) */}
-                                                                        {docData?.observacion && (
+                                                                        {/* Ver Observación (Solo si existe y no está VIGENTE) */}
+                                                                        {docData?.observacion && status !== 'VIGENTE' && (
                                                                             <button
                                                                                 className="p-2 text-orange-600 bg-orange-100 hover:bg-orange-200 transition-colors rounded-lg flex items-center gap-1 shadow-sm border border-orange-200"
                                                                                 title={`Observación: ${docData.observacion}`}
