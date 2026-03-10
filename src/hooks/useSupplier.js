@@ -81,7 +81,7 @@ export const useSupplier = (explicitCuit = null) => {
 
                                     // Handle id_list_requirements (snake_case) and idListRequirements (camelCase)
                                     const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
-                                    const key = requirementId;
+                                    const key = req.idGroupRequirements || req.id_group_requirements || requirementId;
 
                                     if (!docMap.has(key)) {
                                         const label = listReq.description || attrs?.description || 'Documento';
@@ -110,12 +110,14 @@ export const useSupplier = (explicitCuit = null) => {
 
                                         // Support both snake_case (JsonProperty) and camelCase (default)
                                         const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
+                                        const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
+
                                         const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
                                         const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
-                                        if (hasAudit) {
+                                        if (hasAudit && !isForwarded) {
                                             if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
-                                            else if (auditStatus === 'OBSERVADO') finalStatus = 'CON OBSERVACIÓN';
+                                            else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
                                             else finalStatus = 'EN REVISIÓN';
                                         } else {
                                             const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
@@ -152,7 +154,7 @@ export const useSupplier = (explicitCuit = null) => {
                                         }
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
-                                        const finalObs = hasAudit ? ((auditInfo?.audit_observations || auditInfo?.auditObservations) || folderMeta?.observacion || null) : null;
+                                        const finalObs = (hasAudit && !isForwarded) ? (auditInfo?.audit_observations || auditInfo?.auditObservations || null) : ((!isForwarded && (folderMeta?.observacion || submittedFile?.observacion)) || null);
                                         const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
                                         const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
@@ -259,7 +261,7 @@ export const useSupplier = (explicitCuit = null) => {
                             file_size: doc.fileObject.size,
                             file_type: doc.fileObject.type,
                             file_content: pureBase64,
-                            date_submitted: new Date().toISOString().split('T')[0],
+                            date_submitted: new Date().toISOString(),
                             // Send as noon UTC to prevent backend from shifting to previous day mapping
                             expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
                         };

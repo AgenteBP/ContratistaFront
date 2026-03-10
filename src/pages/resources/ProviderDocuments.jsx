@@ -174,6 +174,14 @@ const ProviderDocuments = () => {
     };
     const currentFilter = getFilterFromParam(status || 'general');
 
+    // Handler to sync external cards/tabs when internal table categories are clicked
+    const handleTypeChange = (newType) => {
+        const typeToIndex = { 'suppliers': 0, 'employees': 1, 'vehicles': 2, 'machinery': 3 };
+        if (typeToIndex[newType] !== undefined) {
+            setActiveIndex(typeToIndex[newType]);
+        }
+    };
+
     // Pivot Data for Cards (Aggregate by Type)
     const cardMetrics = {
         suppliers: {
@@ -286,7 +294,7 @@ const ProviderDocuments = () => {
                             <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
                                 Listado de Proveedores - {headerInfo.title}
                             </h3>
-                            <DocumentEntityTable type="suppliers" filterStatus={currentFilter} />
+                            <DocumentEntityTable type="suppliers" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
                         </div>
                     </TabPanel>
 
@@ -295,7 +303,7 @@ const ProviderDocuments = () => {
                             <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
                                 Listado de Empleados - {headerInfo.title}
                             </h3>
-                            <DocumentEntityTable type="employees" filterStatus={currentFilter} />
+                            <DocumentEntityTable type="employees" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
                         </div>
                     </TabPanel>
 
@@ -304,7 +312,7 @@ const ProviderDocuments = () => {
                             <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
                                 Listado de Vehículos - {headerInfo.title}
                             </h3>
-                            <DocumentEntityTable type="vehicles" filterStatus={currentFilter} />
+                            <DocumentEntityTable type="vehicles" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
                         </div>
                     </TabPanel>
 
@@ -313,7 +321,7 @@ const ProviderDocuments = () => {
                             <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
                                 Listado de Maquinaria - {headerInfo.title}
                             </h3>
-                            <DocumentEntityTable type="machinery" filterStatus={currentFilter} />
+                            <DocumentEntityTable type="machinery" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
                         </div>
                     </TabPanel>
                 </TabView>
