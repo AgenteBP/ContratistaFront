@@ -803,9 +803,41 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     };
 
     const updateDocRequirement = (docId, field, value) => {
-        setRequiredDocs(prev => prev.map(d =>
-            d.id === docId ? { ...d, [field]: value } : d
-        ));
+        setRequiredDocs(prev => prev.map(d => {
+            if (String(d.id) === String(docId)) {
+                // Si modificamos una tarjeta predefinida que viene del grupo, 
+                // la desvinculamos y creamos una configuración personalizada (CUSTOM_)
+                const isAlreadyCustom = String(d.id).startsWith('CUSTOM_');
+                
+                if (!isAlreadyCustom) {
+                    const baseLabel = d.label || 'Documento';
+                    const normalizedName = baseLabel.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+                    const newId = `CUSTOM_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                    
+                    return {
+                        ...d,
+                        id: newId,
+                        original_id: d.id, // Guardar referencia por si acaso
+                        attribute_description: normalizedName,
+                        [field]: value,
+                        // Mantener sincronizado obligatoriedad/isOptional
+                        obligatoriedad: field === 'isOptional' ? (value ? 'Opcional' : 'Manual') : d.obligatoriedad,
+                        isOptional: field === 'isOptional' ? value : d.isOptional,
+                        modified: true
+                    };
+                }
+                
+                // Si ya era custom, solo actualizamos el campo
+                return { 
+                    ...d, 
+                    [field]: value,
+                    obligatoriedad: field === 'isOptional' ? (value ? 'Opcional' : 'Manual') : d.obligatoriedad,
+                    isOptional: field === 'isOptional' ? value : d.isOptional,
+                    modified: true
+                };
+            }
+            return d;
+        }));
         setIsCustomConfig(true);
         markStepDirty(getStepIdx('Documentos'));
     };
