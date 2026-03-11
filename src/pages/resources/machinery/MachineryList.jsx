@@ -8,6 +8,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import AppTable from '../../../components/ui/AppTable';
 import { StatusBadge } from '../../../components/ui/Badges';
 import TableFilters from '../../../components/ui/TableFilters';
+import { useAuth } from '../../../context/AuthContext';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
@@ -16,6 +17,8 @@ import { useMachinery } from '../../../hooks/useMachinery';
 const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
     const { machinery, loading, marcas, modelos } = useMachinery();
+    const { currentRole } = useAuth();
+    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -32,7 +35,8 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
             global: { value: null, matchMode: FilterMatchMode.CONTAINS },
             estado: { value: null, matchMode: FilterMatchMode.EQUALS },
             marca: { value: null, matchMode: FilterMatchMode.EQUALS },
-            modelo: { value: null, matchMode: FilterMatchMode.EQUALS }
+            modelo: { value: null, matchMode: FilterMatchMode.EQUALS },
+            proveedor: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
     };
@@ -95,7 +99,7 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
 
                 <div className="space-y-3">
                     <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Pertenencia</h6>
-                    {showProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Proveedor Dueño</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
+                    {displayProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Proveedor Dueño</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de Equipo</span><span className="text-sm font-medium text-secondary-dark">{data.tipo}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">MAQ-{data.id.toString().padStart(4, '0')}</span></div>
                 </div>
@@ -127,11 +131,17 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
         </div>
     );
 
+    const uniqueProveedores = [...new Set(machinery.map(m => m.proveedor).filter(Boolean))].map(p => ({ label: p, value: p }));
+
     const filterConfig = [
         { label: 'MARCA', value: 'marca', options: marcas },
         { label: 'MODELO', value: 'modelo', options: modelos },
         { label: 'ESTADO', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
     ];
+
+    if (displayProvider) {
+        filterConfig.unshift({ label: 'PROVEEDOR', value: 'proveedor', options: uniqueProveedores });
+    }
 
     const renderHeader = () => (
         <TableFilters
@@ -189,7 +199,7 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
                     <Column field="marca" header="Marca" sortable className="text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="modelo" header="Modelo" sortable className="text-sm hidden md:table-cell" headerClassName="hidden md:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="tipo" header="Tipo" sortable className="hidden lg:table-cell text-xs" headerClassName="hidden lg:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
-                    {showProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
+                    {displayProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
                     <Column field="estado" header="Estado" body={(d) => <StatusBadge status={d.estado} />} sortable className="pr-6 text-sm" headerClassName="pr-6 text-[10px] font-bold uppercase tracking-wider text-secondary/60 text-right" />
                 </AppTable>
             </div>

@@ -173,10 +173,11 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-secondary-dark text-[13px] leading-tight mb-1" title={doc.label}>{doc.label}</h4>
-                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
-                                                status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
-                                                    status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
-                                                        'bg-secondary/10 text-secondary border-secondary/20'
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' && docData?.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+                                                    status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
+                                                        status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                            status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
+                                                                'bg-secondary/10 text-secondary border-secondary/20'
                                                 }`}>
                                                 {status}
                                             </span>
@@ -290,10 +291,11 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
                                         <td className="py-2 md:px-6 md:py-4 md:text-center md:w-[20%] md:pr-10">
                                             <div className="flex items-center justify-between md:justify-center">
                                                 <span className="md:hidden text-[9px] font-bold text-secondary/40 uppercase tracking-wider">Estado</span>
-                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
-                                                    status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
-                                                        status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
-                                                            'bg-secondary/5 text-secondary border-secondary/20'
+                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' && docData?.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+                                                        status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
+                                                            status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
+                                                                status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
+                                                                    'bg-secondary/5 text-secondary border-secondary/20'
                                                     }`}>
                                                     {status}
                                                 </span>

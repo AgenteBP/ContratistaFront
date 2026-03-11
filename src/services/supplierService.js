@@ -7,6 +7,17 @@ export const supplierService = {
         return response.data;
     },
 
+    // 1.5. Obtener proveedores autorizados (GET)
+    getAuthorizedSuppliers: async (userId, role) => {
+        try {
+            const response = await api.get(`/supplier/authorized?userId=${userId}&role=${role}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching authorized suppliers (User: ${userId}, Role: ${role}):`, error);
+            throw error;
+        }
+    },
+
     /**
      * Utility to map Backend response to UI-friendly structure
      */

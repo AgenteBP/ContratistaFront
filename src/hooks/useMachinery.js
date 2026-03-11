@@ -10,25 +10,24 @@ export const useMachinery = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchMachinery = useCallback(async () => {
-        const idSupplier = currentRole?.role === 'PROVEEDOR'
-            ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier;
-
-        if (!idSupplier) {
-            setLoading(false);
-            return;
-        }
-
         setLoading(true);
         // Reset state
         setMachinery([]);
 
         try {
-            // ID 4 corresponds to Machinery (Maquinaria)
-            const allElements = await elementService.getBySupplierAndActiveType(idSupplier, 4);
+            let allElements = [];
+
+            if (currentRole?.role === 'PROVEEDOR') {
+                const idSupplier = currentRole.id_entity || user?.suppliers?.[0]?.id_supplier;
+                if (!idSupplier) { setLoading(false); return; }
+                allElements = await elementService.getBySupplierAndActiveType(idSupplier, 4);
+            } else {
+                if (!user?.id || !currentRole?.role) { setLoading(false); return; }
+                allElements = await elementService.getAuthorized(4, user.id, currentRole.role);
+            }
 
             const machineryData = allElements.map(e =>
-                elementService.mapToUIMachinery(e, idSupplier, currentRole, user?.suppliers)
+                elementService.mapToUIMachinery(e, e.supplier?.id_supplier || e.supplier?.idSupplier, currentRole, user?.suppliers)
             );
 
             setMachinery(machineryData);

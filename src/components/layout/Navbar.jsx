@@ -281,8 +281,8 @@ const Navbar = ({ onToggleSidebar }) => {
                 </div>
 
                 <div className="flex items-center gap-1 md:gap-3">
-                    {/* Switcher Trigger (Refined Mobile Design) */}
-                    {availableProfiles.length > 1 && (() => {
+                    {/* Role Context / Switcher Trigger */}
+                    {userInfo && (() => {
                         const activeTheme = {
                             'PROVEEDOR': { color: 'text-success', bg: 'bg-success/5', border: 'border-success/20', iconBg: 'bg-success/10', icon: 'pi-briefcase', short: 'PRO' },
                             'EMPRESA': { color: 'text-primary', bg: 'bg-primary/5', border: 'border-primary/20', iconBg: 'bg-primary/10', icon: 'pi-building', short: 'EMP' },
@@ -290,21 +290,25 @@ const Navbar = ({ onToggleSidebar }) => {
                             'ADMIN': { color: 'text-secondary-dark', bg: 'bg-secondary/5', border: 'border-secondary/20', iconBg: 'bg-secondary/10', icon: 'pi-cog', short: 'ADM' }
                         }[userInfo?.role] || { color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', iconBg: 'bg-gray-100', icon: 'pi-user', short: 'USR' };
 
+                        const isSwitchable = availableProfiles.length > 1;
+
                         return (
                             <div
-                                onClick={(e) => switcherRef.current?.toggle(e)}
+                                onClick={(e) => isSwitchable && switcherRef.current?.toggle(e)}
                                 className={`
-                                    flex items-center justify-center transition-all cursor-pointer group shadow-sm
+                                    flex items-center justify-center transition-all shadow-sm
                                     md:px-4 md:py-2 md:gap-3 md:rounded-full md:border md:${activeTheme.bg} md:${activeTheme.border}
                                     w-10 h-10 rounded-full md:w-auto md:h-auto ${activeTheme.bg} border ${activeTheme.border} md:border-inherit
+                                    ${isSwitchable ? 'cursor-pointer group hover:bg-white/50' : 'cursor-default opacity-95'}
                                 `}
+                                title={isSwitchable ? "Cambiar de perfil" : "Rol actual"}
                             >
                                 <div className={`
                                     flex items-center justify-center transition-transform duration-500 shrink-0
                                     md:w-6 md:h-6 md:rounded-full md:${activeTheme.iconBg} ${activeTheme.color}
                                     text-lg md:text-[10px]
                                 `}>
-                                    <i className="pi pi-sync font-bold"></i>
+                                    <i className={`pi ${isSwitchable ? 'pi-sync group-hover:rotate-180 transition-transform duration-500' : activeTheme.icon} font-bold`}></i>
                                 </div>
 
                                 <div className="hidden md:flex flex-col min-w-0 pr-1 overflow-hidden">
@@ -312,9 +316,14 @@ const Navbar = ({ onToggleSidebar }) => {
                                         {userInfo?.roleLabel}
                                     </span>
                                     <span className="text-xs font-bold text-secondary-dark truncate max-w-[120px] md:max-w-[160px] leading-none">
-                                        {userInfo?.entityName || 'Cambiar'}
+                                        {userInfo?.entityName || (userInfo?.role === 'ADMIN' ? 'Gestión Central' : 'Mi Cuenta')}
                                     </span>
                                 </div>
+                                {isSwitchable && (
+                                    <div className="hidden md:flex items-center justify-center pl-1">
+                                        <i className={`pi pi-angle-down text-[10px] ${activeTheme.color} opacity-60`}></i>
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}

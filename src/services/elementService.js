@@ -49,6 +49,23 @@ const elementService = {
     },
 
     /**
+     * Fetch elements filtered by active type and authorized user role (e.g. Auditor/Admin)
+     * @param {number} idActiveType 
+     * @param {number} userId 
+     * @param {string} role 
+     * @returns {Promise<Array>}
+     */
+    getAuthorized: async (idActiveType, userId, role) => {
+        try {
+            const response = await api.get(`/elements/authorized?idActiveType=${idActiveType}&userId=${userId}&role=${role}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching authorized elements (Type: ${idActiveType}, User: ${userId}):`, error);
+            throw error;
+        }
+    },
+
+    /**
      * Fetch actives by type ID
      * @param {number} idActiveType 
      * @returns {Promise<Array>}
@@ -83,7 +100,7 @@ const elementService = {
      */
     mapToUIVehicle: (e, idSupplier, currentRole, suppliers) => {
         return {
-            id: e.id_elements,
+            id: e.id_elements || e.idElements,
             codigo: e.data?.codigo || 'N/A',
             patente: e.data?.patente || 'No especificado',
             marca: e.data?.marca || 'N/A',
@@ -93,7 +110,7 @@ const elementService = {
             estado: e.data?.estado || 'ACTIVO',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || '',
             color: e.data?.color || 'No especificado',
@@ -107,7 +124,7 @@ const elementService = {
      */
     mapToUIEmployee: (e, idSupplier, currentRole, suppliers) => {
         return {
-            id: e.id_elements,
+            id: e.id_elements || e.idElements,
             codigo: e.data?.codigo || 'N/A',
             nombre: e.data?.nombre || e.active?.description || 'No especificado',
             dni: e.data?.dni || 'N/A',
@@ -118,7 +135,7 @@ const elementService = {
             habilitado: e.data?.habilitado ?? true,
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || ''
         };
@@ -129,7 +146,7 @@ const elementService = {
      */
     mapToUIMachinery: (e, idSupplier, currentRole, suppliers) => {
         return {
-            id: e.id_elements,
+            id: e.id_elements || e.idElements,
             codigo: e.data?.codigo || 'N/A',
             nombre: e.data?.nombre || e.active?.description || 'No especificado',
             marca: e.data?.marca || 'N/A',
@@ -140,7 +157,7 @@ const elementService = {
             estado: e.data?.estado || 'ACTIVO',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || ''
         };

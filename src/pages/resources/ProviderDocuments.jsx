@@ -222,7 +222,7 @@ const ProviderDocuments = () => {
         switch (status) {
             case 'general': return { title: 'Documentación General', subtitle: 'Vista completa de todos los documentos.' };
             case 'pendientes': return { title: 'Pendientes de Carga', subtitle: 'Documentos obligatorios faltantes.' };
-            case 'por-vencer': return { title: 'Documentos Por Vencer', subtitle: 'Alertas de vencimiento próximo (30 días).' };
+            case 'por-vencer': return { title: 'Documentos Por Vencer', subtitle: 'Alertas de vencimiento próximo (10 días).' };
             case 'observados': return { title: 'Documentos Observados', subtitle: 'Rechazados por auditoría que requieren corrección.' };
             case 'en-revision': return { title: 'En Revisión', subtitle: 'Documentos bajo análisis del equipo auditor.' };
             case 'vigentes': return { title: 'Documentación Vigente', subtitle: 'Documentos válidos y aprobados.' };

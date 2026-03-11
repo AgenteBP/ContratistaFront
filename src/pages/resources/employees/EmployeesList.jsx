@@ -10,10 +10,16 @@ import { StatusBadge } from '../../../components/ui/Badges';
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { useEmployees } from '../../../hooks/useEmployees';
+import { useAuth } from '../../../context/AuthContext';
 
 const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
     const navigate = useNavigate();
     const { employees, loading } = useEmployees();
+    const { currentRole } = useAuth();
+
+    // Si isEmbedded=true y showProvider prop fue pasada como true, la respetamos.
+    // O si el rol del usuario no es PROVEEDOR, siempre mostramos el proveedor.
+    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -29,7 +35,8 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
         setFilters({
             global: { value: null, matchMode: FilterMatchMode.CONTAINS },
             estado: { value: null, matchMode: FilterMatchMode.EQUALS },
-            habilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
+            habilitado: { value: null, matchMode: FilterMatchMode.EQUALS },
+            proveedor: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
     };
@@ -83,7 +90,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
 
                 <div className="space-y-3">
                     <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Vinculación</h6>
-                    {showProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Empresa Proveedora</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
+                    {displayProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Empresa Proveedora</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Área Operativa</span><span className="text-sm font-medium text-secondary-dark">{data.area}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">PER-{data.id.toString().padStart(4, '0')}</span></div>
                 </div>
@@ -100,10 +107,16 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
         </div>
     );
 
+    const uniqueProveedores = [...new Set(employees.map(e => e.proveedor).filter(Boolean))].map(p => ({ label: p, value: p }));
+
     const filterConfig = [
         { label: 'Habilitación', value: 'habilitado', options: [{ label: 'Habilitado', value: true }, { label: 'No Habilitado', value: false }] },
         { label: 'Estado', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
     ];
+
+    if (displayProvider) {
+        filterConfig.unshift({ label: 'Proveedor', value: 'proveedor', options: uniqueProveedores });
+    }
 
     const topActions = (
         <div className="flex items-center gap-2">
@@ -182,7 +195,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                         </div>
                     )} sortable headerClassName="text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="puesto" header="Puesto" sortable className="hidden lg:table-cell text-sm" headerClassName="hidden lg:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
-                    {showProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
+                    {displayProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
                     <Column field="estado" header="Estado" body={(d) => <StatusBadge status={d.estado} />} sortable className="pr-6 text-sm" headerClassName="pr-6 text-[10px] font-bold uppercase tracking-wider text-secondary/60 text-right" />
                 </AppTable>
             </div>

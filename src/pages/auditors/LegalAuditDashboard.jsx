@@ -10,9 +10,11 @@ import { Sidebar } from 'primereact/sidebar';
 import { requirementService } from '../../services/requirementService';
 import { TbBackhoe } from 'react-icons/tb';
 import DocumentEntityTable from '../../components/resources/DocumentEntityTable';
+import { useAuth } from '../../context/AuthContext';
 
 const LegalAuditDashboard = () => {
     const navigate = useNavigate();
+    const { user, currentRole } = useAuth();
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ total: 0, pending: 0, observed: 0 });
@@ -20,6 +22,7 @@ const LegalAuditDashboard = () => {
     const [sidebarVisible, setSidebarVisible] = useState(false);
     const [selectedSupplierCuit, setSelectedSupplierCuit] = useState(null);
     const [selectedSupplierName, setSelectedSupplierName] = useState('');
+    const [activeModalType, setActiveModalType] = useState('suppliers');
 
     useEffect(() => {
         loadData();
@@ -29,7 +32,7 @@ const LegalAuditDashboard = () => {
         console.log("LegalAuditDashboard: Loading data...", isRetry ? "(Retry)" : "");
         setLoading(true);
         try {
-            const data = await supplierService.getAll();
+            const data = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name);
             console.log("LegalAuditDashboard: Raw data from API:", data?.length, "suppliers");
             if (data?.length > 0) {
                 console.log("LegalAuditDashboard: First supplier raw structure:", JSON.stringify(data[0], null, 2).substring(0, 1000));
@@ -47,22 +50,22 @@ const LegalAuditDashboard = () => {
 
                 const getCategoryFromType = (typeId, label = '') => {
                     const tid = String(typeId || '');
-                    
+
                     // 1. Strict ID Priorities mapping id_active_type to category
                     if (tid === '5') return 'legajo';
                     if (tid === '1') return 'empleados';
                     if (tid === '2') return 'vehiculos';
-                    if (tid === '3') return 'maquinaria';
-                    
+                    if (tid === '4') return 'maquinaria';
+
                     return null;
                 };
 
                 const addDocResult = (catKey, status, label) => {
                     if (!catKey || !results[catKey]) return;
                     results[catKey].total++;
-                    
+
                     const normalizedStatus = String(status || 'PENDIENTE').toUpperCase().trim();
-                    const isApproved = ['APROBADO', 'VIGENTE', 'COMPLETA', 'OK', 'VALIDO', 'ACEPTADO', 'VERIFICADO', 'CONFORME'].some(kw => 
+                    const isApproved = ['APROBADO', 'VIGENTE', 'COMPLETA', 'OK', 'VALIDO', 'ACEPTADO', 'VERIFICADO', 'CONFORME'].some(kw =>
                         normalizedStatus.includes(kw)
                     );
 
@@ -75,7 +78,7 @@ const LegalAuditDashboard = () => {
                 };
 
                 const processedDocs = new Set();
-                
+
                 const processDoc = (doc, defaultCat = null) => {
                     if (!doc || processedDocs.has(doc)) return;
                     processedDocs.add(doc);
@@ -102,7 +105,7 @@ const LegalAuditDashboard = () => {
                     const catKey = getCategoryFromType(elType, elLabel);
 
                     const subDocs = el.files_submitted || el.docs || el.documentos || el.list_requirements || el.listRequirements || [];
-                    
+
                     if (subDocs.length > 0) {
                         subDocs.forEach(doc => processDoc(doc, catKey));
                     } else if (catKey) {
@@ -120,10 +123,10 @@ const LegalAuditDashboard = () => {
                 otherDocs.forEach(doc => processDoc(doc));
 
                 // Calculate Percentages
-                const getPct = (cat) => results[cat].total > 0 
-                    ? Math.floor((results[cat].valid / results[cat].total) * 100) 
+                const getPct = (cat) => results[cat].total > 0
+                    ? Math.floor((results[cat].valid / results[cat].total) * 100)
                     : null; // Null means N/A
-                
+
                 const cLegajo = getPct('legajo');
                 const cEmpleados = getPct('empleados');
                 const cVehiculos = getPct('vehiculos');
@@ -207,6 +210,7 @@ const LegalAuditDashboard = () => {
             onClick={() => {
                 setSelectedSupplierCuit(rowData.cuit || rowData.id_supplier || rowData.id);
                 setSelectedSupplierName(rowData.company_name || rowData.name || 'Proveedor');
+                setActiveModalType('suppliers');
                 setSidebarVisible(true);
             }}
             className="text-primary hover:text-white hover:bg-primary border border-primary/20 bg-primary/5 px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2"
@@ -221,7 +225,7 @@ const LegalAuditDashboard = () => {
         if (currentIndex === -1) return;
 
         let nextIndex = currentIndex + direction;
-        
+
         // Circular navigation
         if (nextIndex < 0) nextIndex = suppliers.length - 1;
         if (nextIndex >= suppliers.length) nextIndex = 0;
@@ -316,7 +320,7 @@ const LegalAuditDashboard = () => {
 
                         {/* Navigation Arrows */}
                         <div className="flex items-center gap-2 bg-slate-100/50 p-1 rounded-xl border border-secondary/10">
-                            <button 
+                            <button
                                 onClick={() => navigateSupplier(-1)}
                                 className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-secondary hover:text-primary hover:shadow-sm transition-all shadow-none border border-secondary/5"
                                 title="Proveedor Anterior"
@@ -326,7 +330,7 @@ const LegalAuditDashboard = () => {
                             <div className="px-2 text-[10px] font-black text-secondary/40 uppercase tracking-tighter">
                                 Navegar
                             </div>
-                            <button 
+                            <button
                                 onClick={() => navigateSupplier(1)}
                                 className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-secondary hover:text-primary hover:shadow-sm transition-all shadow-none border border-secondary/5"
                                 title="Siguiente Proveedor"
@@ -339,10 +343,11 @@ const LegalAuditDashboard = () => {
             >
                 <div className="px-2 pb-6">
                     {selectedSupplierCuit && (
-                        <DocumentEntityTable 
-                            type="suppliers" 
-                            filterStatus="general" 
-                            explicitCuit={selectedSupplierCuit} 
+                        <DocumentEntityTable
+                            type={activeModalType}
+                            filterStatus="general"
+                            explicitCuit={selectedSupplierCuit}
+                            onTypeChange={(newType) => setActiveModalType(newType)}
                             onAuditComplete={async () => {
                                 console.log("LegalAuditDashboard: Audit recorded, waiting for refresh...");
                                 setTimeout(() => {

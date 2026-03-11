@@ -87,11 +87,17 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
     // Use useMemo for stability if possible, but for now let's just be very careful
     const groupDefinitions = React.useMemo(() => {
         if (groups && groups.length > 0) {
-            return groups.map(g => ({
-                id: g.idGroup || g.id,
-                name: g.description,
-                icon: g.icon || (g.description?.toUpperCase()?.includes('BOLT') || g.description?.toUpperCase()?.includes('EDESAL') ? 'pi-bolt' : (g.description?.toUpperCase()?.includes('BUILD') || g.description?.toUpperCase()?.includes('ROVELLA') ? 'pi-building' : 'pi-shield'))
-            }));
+            return groups.map(g => {
+                let dbIcon = g.icon;
+                if (dbIcon && !dbIcon.startsWith('pi-')) {
+                    dbIcon = `pi-${dbIcon}`;
+                }
+                return {
+                    id: g.idGroup || g.id,
+                    name: g.description,
+                    icon: dbIcon || (g.description?.toUpperCase()?.includes('BOLT') || g.description?.toUpperCase()?.includes('EDESAL') ? 'pi-bolt' : (g.description?.toUpperCase()?.includes('BUILD') || g.description?.toUpperCase()?.includes('ROVELLA') ? 'pi-building' : 'pi-shield'))
+                };
+            });
         }
         return [
             { id: 'EDESAL', name: 'EDESAL', icon: 'pi-bolt' },
@@ -1389,7 +1395,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                 <div className="flex gap-2">
                                                     {formData.grupo && (
                                                         <span className="text-xs font-bold text-white px-2.5 py-1 bg-primary rounded-lg border border-primary/20 flex items-center gap-1.5">
-                                                            <i className={`pi ${formData.grupo === 'EDESAL' ? 'pi-bolt' : 'pi-building'} text-[10px]`}></i>
+                                                            <i className={`pi ${groupDefinitions.find(g => g.name?.toUpperCase() === formData.grupo?.toUpperCase())?.icon || 'pi-building'} text-[10px]`}></i>
                                                             {formData.grupo}
                                                         </span>
                                                     )}
@@ -1444,7 +1450,8 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                             const docData = formData.documentacion?.find(d => String(d.id) === String(doc.id)) || null;
 
                                                             const status = docData ? docData.estado : 'PENDIENTE';
-                                                            const getStatusColor = (s) => {
+                                                            const getStatusColor = (s, isExpiring) => {
+                                                                if (s === 'VIGENTE' && isExpiring) return 'border-warning/50 bg-warning-light/10';
                                                                 switch (s) {
                                                                     case 'VIGENTE': return 'border-success/50 bg-success-light/10';
                                                                     case 'VENCIDO': return 'border-danger/50 bg-danger-light/10';
@@ -1571,7 +1578,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                             };
 
                                                             return (
-                                                                <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status)} group relative h-full min-h-[150px]`}>
+                                                                <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status, docData?.isExpiringSoon)} group relative h-full min-h-[150px]`}>
 
                                                                     {/* Botón Eliminar (Solo edición config) */}
                                                                     {!isStep4ConfigReadOnly && editDocMode && (
@@ -1614,11 +1621,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 )}
                                                                                 {!isWizardMode && (
                                                                                     <div className="flex flex-wrap gap-1">
-                                                                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
-                                                                                            status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
-                                                                                                status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
-                                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                                                        'bg-secondary/10 text-secondary border-secondary/20'
+                                                                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' && docData?.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+                                                                                            status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
+                                                                                                status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                                                                    status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
+                                                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                                            'bg-secondary/10 text-secondary border-secondary/20'
                                                                                             }`}>
                                                                                             {status}
                                                                                         </span>
@@ -1928,11 +1936,12 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                 </td>
                                                                 <td className="px-6 py-4 text-center">
                                                                     <div className="flex flex-col gap-1 items-center">
-                                                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
-                                                                            status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
-                                                                                status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
-                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                                        'bg-secondary/5 text-secondary border-secondary/20'
+                                                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' && docData?.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+                                                                            status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
+                                                                                status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
+                                                                                    status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
+                                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                            'bg-secondary/5 text-secondary border-secondary/20'
                                                                             }`}>
                                                                             {status}
                                                                         </span>

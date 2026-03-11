@@ -8,25 +8,24 @@ export const useEmployees = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchEmployees = useCallback(async () => {
-        const idSupplier = currentRole?.role === 'PROVEEDOR'
-            ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier;
-
-        if (!idSupplier) {
-            setLoading(false);
-            return;
-        }
-
         setLoading(true);
         // Reset state
         setEmployees([]);
 
         try {
-            // ID 1 corresponds to Employees
-            const employeesDataReq = await elementService.getBySupplierAndActiveType(idSupplier, 1);
+            let employeesDataReq = [];
+
+            if (currentRole?.role === 'PROVEEDOR') {
+                const idSupplier = currentRole.id_entity || user?.suppliers?.[0]?.id_supplier;
+                if (!idSupplier) { setLoading(false); return; }
+                employeesDataReq = await elementService.getBySupplierAndActiveType(idSupplier, 1);
+            } else {
+                if (!user?.id || !currentRole?.role) { setLoading(false); return; }
+                employeesDataReq = await elementService.getAuthorized(1, user.id, currentRole.role);
+            }
 
             const employeesData = employeesDataReq.map(e =>
-                elementService.mapToUIEmployee(e, idSupplier, currentRole, user?.suppliers)
+                elementService.mapToUIEmployee(e, e.supplier?.id_supplier || e.supplier?.idSupplier, currentRole, user?.suppliers)
             );
 
             setEmployees(employeesData);

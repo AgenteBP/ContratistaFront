@@ -23,7 +23,7 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 
 const SuppliersList = () => {
     const navigate = useNavigate();
-    const { currentRole } = useAuth();
+    const { currentRole, user } = useAuth();
     const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
 
     const [filters, setFilters] = useState(null);
@@ -49,7 +49,7 @@ const SuppliersList = () => {
         try {
             setLoading(true);
             console.log("Fetching suppliers...");
-            const response = await supplierService.getAll();
+            const response = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name);
             console.log("API Response:", response);
 
             if (!response || !Array.isArray(response)) {
