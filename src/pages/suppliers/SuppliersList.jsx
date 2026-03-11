@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supplierService } from '../../services/supplierService';
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +25,7 @@ const SuppliersList = () => {
     const navigate = useNavigate();
     const { currentRole, user } = useAuth();
     const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
+    const isEmpresa = currentRole?.role === 'EMPRESA';
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -40,21 +41,22 @@ const SuppliersList = () => {
     const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
     const estadoOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
 
-    useEffect(() => {
-        initFilters();
-        loadSuppliers();
-    }, []);
+    const loadSuppliers = useCallback(async () => {
+        if (!user?.id || !currentRole?.role) {
+            setLoading(false);
+            return;
+        }
 
-    const loadSuppliers = async () => {
         try {
             setLoading(true);
-            console.log("Fetching suppliers...");
-            const response = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name);
+            console.log("Fetching suppliers for:", { userId: user.id, role: currentRole.role, entityId: currentRole.id_entity });
+            const response = await supplierService.getAuthorizedSuppliers(user.id, currentRole.role, currentRole.id_entity);
             console.log("API Response:", response);
 
             if (!response || !Array.isArray(response)) {
                 console.warn("Invalid API response format:", response);
-                throw new Error("Invalid response");
+                setProveedores([]);
+                return;
             }
 
             // Map API data to Table structure
@@ -85,12 +87,16 @@ const SuppliersList = () => {
             setFilteredProveedores(null);
         } catch (error) {
             console.error("Error loading suppliers:", error);
-            // Fallback to empty but log it
             setProveedores([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, [user, currentRole]);
+
+    useEffect(() => {
+        initFilters();
+        loadSuppliers();
+    }, [loadSuppliers]);
 
     const initFilters = () => {
         setFilters({
@@ -120,6 +126,7 @@ const SuppliersList = () => {
         {
             label: 'Asociar Empresa',
             icon: 'pi pi-link',
+            visible: !isEmpresa,
             command: () => {
                 if (selectedRow?.rawCuit) {
                     navigate(`/proveedores/${selectedRow.rawCuit}/asociar-empresa`);
@@ -295,10 +302,12 @@ const SuppliersList = () => {
                 subtitle="Base de datos de contratistas."
                 icon="pi pi-briefcase"
                 actionButton={
-                    <PrimaryButton
-                        label="Nuevo Proveedor"
-                        onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
-                    />
+                    currentRole?.role === 'ADMIN' && (
+                        <PrimaryButton
+                            label="Nuevo Proveedor"
+                            onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
+                        />
+                    )
                 }
             />
 

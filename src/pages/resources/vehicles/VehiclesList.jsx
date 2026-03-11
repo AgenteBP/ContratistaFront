@@ -133,7 +133,7 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
             <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
-            {isEmbedded && (
+            {isEmbedded && currentRole?.role !== 'EMPRESA' && (
                 <PrimaryButton
                     label="Nuevo Vehículo"
                     icon="pi pi-plus"
@@ -182,11 +182,13 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     subtitle="Gestión de flota y unidades habilitadas."
                     icon="pi pi-car"
                     actionButton={
-                        <PrimaryButton
-                            label="Nuevo Vehículo"
-                            icon="pi pi-plus"
-                            onClick={() => navigate('/recursos/vehiculos/nuevo')}
-                        />
+                        currentRole?.role !== 'EMPRESA' && (
+                            <PrimaryButton
+                                label="Nuevo Vehículo"
+                                icon="pi pi-plus"
+                                onClick={() => navigate('/recursos/vehiculos/nuevo')}
+                            />
+                        )
                     }
                 />
             )}

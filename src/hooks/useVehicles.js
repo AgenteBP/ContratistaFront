@@ -23,7 +23,7 @@ export const useVehicles = () => {
                 allElements = await elementService.getBySupplierAndActiveType(idSupplier, 2);
             } else {
                 if (!user?.id || !currentRole?.role) { setLoading(false); return; }
-                allElements = await elementService.getAuthorized(2, user.id, currentRole.role);
+                allElements = await elementService.getAuthorized(2, user.id, currentRole.role, currentRole.id_entity);
             }
 
             const vehiclesData = allElements.map(e =>

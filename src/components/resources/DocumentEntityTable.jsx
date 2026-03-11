@@ -7,6 +7,7 @@ import { auditorService } from '../../services/auditorService';
 import { supplierService } from '../../services/supplierService';
 import elementService from '../../services/elementService';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import { Column } from 'primereact/column';
 import AppTable from '../ui/AppTable';
 import TableFilters from '../ui/TableFilters';
@@ -20,7 +21,8 @@ import { TbBackhoe } from 'react-icons/tb';
 
 const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete, onTypeChange }) => {
     const navigate = useNavigate();
-    const { user, currentRole, isAuditorLegal } = useAuth();
+    const { user, currentRole, isAuditorLegal, isAdmin } = useAuth();
+    const { showError, showWarning } = useNotification();
     const { supplierData, updateSupplier } = useSupplier(explicitCuit);
     const [data, setData] = useState([]);
     const [allRawDocs, setAllRawDocs] = useState([]);
@@ -42,7 +44,6 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     // Audit States
     const [auditModalVisible, setAuditModalVisible] = useState(false);
     const [auditingDoc, setAuditingDoc] = useState(null);
-    const [auditForm, setAuditForm] = useState({ status: 'APROBADO', observation: '' });
     const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
 
     // Race condition protection
@@ -59,10 +60,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         setGlobalFilterValue('');
     };
 
-    const MOCK_EMPLOYEES = [];
-    const MOCK_VEHICLES = [];
-    const MOCK_MACHINERY = [];
-    const generateDocsForResource = () => [];
+
 
     const getCategoryFromDoc = (typeId, label) => {
         const id = Number(typeId);
@@ -163,7 +161,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
             } else {
                 // Auditor/Admin Logic - Global view (Multiple Suppliers)
                 if (type === 'suppliers') {
-                    let suppliers = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name);
+                    let suppliers = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
 
 
 
@@ -182,7 +180,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     const results = await Promise.all(docPromises);
                     allDocuments = results.flat();
                 } else {
-                    let elements = await elementService.getAuthorized(categoryId, user.id, currentRole?.role || currentRole?.name);
+                    let elements = await elementService.getAuthorized(categoryId, user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
 
 
 
@@ -477,7 +475,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
         // Auto-calculate expiration date based on frequency ONLY WHEN FILE IS SELECTED
         let defaultDate = null;
-        if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez') {
+        if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez' && uploadingDoc.frecuencia !== 'UNICA VEZ') {
             const today = new Date();
             const freqLower = uploadingDoc.frecuencia.toLowerCase();
 
@@ -508,7 +506,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         setIsUploading(true);
         try {
             // Check required date locally in modal before sending upward
-            if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez' && !uploadDate) {
+            if (uploadingDoc?.frecuencia && uploadingDoc.frecuencia !== 'Única vez' && uploadingDoc.frecuencia !== 'UNICA VEZ' && !uploadDate) {
                 alert("Debe seleccionar una fecha de vencimiento obligatoriamente para este tipo de documento.");
                 setIsUploading(false);
                 return;
@@ -618,7 +616,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
     const actionTemplate = (rowData) => (
         <div className="flex justify-end gap-2 pr-2">
-            {isAuditorLegal && rowData.id_file_submitted && (
+            {(isAuditorLegal || isAdmin) && rowData.id_file_submitted && (
                 <button
                     onClick={() => openAuditModal(rowData)}
                     className="text-white bg-info hover:bg-info-hover rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 shadow-sm"
@@ -628,7 +626,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 </button>
             )}
 
-            {!isAuditorLegal && rowData.observacion && rowData.estado !== 'VIGENTE' && (
+            {rowData.observacion && (
                 <button
                     onClick={() => {
                         setSelectedObservation({
@@ -637,15 +635,15 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                         });
                         setObservationModalVisible(true);
                     }}
-                    className="h-8 w-8 flex items-center justify-center text-warning bg-warning/10 hover:bg-warning/20 rounded-full transition-all cursor-pointer shadow-sm"
+                    className="h-8 w-8 flex items-center justify-center text-orange-500 bg-orange-50 hover:bg-orange-100 border border-orange-100 rounded-full transition-all cursor-pointer shadow-sm"
                     title="Ver Observación"
                 >
                     <i className="pi pi-exclamation-triangle text-sm"></i>
                 </button>
             )}
 
-            {rowData.estado === 'VIGENTE' || rowData.estado === 'EN REVISIÓN' ? (
-                <>
+            <div className="flex items-center gap-2">
+                {rowData.archivo && (
                     <button
                         onClick={() => handleViewFile(rowData)}
                         disabled={loadingDocs[rowData.id]}
@@ -654,29 +652,19 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     >
                         {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-external-link"></i>} VER
                     </button>
-                    {rowData.estado === 'VIGENTE' && !isAuditorLegal && (
-                        <button
-                            onClick={() => openUploadModal(rowData)}
-                            disabled={loadingDocs[rowData.id]}
-                            className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
-                            title="Actualizar documento"
-                        >
-                            {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} ACTUALIZAR
-                        </button>
-                    )}
-                </>
-            ) : (
-                !isAuditorLegal && (
+                )}
+
+                {currentRole?.role === 'PROVEEDOR' && (
                     <button
                         onClick={() => openUploadModal(rowData)}
                         disabled={loadingDocs[rowData.id]}
                         className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
-                        title="Subir documento"
+                        title={rowData.estado === 'VIGENTE' ? "Actualizar documento" : "Subir documento"}
                     >
-                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} SUBIR
+                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} {rowData.estado === 'VIGENTE' ? 'ACTUALIZAR' : 'SUBIR'}
                     </button>
-                )
-            )}
+                )}
+            </div>
         </div>
     );
 
@@ -699,7 +687,8 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
                     status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
                         status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
-                            'bg-secondary/5 text-secondary border-secondary/20'
+                            status === 'CON OBSERVACIÓN' || status === 'OBSERVADO' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                'bg-secondary/5 text-secondary border-secondary/20'
                 }`}>
                 {status}
             </span>
@@ -727,7 +716,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
     const isAuditorOrAdmin = currentRole?.role !== 'PROVEEDOR';
 
-    if (isAuditorOrAdmin) {
+    if (isAuditorOrAdmin && !explicitCuit) {
         filterConfig.unshift({
             label: 'Proveedor',
             value: 'proveedor',
@@ -822,7 +811,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 header={renderHeader()}
                 rowClassName={() => 'hover:bg-secondary-light/5 transition-colors border-b border-secondary/5 group'}
             >
-                {isAuditorOrAdmin && (
+                {isAuditorOrAdmin && !explicitCuit && (
                     <Column field="proveedor" header="Proveedor" sortable className="font-bold text-secondary-dark w-[20%]"></Column>
                 )}
                 {type !== 'suppliers' && (
@@ -830,12 +819,12 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 )}
                 <Column field="tipo" header="Documento" body={docTypeTemplate} sortable className="w-[30%]"></Column>
                 <Column field="fechaVencimiento" header="Vencimiento" body={(r) => {
+                    if (r.frecuencia === 'Única vez' || r.frecuencia === 'UNICA VEZ') return <span className="text-[10px] font-bold text-secondary/30 italic">N/A</span>;
                     if (r.fechaVencimiento) return <span className="font-mono text-xs text-secondary-dark">{r.fechaVencimiento}</span>;
-                    if (r.frecuencia === 'Única vez') return <span className="text-[10px] font-bold text-secondary/30 italic">N/A</span>;
                     return <span className="text-[10px] font-bold text-orange-400">No cargado</span>;
                 }} sortable></Column>
-                <Column field="estado" header={isAuditorLegal ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center"></Column>
-                <Column header={isAuditorLegal ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
+                <Column field="estado" header={(isAuditorLegal || isAdmin) ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center"></Column>
+                <Column header={(isAuditorLegal || isAdmin) ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
             </AppTable>
 
             <AuditDocumentModal
@@ -892,7 +881,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     <div className="w-full h-px bg-secondary/10 -my-2"></div>
 
                     {/* Expiration Date Section with Orange Theme */}
-                    {uploadingDoc?.frecuencia !== 'Única vez' && (
+                    {(uploadingDoc?.frecuencia !== 'Única vez' && uploadingDoc?.frecuencia !== 'UNICA VEZ') && (
                         <div className="w-full bg-orange-50/50 p-4 rounded-2xl border border-orange-100 flex flex-col gap-3 transition-all">
                             <label className="text-[10px] font-bold text-orange-600/60 uppercase tracking-widest flex items-center gap-2">
                                 <i className="pi pi-exclamation-circle text-[11px]"></i> Definir Vencimiento
@@ -971,7 +960,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     </button>
                 </div>
             </Dialog>
-        </div>
+        </div >
     );
 };
 

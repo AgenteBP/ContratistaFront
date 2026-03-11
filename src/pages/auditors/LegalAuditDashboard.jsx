@@ -7,7 +7,7 @@ import { StatusBadge } from '../../components/ui/Badges';
 import AppTable from '../../components/ui/AppTable';
 import { Column } from 'primereact/column';
 import { Sidebar } from 'primereact/sidebar';
-import { requirementService } from '../../services/requirementService';
+
 import { TbBackhoe } from 'react-icons/tb';
 import DocumentEntityTable from '../../components/resources/DocumentEntityTable';
 import { useAuth } from '../../context/AuthContext';
@@ -23,6 +23,35 @@ const LegalAuditDashboard = () => {
     const [selectedSupplierCuit, setSelectedSupplierCuit] = useState(null);
     const [selectedSupplierName, setSelectedSupplierName] = useState('');
     const [activeModalType, setActiveModalType] = useState('suppliers');
+
+    // --- State for resizeable sidebar ---
+    const [sidebarWidth, setSidebarWidth] = useState(null);
+    const [isResizing, setIsResizing] = useState(false);
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!isResizing) return;
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth > 400 && newWidth < window.innerWidth - 50) {
+                setSidebarWidth(newWidth);
+            }
+        };
+        const handleMouseUp = () => {
+            if (isResizing) {
+                setIsResizing(false);
+                document.body.style.cursor = 'default';
+            }
+        };
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'col-resize';
+        }
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
 
     useEffect(() => {
         loadData();
@@ -304,8 +333,15 @@ const LegalAuditDashboard = () => {
                 visible={sidebarVisible}
                 position="right"
                 onHide={() => setSidebarVisible(false)}
-                className="w-full md:w-[85vw] lg:w-[75vw] xl:w-[65vw]"
+                className={`transition-none ${!sidebarWidth ? 'w-full md:w-[85vw] lg:w-[75vw] xl:w-[65vw]' : ''}`}
+                style={sidebarWidth ? { width: `${sidebarWidth}px`, maxWidth: '100vw' } : {}}
                 showCloseIcon={true}
+                blockScroll={true}
+                pt={{
+                    root: { className: '!rounded-l-2xl shadow-2xl border-l border-secondary/10 flex flex-col' },
+                    content: { className: 'p-0 overflow-y-auto w-full relative' },
+                    header: { className: 'px-4 py-3 border-b border-secondary/10 shrink-0' }
+                }}
                 header={
                     <div className="flex items-center justify-between w-full pr-8">
                         <div className="flex items-center gap-3">
@@ -341,7 +377,15 @@ const LegalAuditDashboard = () => {
                     </div>
                 }
             >
-                <div className="px-2 pb-6">
+                {/* Drag handle */}
+                <div
+                    className="absolute top-0 left-0 w-3 h-full cursor-col-resize hover:bg-info/10 z-[100] flex items-center justify-center group"
+                    onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+                >
+                    <div className="w-1 h-12 bg-secondary/20 rounded-full group-hover:bg-info/50 transition-colors"></div>
+                </div>
+
+                <div className="px-2 pb-6 w-full pl-4">
                     {selectedSupplierCuit && (
                         <DocumentEntityTable
                             type={activeModalType}

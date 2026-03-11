@@ -123,7 +123,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
             <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
-            {isEmbedded && (
+            {isEmbedded && currentRole?.role !== 'EMPRESA' && (
                 <PrimaryButton
                     label="Nuevo Empleado"
                     onClick={() => navigate('/recursos/empleados/nuevo')}
@@ -159,10 +159,12 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                     subtitle="Nómina de personal y personal habilitado."
                     icon="pi pi-users"
                     actionButton={
-                        <PrimaryButton
-                            label="Nuevo Empleado"
-                            onClick={() => navigate('/recursos/empleados/nuevo')}
-                        />
+                        currentRole?.role !== 'EMPRESA' && (
+                            <PrimaryButton
+                                label="Nuevo Empleado"
+                                onClick={() => navigate('/recursos/empleados/nuevo')}
+                            />
+                        )
                     }
                 />
             )}

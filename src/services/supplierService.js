@@ -8,12 +8,16 @@ export const supplierService = {
     },
 
     // 1.5. Obtener proveedores autorizados (GET)
-    getAuthorizedSuppliers: async (userId, role) => {
+    getAuthorizedSuppliers: async (userId, role, entityId = null) => {
         try {
-            const response = await api.get(`/supplier/authorized?userId=${userId}&role=${role}`);
+            let url = `/supplier/authorized?userId=${userId}&role=${role}`;
+            if (entityId) {
+                url += `&entityId=${entityId}`;
+            }
+            const response = await api.get(url);
             return response.data;
         } catch (error) {
-            console.error(`Error fetching authorized suppliers (User: ${userId}, Role: ${role}):`, error);
+            console.error(`Error fetching authorized suppliers (User: ${userId}, Role: ${role}, Entity: ${entityId}):`, error);
             throw error;
         }
     },
@@ -130,6 +134,24 @@ export const supplierService = {
     // 5. Borrar (DELETE)
     delete: async (id) => {
         const response = await api.delete(`/supplier/${id}`);
+        return response.data;
+    },
+
+    // 6. Obtener asociaciones de empresas (GET)
+    getAssociations: async (cuit) => {
+        const cleanCuit = String(cuit).replace(/\D/g, '');
+        try {
+            const response = await api.get(`/supplier/associations?cuit=${cleanCuit}`);
+            return response.data;
+        } catch (error) {
+            console.error("supplierService: getAssociations Fetch error", error);
+            throw error;
+        }
+    },
+
+    // 7. Guardar asociaciones de empresas (POST)
+    associateCompanies: async (data) => {
+        const response = await api.post('/supplier/associate', data);
         return response.data;
     }
 };

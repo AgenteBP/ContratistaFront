@@ -23,7 +23,7 @@ export const useMachinery = () => {
                 allElements = await elementService.getBySupplierAndActiveType(idSupplier, 4);
             } else {
                 if (!user?.id || !currentRole?.role) { setLoading(false); return; }
-                allElements = await elementService.getAuthorized(4, user.id, currentRole.role);
+                allElements = await elementService.getAuthorized(4, user.id, currentRole.role, currentRole.id_entity);
             }
 
             const machineryData = allElements.map(e =>

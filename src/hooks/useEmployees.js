@@ -21,7 +21,7 @@ export const useEmployees = () => {
                 employeesDataReq = await elementService.getBySupplierAndActiveType(idSupplier, 1);
             } else {
                 if (!user?.id || !currentRole?.role) { setLoading(false); return; }
-                employeesDataReq = await elementService.getAuthorized(1, user.id, currentRole.role);
+                employeesDataReq = await elementService.getAuthorized(1, user.id, currentRole.role, currentRole.id_entity);
             }
 
             const employeesData = employeesDataReq.map(e =>

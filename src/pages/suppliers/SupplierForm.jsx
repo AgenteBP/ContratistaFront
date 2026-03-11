@@ -1359,7 +1359,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                             // Admin Mode: Config Enabled (even in partial edit), Uploads Disabled
                             // Supplier Mode: Config Disabled, Uploads Enabled (if editing)
                             const isStep4ConfigReadOnly = !isWizardMode && !isAdmin;
-                            const isStep4ActionsEnabled = partialEdit && isEditingStep && !isAdmin;
+                            const isStep4ActionsEnabled = partialEdit && isEditingStep && currentRole?.role === 'PROVEEDOR';
 
                             // console.log("SupplierForm - formData:", formData);
                             return (
@@ -1622,11 +1622,10 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                 {!isWizardMode && (
                                                                                     <div className="flex flex-wrap gap-1">
                                                                                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border inline-block ${status === 'VIGENTE' && docData?.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
-                                                                                            status === 'VIGENTE' ? 'bg-success/10 text-success border-success/20' :
-                                                                                                status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
-                                                                                                    status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
-                                                                                                        status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                                                                            'bg-secondary/10 text-secondary border-secondary/20'
+                                                                                            status === 'VENCIDO' ? 'bg-danger/10 text-danger border-danger/20' :
+                                                                                                status === 'EN REVISIÓN' ? 'bg-info/10 text-info border-info/20' :
+                                                                                                    status === 'CON OBSERVACIÓN' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                                                                        'bg-secondary/10 text-secondary border-secondary/20'
                                                                                             }`}>
                                                                                             {status}
                                                                                         </span>
@@ -1648,7 +1647,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                         )}
 
                                                                         {/* Observation Alert (Card Mode) */}
-                                                                        {docData?.observacion && status !== 'VIGENTE' && (
+                                                                        {docData?.observacion && (
                                                                             expandedObservations[doc.id] ? (
                                                                                 <div
                                                                                     onClick={(e) => { e.stopPropagation(); toggleObservation(doc.id); }}
@@ -1742,7 +1741,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                     <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' || doc.isOptional ? ' — Opcional' : ''}</span>
                                                                                 </div>
 
-                                                                                {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez') && (
+                                                                                {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez' && (docData?.frecuencia || doc.frecuencia) !== 'UNICA VEZ') && (
                                                                                     <div className="flex flex-col w-full">
                                                                                         <div className="flex items-center gap-2">
                                                                                             <i className="pi pi-calendar text-secondary/50 text-base"></i>
@@ -1953,7 +1952,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-6 py-4 text-center">
-                                                                    {(doc.obligatoriedad === 'No aplica' || doc.frecuencia === 'Única vez') ? (
+                                                                    {(doc.obligatoriedad === 'No aplica' || doc.frecuencia === 'Única vez' || doc.frecuencia === 'UNICA VEZ') ? (
                                                                         <span className="text-[11px] font-bold text-secondary/40">N/A</span>
                                                                     ) : (
                                                                         <div className="flex flex-col items-center">
@@ -1999,7 +1998,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                         <i className="pi pi-file-pdf text-orange-400 text-[10px]"></i>
                                                                                         <span className="text-[9px] text-orange-800 truncate" title={docData?.oldArchivo || docData?.archivo}>{docData?.oldArchivo || docData?.archivo}</span>
                                                                                     </div>
-                                                                                    {!docData?.modified && isStep4ActionsEnabled && (
+                                                                                    {!docData?.modified && (
                                                                                         <button onClick={() => handleViewFile(docData)} className="ml-1 text-orange-500 hover:text-orange-700 shrink-0"><i className="pi pi-eye text-[10px]"></i></button>
                                                                                     )}
                                                                                 </div>

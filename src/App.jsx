@@ -28,6 +28,10 @@ import GlobalAuditInbox from './pages/auditors/GlobalAuditInbox';
 import CompanyList from './pages/companies/CompanyList';
 import NewCompany from './pages/companies/NewCompany';
 
+// 0. Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
+
 // 4. Recursos
 import ResourcesDashboard from './pages/resources/ResourcesDashboard';
 import VehiclesList from './pages/resources/vehicles/VehiclesList';
@@ -103,11 +107,7 @@ const router = createBrowserRouter(
     )
 );
 
-// 0. Context Provider
-import { AuthProvider } from './context/AuthContext';
-import { NotificationProvider } from './context/NotificationContext';
 
-// ... (previous imports)
 
 function App() {
     return (

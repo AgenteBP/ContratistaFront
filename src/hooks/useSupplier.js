@@ -4,7 +4,7 @@ import { groupService } from '../services/groupService';
 import elementService from '../services/elementService';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
+
 
 import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
 
@@ -166,7 +166,14 @@ export const useSupplier = (explicitCuit = null) => {
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
                                         const finalObs = (hasAudit && !isForwarded) ? (auditInfo?.audit_observations || auditInfo?.auditObservations || null) : ((!isForwarded && (folderMeta?.observacion || submittedFile?.observacion)) || null);
-                                        const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const docFrequency = attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez';
+
+                                        // Do not fallback to date_submitted for 'UNICA VEZ'
+                                        const isUnicaVez = docFrequency.toUpperCase() === 'ÚNICA VEZ' || docFrequency.toUpperCase() === 'UNICA VEZ';
+                                        let rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento;
+                                        if (!rawVenc && !isUnicaVez) {
+                                            rawVenc = submittedFile?.date_submitted || null;
+                                        }
                                         const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
                                         docMap.set(key, {
@@ -179,7 +186,7 @@ export const useSupplier = (explicitCuit = null) => {
                                             id_active: attrTempl?.id_active || attrTempl?.idActive,
                                             tipo: docKey,
                                             label: cleanLabel,
-                                            frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
+                                            frecuencia: docFrequency,
                                             estado: finalStatus,
                                             isExpiringSoon: isExpiringSoon,
                                             archivo: finalFileName,

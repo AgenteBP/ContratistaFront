@@ -25,14 +25,25 @@ const Navbar = ({ onToggleSidebar }) => {
         ? `${user.firstName} ${user.lastName}`
         : (user?.name || 'Usuario');
 
-    const userInfo = currentRole ? {
-        user: fullName,
-        email: user?.username || user?.email || 'usuario@contratista.com',
-        role: currentRole.role,
-        roleLabel: roleLabels[currentRole.role] || currentRole.role,
-        entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || '',
-        id_entity: currentRole.id_entity
-    } : null;
+    const userInfo = useMemo(() => {
+        if (!currentRole) return null;
+
+        let roleLabel = roleLabels[currentRole.role] || currentRole.role;
+
+        // Caso especial para Auditor Legal/Técnico
+        if (currentRole.role === 'AUDITOR' && currentRole.type) {
+            roleLabel = currentRole.type === 'LEGAL' ? 'Auditor Legal' : 'Auditor Técnico';
+        }
+
+        return {
+            user: fullName,
+            email: user?.username || user?.email || 'usuario@contratista.com',
+            role: currentRole.role,
+            roleLabel: roleLabel,
+            entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || '',
+            id_entity: currentRole.id_entity
+        };
+    }, [currentRole, user, fullName]);
 
     // --- Profile Switcher Logic ---
     const availableProfiles = useMemo(() => {
@@ -385,9 +396,9 @@ const Navbar = ({ onToggleSidebar }) => {
                 >
                     <div className="flex flex-col">
                         {/* Search Header */}
-                        <div className="p-3 bg-gray-50/80 border-b border-gray-100">
+                        <div className="p-4 bg-gray-50/80 border-b border-gray-100">
                             <div className="relative">
-                                <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-secondary/30 text-xs"></i>
                                 <input
                                     type="text"
                                     placeholder="Buscar empresa o rol..."
@@ -403,8 +414,8 @@ const Navbar = ({ onToggleSidebar }) => {
                         <div className="max-h-[350px] overflow-y-auto p-1 py-1 scroll-smooth">
                             {/* Perfil Actual (Modo Lectura - SOLO EN MÓVIL) */}
                             {userInfo && (
-                                <div className="mb-2 border-b border-gray-100 pb-2 sm:hidden">
-                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest">
+                                <div className="mb-2 border-b border-gray-50 pb-3 sm:hidden">
+                                    <div className="px-4 py-2 text-[10px] font-bold text-secondary/50 uppercase tracking-widest">
                                         Perfil Activo
                                     </div>
                                     <div className="flex items-center gap-3 p-2.5 mx-1 bg-gray-50/80 rounded-xl border border-primary/20 shadow-inner opacity-90 cursor-default">
@@ -438,8 +449,8 @@ const Navbar = ({ onToggleSidebar }) => {
 
                             {filteredProfiles.length > 0 ? (
                                 <>
-                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest mt-1">
-                                        Cambiar a otro perfil
+                                    <div className="px-4 py-2 text-[10px] font-bold text-secondary/50 uppercase tracking-widest mt-1">
+                                        Perfiles Disponibles
                                     </div>
                                     {filteredProfiles.map((profile, idx) => {
                                         const theme = {
@@ -448,6 +459,11 @@ const Navbar = ({ onToggleSidebar }) => {
                                             'PROVEEDOR': { icon: 'pi-briefcase', color: 'text-success', bg: 'bg-success/5' },
                                             'ADMIN': { icon: 'pi-cog', color: 'text-secondary-dark', bg: 'bg-secondary/5' }
                                         }[profile.role] || { icon: 'pi-user', color: 'text-gray-500', bg: 'bg-gray-50' };
+
+                                        let label = roleLabels[profile.role] || profile.role;
+                                        if (profile.role === 'AUDITOR' && profile.type) {
+                                            label = profile.type === 'LEGAL' ? 'Auditor Legal' : 'Auditor Técnico';
+                                        }
 
                                         return (
                                             <div
@@ -462,7 +478,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                                     <span className="text-xs font-bold text-gray-800 truncate leading-tight">{profile.name}</span>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${theme.bg} ${theme.color} uppercase tracking-wider`}>
-                                                            {roleLabels[profile.role] || profile.role}
+                                                            {label}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -479,10 +495,6 @@ const Navbar = ({ onToggleSidebar }) => {
                             )}
                         </div>
 
-                        {/* Footer tip */}
-                        <div className="p-2 bg-gray-50/50 text-[10px] text-center text-gray-400 font-bold border-top border-gray-100 uppercase tracking-wider">
-                            cambiar de perfil
-                        </div>
                     </div>
                 </OverlayPanel>
             </div>

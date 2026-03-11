@@ -55,9 +55,13 @@ const elementService = {
      * @param {string} role 
      * @returns {Promise<Array>}
      */
-    getAuthorized: async (idActiveType, userId, role) => {
+    getAuthorized: async (idActiveType, userId, role, entityId = null) => {
         try {
-            const response = await api.get(`/elements/authorized?idActiveType=${idActiveType}&userId=${userId}&role=${role}`);
+            let url = `/elements/authorized?idActiveType=${idActiveType}&userId=${userId}&role=${role}`;
+            if (entityId) {
+                url += `&entityId=${entityId}`;
+            }
+            const response = await api.get(url);
             return response.data;
         } catch (error) {
             console.error(`Error fetching authorized elements (Type: ${idActiveType}, User: ${userId}):`, error);
