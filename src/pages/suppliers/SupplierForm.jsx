@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useBlocker, useBeforeUnload } from 'react-router-dom';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
@@ -1171,6 +1171,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                 className="w-full"
                                                 disabled={!formData.provinciaCode || isStep2Disabled}
                                                 emptyMessage="Seleccione una provincia primero"
+                                                editable
                                             />
                                         </div>
 

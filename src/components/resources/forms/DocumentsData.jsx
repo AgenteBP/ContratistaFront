@@ -64,9 +64,9 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
                 let newDocs;
                 if (docIndex >= 0) {
                     newDocs = [...currentDocs];
-                    newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl, estado: 'EN REVISIÓN' };
+                    newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl, rawFile: file, estado: 'EN REVISIÓN' };
                 } else {
-                    newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'EN REVISIÓN', archivo: file.name, fileUrl }];
+                    newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'EN REVISIÓN', archivo: file.name, fileUrl, rawFile: file }];
                 }
                 return { ...prev, documents: newDocs };
             });

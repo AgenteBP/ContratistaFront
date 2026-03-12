@@ -60,12 +60,41 @@ const NewMachinery = () => {
                 return;
             }
 
+            // Process documents to get base64 files
+            const files_submitted = [];
+            if (finalData.documents && finalData.documents.length > 0) {
+                const { fileToBase64 } = await import('../../../utils/fileUtils');
+
+                for (const doc of finalData.documents) {
+                    if (doc.rawFile) {
+                        try {
+                            const base64Data = await fileToBase64(doc.rawFile);
+                            const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+                            
+                            files_submitted.push({
+                                id_attribute: 1, // Defaulting if no specific id_attribute is available in this flow
+                                period: new Date().getFullYear().toString(),
+                                file_name: doc.archivo,
+                                file_size: doc.rawFile.size,
+                                file_type: doc.rawFile.type,
+                                file_content: pureBase64,
+                                date_submitted: new Date().toISOString(),
+                                expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
+                            });
+                        } catch (err) {
+                            console.error(`Failed to process document ${doc.archivo}`, err);
+                        }
+                    }
+                }
+            }
+
             const payload = {
                 id_supplier: idSupplier,
                 id_active: finalData.idActive, // Set in MachineryData
                 data: {
                     ...finalData
-                }
+                },
+                ...(files_submitted.length > 0 ? { files_submitted } : {})
             };
 
             const elementService = await import('../../../services/elementService').then(m => m.default);
