@@ -5,6 +5,8 @@ import { StatusBadge } from '../../ui/Badges';
 import ConfirmationModal from '../../ui/ConfirmationModal';
 import ObservationModal from '../../ui/ObservationModal';
 import SectionTitle from '../../ui/SectionTitle';
+import { requirementService } from '../../../services/requirementService';
+import { groupService } from '../../../services/groupService';
 
 const DocumentsData = ({ data, onBack, onSubmit, type }) => {
     const [formData, setFormData] = useState(data);
@@ -16,33 +18,91 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
     const [selectedObs, setSelectedObs] = useState({ title: '', content: '' });
     const [draggingDocId, setDraggingDocId] = useState(null);
 
-    // Resource-specific document rules
-    const DOC_RULES = {
-        VEHICLE: [
-            { id: 'CEDULA_IDENTIFICACION', label: 'Cédula de Identificación', frecuencia: 'Única vez', obligatoriedad: 'Obligatorio' },
-            { id: 'VTV', label: 'Revisión Técnica (VTV/RTO)', frecuencia: 'Anual', obligatoriedad: 'Obligatorio' },
-            { id: 'POLIZA_SEGURO', label: 'Póliza de Seguro', frecuencia: 'Mensual', obligatoriedad: 'Obligatorio' },
-            { id: 'COMPROBANTE_PAGO_SEGURO', label: 'Comprobante de Pago Seguro', frecuencia: 'Mensual', obligatoriedad: 'Obligatorio' },
-            { id: 'RUTA', label: 'Permiso RUTA', frecuencia: 'Anual', obligatoriedad: 'Opcional' },
-            { id: 'TARJETA_GNC', label: 'Cédula de GNC', frecuencia: 'Anual', obligatoriedad: 'Opcional', hidden: !data.tieneGNC }
-        ],
-        EMPLOYEE: [
-            { id: 'DNI', label: 'DNI (Frente y Dorso)', frecuencia: 'Única vez', obligatoriedad: 'Obligatorio' },
-            { id: 'CONSTANCIA_CUIL', label: 'Constancia de CUIL', frecuencia: 'Única vez', obligatoriedad: 'Obligatorio' },
-            { id: 'ART_CERTIFICADO', label: 'Certificado de Cobertura ART', frecuencia: 'Mensual', obligatoriedad: 'Obligatorio' },
-            { id: 'CLU_VENCIMIENTO', label: 'Carnet CLU (Vigilancia)', frecuencia: 'Con Vencimiento', obligatoriedad: 'Obligatorio' },
-            { id: 'ANTECEDENTES_PENALES', label: 'RNR - Antecedentes Penales', frecuencia: 'Anual', obligatoriedad: 'Obligatorio' },
-            { id: 'CARNET_CONDUCIR', label: 'Licencia de Conducir', frecuencia: 'Con Vencimiento', obligatoriedad: 'Opcional', hidden: !data.esChofer }
-        ],
-        MACHINERY: [
-            { id: 'TITULO_PROPIEDAD', label: 'Título de Propiedad', frecuencia: 'Única vez', obligatoriedad: 'Obligatorio' },
-            { id: 'REVISION_TECNICA', label: 'Revisión Técnica / Service', frecuencia: 'Con Vencimiento', obligatoriedad: 'Obligatorio' },
-            { id: 'SEGURO_EQUIPO', label: 'Seguro de Responsabilidad Civil', frecuencia: 'Mensual', obligatoriedad: 'Obligatorio' },
-            { id: 'MANUAL_USUARIO', label: 'Manual de Usuario / Seguridad', frecuencia: 'Única vez', obligatoriedad: 'Opcional' }
-        ]
+    const [requiredDocs, setRequiredDocs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const periodicityMap = {
+        1: 'Mensual',
+        2: 'Anual',
+        3: 'Única vez',
+        4: 'Vigencia'
     };
 
-    const requiredDocs = DOC_RULES[type].filter(doc => !doc.hidden);
+    const typeToActiveType = {
+        'EMPLOYEE': 1,
+        'VEHICLE': 2,
+        'MACHINERY': 4
+    };
+
+    useEffect(() => {
+        const fetchRequirements = async () => {
+            setLoading(true);
+            try {
+                const idActiveType = typeToActiveType[type];
+                const idGroup = data.id_group || 1;
+                const idSupplier = data.id_supplier || 1;
+
+                console.log(`[DocumentsData] Fetching for ${type}: idGroup=${idGroup}, idActiveType=${idActiveType}, idSupplier=${idSupplier}`);
+
+                // Use getSpecific instead of getListRequirements (matching Supplier flow)
+                const groupReqs = await groupService.getSpecific(idSupplier, idGroup, idActiveType);
+                
+                console.log("[DocumentsData] Raw groupReqs:", groupReqs);
+
+                const mapped = groupReqs.map(req => {
+                    const listReq = req.list_requirements || req.listRequirements || {};
+                    const template = listReq.attribute_template || listReq.attributeTemplate || {};
+                    const attrs = template.attributes || {};
+                    
+                    // Robust extraction from attribute_template based on project patterns
+                    const rawIdActive = template.id_active?.id_active || template.id_active || template.idActive;
+                    const idActive = (rawIdActive && typeof rawIdActive === 'object') ? rawIdActive.id_active : rawIdActive;
+
+                    
+                    const idAttributes = attrs.id_attributes || attrs.idAttributes || template.id_attributes || template.idAttributes;
+                    
+                    return {
+                        id: listReq.id_list_requirements || listReq.idListRequirements,
+                        label: listReq.description,
+                        frecuencia: periodicityMap[attrs.id_periodicity] || 'Única vez',
+                        obligatoriedad: attrs.is_required ? 'Obligatorio' : 'Opcional',
+                        id_active: idActive,
+                        id_attribute: attrs.id_attributes || attrs.idAttributes || template.id_attributes || template.idAttributes
+                    };
+                }).filter(doc => !!doc.id); // Ensure valid objects
+
+                console.log("[DocumentsData] Mapped requirements:", mapped);
+
+                // Conditional filtering for specific cases
+                const filtered = mapped.filter(doc => {
+                    // 1. Logic-based generic filtering
+                    if (doc.label.toUpperCase().includes('GNC') && !data.tieneGNC) return false;
+                    if (doc.label.toUpperCase().includes('CONDUCIR') && !data.esChofer) return false;
+
+                    // 2. Specific Active ID filtering
+                    // If a requirement has a specific id_active, it MUST match the selected data.idActive
+                    const selectedIdActive = Number(data.idActive);
+                    const docIdActive = doc.id_active ? Number(doc.id_active) : null;
+
+                    if (docIdActive && selectedIdActive && docIdActive !== selectedIdActive) {
+                        console.log(`[DocumentsData] Filtering out ${doc.label}: docIdActive=${docIdActive} != selected=${selectedIdActive}`);
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                console.log("[DocumentsData] Filtered requirements:", filtered);
+                setRequiredDocs(filtered);
+            } catch (error) {
+                console.error("Error fetching requirements in DocumentsData:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRequirements();
+    }, [type, data.id_group, data.id_supplier, data.tieneGNC, data.esChofer, data.idActive]);
 
     const toggleObservation = (id) => {
         setExpandedObservations(prev => ({ ...prev, [id]: !prev[id] }));
@@ -58,15 +118,32 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
 
         if (file) {
             const fileUrl = URL.createObjectURL(file);
+            const docReq = requiredDocs.find(d => d.id === docId);
+            
             setFormData(prev => {
                 const currentDocs = prev.documents || [];
                 const docIndex = currentDocs.findIndex(d => d.tipo === docId);
                 let newDocs;
                 if (docIndex >= 0) {
                     newDocs = [...currentDocs];
-                    newDocs[docIndex] = { ...newDocs[docIndex], archivo: file.name, fileUrl, rawFile: file, estado: 'EN REVISIÓN' };
+                    newDocs[docIndex] = { 
+                        ...newDocs[docIndex], 
+                        archivo: file.name, 
+                        fileUrl, 
+                        rawFile: file, 
+                        estado: 'EN REVISIÓN',
+                        id_attribute: docReq?.id_attribute
+                    };
                 } else {
-                    newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'EN REVISIÓN', archivo: file.name, fileUrl, rawFile: file }];
+                    newDocs = [...currentDocs, { 
+                        id: Date.now(), 
+                        tipo: docId, 
+                        estado: 'EN REVISIÓN', 
+                        archivo: file.name, 
+                        fileUrl, 
+                        rawFile: file,
+                        id_attribute: docReq?.id_attribute
+                    }];
                 }
                 return { ...prev, documents: newDocs };
             });
@@ -109,15 +186,27 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
     const handleDateChange = (docId, date) => {
         if (!date) return;
         const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const docReq = requiredDocs.find(d => d.id === docId);
+
         setFormData(prev => {
             const currentDocs = prev.documents || [];
             const docIndex = currentDocs.findIndex(d => d.tipo === docId);
             let newDocs;
             if (docIndex >= 0) {
                 newDocs = [...currentDocs];
-                newDocs[docIndex] = { ...newDocs[docIndex], fechaVencimiento: formattedDate };
+                newDocs[docIndex] = { 
+                    ...newDocs[docIndex], 
+                    fechaVencimiento: formattedDate,
+                    id_attribute: docReq?.id_attribute
+                };
             } else {
-                newDocs = [...currentDocs, { id: Date.now(), tipo: docId, estado: 'PENDIENTE', fechaVencimiento: formattedDate }];
+                newDocs = [...currentDocs, { 
+                    id: Date.now(), 
+                    tipo: docId, 
+                    estado: 'PENDIENTE', 
+                    fechaVencimiento: formattedDate,
+                    id_attribute: docReq?.id_attribute
+                }];
             }
             return { ...prev, documents: newDocs };
         });
@@ -153,7 +242,12 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
                 </div>
             </div>
 
-            {docViewMode === 'grid' ? (
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-secondary-light/20 rounded-2xl border-2 border-dashed border-secondary/10">
+                    <i className="pi pi-spin pi-spinner text-3xl text-primary mb-4"></i>
+                    <p className="text-sm font-bold text-secondary">Cargando requisitos de documentación...</p>
+                </div>
+            ) : docViewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {requiredDocs.map(doc => {
                         const docData = formData.documents?.find(d => d.tipo === doc.id);
@@ -169,7 +263,7 @@ const DocumentsData = ({ data, onBack, onSubmit, type }) => {
                                                 status === 'EN REVISIÓN' ? 'bg-info/10 border-info/20 text-info' :
                                                     'bg-secondary/10 border-secondary/20 text-secondary'
                                             }`}>
-                                            <i className={`pi ${doc.id.includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
+                                            <i className={`pi ${String(doc.id).includes('SEGURO') ? 'pi-shield' : 'pi-file-pdf'} text-xl group-hover:scale-110 transition-transform`}></i>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-secondary-dark text-[13px] leading-tight mb-1" title={doc.label}>{doc.label}</h4>

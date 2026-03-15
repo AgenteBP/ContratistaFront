@@ -57,9 +57,9 @@ export const useSupplier = (explicitCuit = null) => {
                     // 3. If Group ID is present, fetch specific group requirements (DYNAMIC FLOW)
                     if (data.idGroup) {
                         try {
-                            console.log("Fetching specific group requirements for group", data.idGroup);
-                            // CHANGED: Using getSpecific instead of getDetails
-                            const groupReqs = await groupService.getSpecific(data.internalId, data.idGroup);
+                            console.log("Fetching specific group requirements for group", data.idGroup, "with ActiveType 5");
+                            // CHANGED: Using getSpecific instead of getDetails, with activeType 5 (Supplier)
+                            const groupReqs = await groupService.getSpecific(data.internalId, data.idGroup, 5);
 
                             if (groupReqs && groupReqs.length > 0) {
                                 // Use a Map to ensure absolute uniqueness of Requirements

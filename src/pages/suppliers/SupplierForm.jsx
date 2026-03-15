@@ -791,7 +791,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
             const newReq = {
                 id: docId,
                 id_active: rule.id_attribute_template?.id_active?.id_active || rule.attributeTemplate?.id_active || rule.attributeTemplate?.idActive || null,
-                id_attribute: rule.id_attribute_template?.id_attributes || rule.attributeTemplate?.id_attributes || rule.attributeTemplate?.idAttributes || null,
+                id_attribute: rule.id_attribute_template?.id_attributes?.id_attributes || rule.id_attribute_template?.id_attributes || rule.attributeTemplate?.id_attributes?.id_attributes || rule.attributeTemplate?.id_attributes || rule.attributeTemplate?.idAttributes || null,
                 label: rule.description,
                 frecuencia: 'ANUAL',
                 obligatoriedad: 'Manual'
@@ -2183,6 +2183,7 @@ const SupplierForm = ({ initialData, readOnly = false, partialEdit = false, isSa
                                                                                                 id: reqId,
                                                                                                 // Conservar ambos tipos por seguridad
                                                                                                 id_active: req.id_attribute_template?.id_active?.id_active || req.attributeTemplate?.id_active || req.attributeTemplate?.idActive || null,
+                                                                                                id_attribute: req.id_attribute_template?.id_attributes?.id_attributes || req.id_attribute_template?.id_attributes || req.attributeTemplate?.id_attributes?.id_attributes || req.attributeTemplate?.id_attributes || req.attributeTemplate?.idAttributes || null,
                                                                                                 label: req.description,
                                                                                                 frecuencia: 'ANUAL',
                                                                                                 obligatoriedad: 'Manual'

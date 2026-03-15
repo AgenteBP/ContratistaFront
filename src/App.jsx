@@ -37,6 +37,8 @@ import NewEmployee from './pages/resources/employees/NewEmployee';
 import MachineryList from './pages/resources/machinery/MachineryList';
 import NewMachinery from './pages/resources/machinery/NewMachinery';
 import ProviderDocuments from './pages/resources/ProviderDocuments';
+import DocumentationConfig from './pages/resources/DocumentationConfig';
+import ResourceDocumentationView from './pages/resources/ResourceDocumentationView';
 
 // Definición del Router usando Data APIs para soportar features nuevas como useBlocker
 const router = createBrowserRouter(
@@ -82,6 +84,8 @@ const router = createBrowserRouter(
                 <Route path="/recursos/empleados/nuevo" element={<NewEmployee />} />
                 <Route path="/recursos/maquinaria" element={<MachineryList />} />
                 <Route path="/recursos/maquinaria/nueva" element={<NewMachinery />} />
+                <Route path="/recursos/configurar-documentacion" element={<DocumentationConfig />} />
+                <Route path="/recursos/documentacion/:type/:id" element={<ResourceDocumentationView />} />
 
                 {/* Usuarios */}
                 <Route path="/usuarios" element={<UsersList />} />

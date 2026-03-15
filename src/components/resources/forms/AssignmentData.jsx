@@ -12,9 +12,9 @@ const AssignmentData = ({ data, onChange, onBack, onSubmit }) => {
     ];
 
     const areas = [
-        { label: 'SAN LUIS Y VILLA MERCEDES', value: 'SL_VM' },
-        { label: 'MENDOZA', value: 'MDZ' },
-        { label: 'CORDOBA', value: 'CBA' }
+        { label: 'SAN LUIS Y VILLA MERCEDES', value: 'SAN LUIS Y VILLA MERCEDES' },
+        { label: 'MENDOZA', value: 'MENDOZA' },
+        { label: 'CORDOBA', value: 'CORDOBA' }
     ];
 
     const services = [

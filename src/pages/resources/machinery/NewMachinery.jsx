@@ -72,7 +72,7 @@ const NewMachinery = () => {
                             const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
                             
                             files_submitted.push({
-                                id_attribute: 1, // Defaulting if no specific id_attribute is available in this flow
+                                id_attribute: doc.id_attribute || 1, // Use dynamic id_attribute from requirement
                                 period: new Date().getFullYear().toString(),
                                 file_name: doc.archivo,
                                 file_size: doc.rawFile.size,
@@ -131,9 +131,10 @@ const NewMachinery = () => {
                     />
                 );
             case 3:
+                const idGrp = currentRole?.id_group || user?.suppliers?.[0]?.id_group || 1;
                 return (
                     <DocumentsData
-                        data={formData}
+                        data={{ ...formData, id_group: idGrp }}
                         onBack={handleBack}
                         onSubmit={handleFinalSubmit}
                         type="MACHINERY"

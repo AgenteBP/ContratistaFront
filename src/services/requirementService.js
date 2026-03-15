@@ -63,5 +63,18 @@ export const requirementService = {
             console.error('requirementService: Error in getSupplierDocuments:', error);
             throw error;
         }
+    },
+    /**
+     * Save a specific requirement assignment to a group and supplier
+     * @param {Object} payload - GroupRequirementsInsertDTO
+     */
+    saveGroupRequirement: async (payload) => {
+        try {
+            const response = await api.post('/group_requirements/save', payload);
+            return response.data;
+        } catch (error) {
+            console.error('requirementService: Error in saveGroupRequirement:', error);
+            throw error;
+        }
     }
 };

@@ -73,7 +73,7 @@ const NewVehicle = () => {
                             const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
                             
                             files_submitted.push({
-                                id_attribute: 1, // Defaulting if no specific id_attribute is available in this flow
+                                id_attribute: doc.id_attribute, // Use dynamic id_attribute from requirement
                                 period: new Date().getFullYear().toString(),
                                 file_name: doc.archivo,
                                 file_size: doc.rawFile.size,
@@ -89,14 +89,13 @@ const NewVehicle = () => {
                 }
             }
 
+            // Remove unnecessary properties from data
+            const { documents, idActive, ...cleanData } = finalData;
+
             const payload = {
                 id_supplier: idSupplier,
                 id_active: finalData.idActive, // Set in VehicleData
-                data: {
-                    ...finalData,
-                    // Remove internal fields if necessary, or backend ignores them
-                    // Documents are usually handled separately or included if backend supports it
-                },
+                data: cleanData,
                 ...(files_submitted.length > 0 ? { files_submitted } : {})
             };
 
@@ -140,9 +139,11 @@ const NewVehicle = () => {
                     />
                 );
             case 3:
+                const idGrp = currentRole?.id_group || user?.suppliers?.[0]?.id_group || 1;
+                const idSupp = currentRole?.role === 'PROVEEDOR' ? currentRole.id_entity : user?.suppliers?.[0]?.id_supplier;
                 return (
                     <DocumentsData
-                        data={formData}
+                        data={{ ...formData, id_group: idGrp, id_supplier: idSupp }}
                         onBack={handleBack}
                         onSubmit={handleFinalSubmit}
                         type="VEHICLE"
