@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import elementService from '../services/elementService';
 import { useAuth } from '../context/AuthContext';
 
-export const useMachinery = () => {
+export const useMachinery = (explicitIdSupplier = null) => {
     const { user, currentRole } = useAuth();
     const [machinery, setMachinery] = useState([]);
     const [marcas, setMarcas] = useState([]);
@@ -10,6 +10,15 @@ export const useMachinery = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchMachinery = useCallback(async () => {
+        const idSupplier = explicitIdSupplier || (currentRole?.role === 'PROVEEDOR'
+            ? currentRole.id_entity
+            : user?.suppliers?.[0]?.id_supplier);
+
+        if (!idSupplier) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         // Reset state
         setMachinery([]);

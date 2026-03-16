@@ -16,5 +16,20 @@ export const fileService = {
             console.error(`Error recogiendo el archivo con ID ${idFileSubmitted}`, error);
             throw error;
         }
+    },
+
+    /**
+     * Elimina un archivo específico por su ID
+     * @param {number} idFileSubmitted 
+     * @returns {Promise<Object>}
+     */
+    deleteFile: async (idFileSubmitted) => {
+        try {
+            const response = await api.delete(`/files/${idFileSubmitted}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error eliminando el archivo con ID ${idFileSubmitted}`, error);
+            throw error;
+        }
     }
 };

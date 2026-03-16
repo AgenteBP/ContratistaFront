@@ -9,17 +9,19 @@ import TableFilters from '../../../components/ui/TableFilters';
 import { StatusBadge } from '../../../components/ui/Badges';
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useAuth } from '../../../context/AuthContext';
 import { useEmployees } from '../../../hooks/useEmployees';
 import { useAuth } from '../../../context/AuthContext';
 
-const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
+const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
-    const { employees, loading } = useEmployees();
     const { currentRole } = useAuth();
 
     // Si isEmbedded=true y showProvider prop fue pasada como true, la respetamos.
     // O si el rol del usuario no es PROVEEDOR, siempre mostramos el proveedor.
     const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
+    const { isAdmin } = useAuth();
+    const { employees, loading } = useEmployees(explicitIdSupplier);
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -92,16 +94,20 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                     <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Vinculación</h6>
                     {displayProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Empresa Proveedora</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Área Operativa</span><span className="text-sm font-medium text-secondary-dark">{data.area}</span></div>
-                    <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">PER-{data.id.toString().padStart(4, '0')}</span></div>
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Teléfono</span><span className="text-sm font-medium text-secondary-dark">{data.telefono}</span></div>
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">¿Es Chofer?</span><span className="text-sm font-medium text-secondary-dark">{data.esChofer ? 'SÍ' : 'NO'}</span></div>
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
-                        <i className="pi pi-id-card"></i> Credencial Digital
-                    </button>
-                    <button className="w-full text-secondary-dark bg-white hover:bg-secondary-light font-bold rounded-lg text-[11px] py-2 transition-all border border-secondary/20 flex items-center justify-center gap-2">
+                    <button
+                        onClick={() => navigate(`/recursos/documentacion/empleado/${data.id}`)}
+                        className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                    >
                         <i className="pi pi-file-pdf"></i> Ver Documentación
                     </button>
+                    {/* <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
+                        <i className="pi pi-id-card"></i> Credencial Digital
+                    </button> */}
                 </div>
             </div>
         </div>
@@ -123,7 +129,15 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
             <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
-            {isEmbedded && currentRole?.role !== 'EMPRESA' && (
+            {isAdmin && isEmbedded && explicitIdSupplier && (
+                <button
+                    onClick={() => navigate(`/recursos/configurar-documentacion?type=1&supplier=${explicitIdSupplier}&group=${explicitIdGroup}`)}
+                    className="flex-1 sm:flex-none bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9"
+                >
+                    <i className="pi pi-plus"></i> <span className="hidden sm:inline">Nueva Documentación</span><span className="sm:hidden">+ Doc</span>
+                </button>
+            )}
+            {isEmbedded && !isAdmin && (
                 <PrimaryButton
                     label="Nuevo Empleado"
                     onClick={() => navigate('/recursos/empleados/nuevo')}
@@ -159,7 +173,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false }) => {
                     subtitle="Nómina de personal y personal habilitado."
                     icon="pi pi-users"
                     actionButton={
-                        currentRole?.role !== 'EMPRESA' && (
+                        !isAdmin && (
                             <PrimaryButton
                                 label="Nuevo Empleado"
                                 onClick={() => navigate('/recursos/empleados/nuevo')}
