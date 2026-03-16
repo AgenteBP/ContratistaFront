@@ -137,7 +137,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
                     if (idGroup && idSupplier) {
                         try {
-                            const groupReqs = await groupService.getSpecific(idSupplier, idGroup);
+                            const groupReqs = await groupService.getSpecific(idSupplier, idGroup, categoryId);
                             if (groupReqs && groupReqs.length > 0) {
                                 const docMap = new Map();
                                 groupReqs.forEach(req => {
@@ -201,28 +201,37 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     }
 
                     if (allDocuments.length === 0 && response.elements) {
-                        allDocuments = response.elements.map(el => {
-                            const activeDesc = el.active?.description || 'DOCUMENTO';
-                            const docTypeStr = el.data?.tipo || activeDesc;
-                            const submittedFile = el.files_submitted?.[0];
-                            let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                        // Filter elements that match the current categoryId
+                        allDocuments = response.elements
+                            .filter(el => {
+                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType;
+                                // If we can't determine the type, we might want to include it or not. 
+                                // For suppliers, categoryId is 5.
+                                return !elActiveType || Number(elActiveType) === Number(categoryId);
+                            })
+                            .map(el => {
+                                const activeDesc = el.active?.description || 'DOCUMENTO';
+                                const docTypeStr = el.data?.tipo || activeDesc;
+                                const submittedFile = el.files_submitted?.[0];
+                                let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType || categoryId;
 
-                            return {
-                                id: el.id_elements,
-                                entityId: String(idSupplier),
-                                entityName: response.company_name,
-                                entityType: 'Proveedor',
-                                tipo: docTypeStr,
-                                id_active_type: categoryId,
-                                label: el.active?.description || docTypeStr.replace(/_/g, ' '),
-                                estado: finalStatus,
-                                fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
-                                observacion: submittedFile?.audit_info?.audit_observations || el.data?.observacion || null,
-                                frecuencia: el.data?.frecuencia || 'Mensual',
-                                archivo: submittedFile?.id_file_submitted || el.data?.archivo || null,
-                                obligatorio: true
-                            };
-                        });
+                                return {
+                                    id: el.id_elements,
+                                    entityId: String(idSupplier),
+                                    entityName: response.company_name,
+                                    entityType: 'Proveedor',
+                                    tipo: docTypeStr,
+                                    id_active_type: Number(elActiveType),
+                                    label: el.active?.description || docTypeStr.replace(/_/g, ' '),
+                                    estado: finalStatus,
+                                    fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
+                                    observacion: submittedFile?.audit_info?.audit_observations || el.data?.observacion || null,
+                                    frecuencia: el.data?.frecuencia || 'Mensual',
+                                    archivo: submittedFile?.id_file_submitted || el.data?.archivo || null,
+                                    obligatorio: true
+                                };
+                            });
                     }
                 }
             } else {

@@ -15,9 +15,10 @@ import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { useVehicles } from '../../../hooks/useVehicles';
 
-const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
+const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
-    const { vehicles, loading, marcas, modelos } = useVehicles();
+    const { isAdmin } = useAuth();
+    const { vehicles, loading, marcas, modelos } = useVehicles(explicitIdSupplier);
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -65,9 +66,11 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{data.marca} {data.modelo}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Año fabricación</span><span className="text-sm font-medium text-secondary-dark">{data.anio}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de unidad</span><span className="text-sm font-medium text-secondary-dark">{data.tipo}</span></div>
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Combustible</span><span className="text-sm font-medium text-secondary-dark">{data.combustible}</span></div>
                     {/* New Technical Fields */}
-                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Color</span><span className="text-sm font-medium text-secondary-dark">{data.color}</span></div>
-                    {data.peso && <div><span className="block text-[10px] text-secondary font-bold uppercase">Peso</span><span className="text-sm font-medium text-secondary-dark">{data.peso}</span></div>}
+                    {data.categoria && <div><span className="block text-[10px] text-secondary font-bold uppercase">Categoría</span><span className="text-sm font-medium text-secondary-dark">{data.categoria}</span></div>}
+                    {data.capacidadCarga && <div><span className="block text-[10px] text-secondary font-bold uppercase">Capacidad de Carga</span><span className="text-sm font-medium text-secondary-dark">{data.capacidadCarga}</span></div>}
+                    {data.cantidadAsientos && <div><span className="block text-[10px] text-secondary font-bold uppercase">Cant. Asientos</span><span className="text-sm font-medium text-secondary-dark">{data.cantidadAsientos}</span></div>}
                 </div>
 
                 <div className="space-y-3">
@@ -98,9 +101,10 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                 </div>
 
                 <div className="space-y-3">
-                    <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Pertenencia</h6>
+                    <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Aplicación</h6>
                     {showProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Proveedor Dueño</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
-                    <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">VEH-{data.id.toString().padStart(4, '0')}</span></div>
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Servicio</span><span className="text-sm font-medium text-secondary-dark uppercase">{data.servicio}</span></div>
+                    <div><span className="block text-[10px] text-secondary font-bold uppercase">Chofer Asignado</span><span className="text-sm font-medium text-secondary-dark">{data.chofer}</span></div>
                 </div>
 
                 {/* Additional Technical Details Column */}
@@ -114,12 +118,15 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                 )}
 
                 <div className="flex flex-col justify-end gap-2">
-                    <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
+                    <button 
+                        onClick={() => navigate(`/recursos/documentacion/vehiculo/${data.id}`)}
+                        className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                    >
+                        <i className="pi pi-file-pdf"></i> Ver Documentación
+                    </button>
+                    {/* <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
                         <i className="pi pi-file-excel"></i> Ver Planillas VTV
-                    </button>
-                    <button className="w-full text-secondary-dark bg-white hover:bg-secondary-light font-bold rounded-lg text-[11px] py-2 transition-all border border-secondary/20 flex items-center justify-center gap-2">
-                        <i className="pi pi-file-pdf"></i> Ver Seguros
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>
@@ -130,7 +137,15 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
             <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
-            {isEmbedded && (
+            {isAdmin && isEmbedded && explicitIdSupplier && (
+                <button 
+                    onClick={() => navigate(`/recursos/configurar-documentacion?type=2&supplier=${explicitIdSupplier}&group=${explicitIdGroup}`)}
+                    className="flex-1 sm:flex-none bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9"
+                >
+                    <i className="pi pi-plus"></i> <span className="hidden sm:inline">Nueva Documentación</span><span className="sm:hidden">+ Doc</span>
+                </button>
+            )}
+            {isEmbedded && !isAdmin && (
                 <PrimaryButton
                     label="Nuevo Vehículo"
                     icon="pi pi-plus"
@@ -173,11 +188,13 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false }) => {
                     subtitle="Gestión de flota y unidades habilitadas."
                     icon="pi pi-car"
                     actionButton={
-                        <PrimaryButton
-                            label="Nuevo Vehículo"
-                            icon="pi pi-plus"
-                            onClick={() => navigate('/recursos/vehiculos/nuevo')}
-                        />
+                        !isAdmin && (
+                            <PrimaryButton
+                                label="Nuevo Vehículo"
+                                icon="pi pi-plus"
+                                onClick={() => navigate('/recursos/vehiculos/nuevo')}
+                            />
+                        )
                     }
                 />
             )}

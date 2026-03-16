@@ -4,6 +4,7 @@ import Input from '../../ui/Input';
 import Dropdown from '../../ui/Dropdown';
 import Label from '../../ui/Label';
 import { Calendar } from 'primereact/calendar';
+import { State, City } from 'country-state-city';
 
 const EmployeeData = ({ data, onChange, onNext }) => {
     const [formData, setFormData] = useState({
@@ -11,7 +12,9 @@ const EmployeeData = ({ data, onChange, onNext }) => {
         apellido: '',
         cuil: '',
         dni: '',
-        lugarNacimiento: '', // Select
+        provincia: '',
+        provinciaCode: '',
+        localidad: '',
         fechaNacimiento: null,
         fechaInicio: null,
         sindicato: '',
@@ -25,13 +28,43 @@ const EmployeeData = ({ data, onChange, onNext }) => {
 
     const [errors, setErrors] = useState({});
 
-    // Mocks for dropdowns
-    const places = [
-        { label: 'San Luis', value: 'San Luis' },
-        { label: 'Villa Mercedes', value: 'Villa Mercedes' },
-        { label: 'Mendoza', value: 'Mendoza' }
-    ];
+    // States and Cities bounds for Argentina
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
 
+    useEffect(() => {
+        // Load states for Argentina automatically
+        const countryStates = State.getStatesOfCountry('AR').map(s => ({ label: s.name, value: s.isoCode }));
+        setStates(countryStates);
+    }, []);
+
+    useEffect(() => {
+        // Load cities when province changes
+        let sCode = formData.provinciaCode;
+        if (!sCode && formData.provincia && states.length > 0) {
+            const found = states.find(s => s.label === formData.provincia);
+            if (found) sCode = found.value;
+        }
+
+        if (sCode) {
+            const stateCities = City.getCitiesOfState('AR', sCode).map(c => ({ label: c.name, value: c.name }));
+            setCities(stateCities);
+        } else {
+            setCities([]);
+        }
+    }, [formData.provinciaCode, formData.provincia, states]);
+
+    const handleLocationChange = (field, value, option) => {
+        let updates = {};
+        if (field === 'provincia') {
+            updates = { provincia: option ? option.label : '', provinciaCode: value, localidad: '' };
+        } else if (field === 'localidad') {
+            updates = { localidad: value };
+        }
+        
+        setFormData(prev => ({ ...prev, ...updates }));
+        if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
+    };
     // State for employee types
     // Since employee types might not be a dropdown in the current UI (mock data not shown for types), 
     // we need to determine how to set idActive. 
@@ -122,12 +155,30 @@ const EmployeeData = ({ data, onChange, onNext }) => {
 
                 <Input label="D.N.I." value={formData.dni} onChange={(e) => handleChange('dni', e.target.value)} placeholder="INGRESE DNI DEL EMPLEADO" error={errors.dni} />
                 <div className="w-full">
-                    <Label>Lugar de Nacimiento</Label>
+                    <Label>Provincia / Estado</Label>
                     <Dropdown
-                        options={places}
-                        value={formData.lugarNacimiento}
-                        onChange={(e) => handleChange('lugarNacimiento', e.value)}
-                        placeholder="Seleccione"
+                        value={formData.provinciaCode || formData.provincia}
+                        options={states}
+                        onChange={(e) => handleLocationChange('provincia', e.value, states.find(s => s.value === e.value))}
+                        optionLabel="label"
+                        placeholder="SELECCIONE UNA PROVINCIA"
+                        filter
+                        className="w-full"
+                    />
+                </div>
+                <div className="w-full">
+                    <Label>Localidad / Ciudad Actual</Label>
+                    <Dropdown
+                        value={formData.localidad}
+                        options={cities}
+                        onChange={(e) => handleLocationChange('localidad', e.value)}
+                        optionLabel="label"
+                        placeholder="SELECCIONE UNA LOCALIDAD"
+                        filter
+                        className="w-full"
+                        disabled={!formData.provinciaCode && !formData.provincia}
+                        emptyMessage="Seleccione una provincia primero"
+                        editable
                     />
                 </div>
                 <div className="w-full flex flex-col">

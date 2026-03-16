@@ -6,6 +6,27 @@ import Select from '../../ui/Select';
 import Dropdown from '../../ui/Dropdown';
 import { MOCK_EMPLOYEES } from '../../../data/mockResources';
 
+const VEHICLE_CATEGORIES = {
+    'Auto': ['Auto', 'Coupé o Microcoupé', 'Sedán 2 puertas', 'Sedán 3 puertas', 'Sedán 4 puertas', 'Sedán 5 puertas'],
+    'Camioneta / Utilitario': ['Camioneta', 'Furgón', 'Furgoneta o Utilitario', 'Pick Up', 'Todo Terreno'],
+    'Camión': ['Camión', 'Camión Tractor', 'Chasis con Cabina', 'Chasis sin Cabina', 'Transporte de Carga', 'Unidad Tractora'],
+    'Remolque / Acoplado': ['Acoplado', 'Autocarga', 'Chasis Semirremolque', 'Semi-acoplado', 'Semirremolque'],
+    'Pasajeros': ['Madibus', 'Minibús', 'Ómnibus'],
+    'Tractor': ['Tractor Balancín', 'Tractor con Cabina', 'Tractor de Carretera'],
+    'Casa Rodante': ['Casa Rodante', 'Casa Rodante con Motor'],
+    'Moto': ['Moto'],
+    'Embarcación': ['Lancha Cabinada']
+};
+
+const categoryOptions = Object.keys(VEHICLE_CATEGORIES).map(c => ({ label: c, value: c }));
+
+const fuelOptions = [
+    { label: 'Naftero', value: 'Naftero' },
+    { label: 'Diesel', value: 'Diesel' },
+    { label: 'Híbrido (Nafta o Diesel)', value: 'Hibrido (Nafta o Diesel)' },
+    { label: 'Eléctrico', value: 'Electrico' }
+];
+
 const VehicleData = ({ data, onChange, onNext, idSupplier }) => {
     const [formData, setFormData] = useState({
         codigo: '',
@@ -15,7 +36,11 @@ const VehicleData = ({ data, onChange, onNext, idSupplier }) => {
         chasis: '',
         motor: '',
         anio: '',
+        categoriaVehiculo: '',
         tipoVehiculo: '',
+        tipoCombustible: '',
+        capacidadCarga: '',
+        cantidadAsientos: '',
         tieneChofer: false,
         choferAsignado: null,
         tieneGNC: false,
@@ -132,16 +157,59 @@ const VehicleData = ({ data, onChange, onNext, idSupplier }) => {
                 <Input label="Año" value={formData.anio} onChange={(e) => handleChange('anio', e.target.value)} placeholder="2026" />
 
                 <div className="w-full">
+                    <Label>Categoría de Vehículo</Label>
+                    <Dropdown
+                        options={categoryOptions}
+                        value={formData.categoriaVehiculo}
+                        onChange={(e) => {
+                            handleChange('categoriaVehiculo', e.value);
+                            handleChange('tipoVehiculo', ''); // Reset type when category changes
+                            handleChange('idActive', null);
+                        }}
+                        placeholder="SELECCIONE CATEGORÍA"
+                        className="w-full"
+                    />
+                </div>
+
+                <div className="w-full">
                     <Label>Tipo de Vehículo</Label>
                     <Select
-                        options={types}
+                        options={types.filter(t => {
+                            if (!formData.categoriaVehiculo) return true;
+                            const allowed = VEHICLE_CATEGORIES[formData.categoriaVehiculo];
+                            if (!allowed) return true;
+                            
+                            const normalizeText = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+                            const allowedNormalized = allowed.map(normalizeText);
+                            
+                            return allowedNormalized.includes(normalizeText(t.label));
+                        })}
                         value={formData.tipoVehiculo}
                         onChange={(e) => {
-                            handleChange('tipoVehiculo', e.target.value); // Keep for display if needed? Or just use ID?
-                            // e.target.value is the ID now
+                            handleChange('tipoVehiculo', e.target.value); 
                             handleChange('idActive', parseInt(e.target.value));
                         }}
                         placeholder="SELECCIONE TIPO DE VEHICULO"
+                        disabled={!formData.categoriaVehiculo}
+                    />
+                </div>
+
+                {['Camión', 'Remolque / Acoplado', 'Tractor', 'Casa Rodante', 'Embarcación'].includes(formData.categoriaVehiculo) && (
+                    <Input label="Capacidad de Carga (Opcional)" value={formData.capacidadCarga} onChange={(e) => handleChange('capacidadCarga', e.target.value)} placeholder="Ej: 5000 kg" />
+                )}
+
+                {formData.categoriaVehiculo === 'Pasajeros' && (
+                    <Input label="Cantidad de Asientos (Opcional)" type="number" value={formData.cantidadAsientos} onChange={(e) => handleChange('cantidadAsientos', e.target.value)} placeholder="Ej: 45" />
+                )}
+
+                <div className="w-full">
+                    <Label>Tipo de Combustible</Label>
+                    <Dropdown
+                        options={fuelOptions}
+                        value={formData.tipoCombustible}
+                        onChange={(e) => handleChange('tipoCombustible', e.value)}
+                        placeholder="SELECCIONE"
+                        className="w-full"
                     />
                 </div>
 
@@ -180,23 +248,25 @@ const VehicleData = ({ data, onChange, onNext, idSupplier }) => {
                     </div>
                 )}
 
-                <div className="md:col-span-1">
-                    <Label className="mb-2 block">¿Tiene GNC?</Label>
-                    <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-                        <button
-                            onClick={() => handleChange('tieneGNC', true)}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneGNC ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                        >
-                            Si
-                        </button>
-                        <button
-                            onClick={() => handleChange('tieneGNC', false)}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneGNC ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
-                        >
-                            No
-                        </button>
+                {formData.categoriaVehiculo !== 'Embarcación' && (
+                    <div className="md:col-span-1">
+                        <Label className="mb-2 block">¿Tiene GNC?</Label>
+                        <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
+                            <button
+                                onClick={() => handleChange('tieneGNC', true)}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${formData.tieneGNC ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                            >
+                                Si
+                            </button>
+                            <button
+                                onClick={() => handleChange('tieneGNC', false)}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${!formData.tieneGNC ? 'bg-[#2970fa] text-white shadow-sm' : 'text-secondary hover:bg-gray-200'}`}
+                            >
+                                No
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             <div className="bg-secondary-light p-4 md:px-8 md:py-4 border-t border-secondary/20 flex flex-col-reverse gap-3 md:flex-row md:justify-end md:items-center mt-8 -mx-6 md:-mx-8 -mb-6 md:-mb-8 rounded-b-xl">

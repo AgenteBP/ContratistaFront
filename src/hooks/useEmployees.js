@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import elementService from '../services/elementService';
 import { useAuth } from '../context/AuthContext';
 
-export const useEmployees = () => {
+export const useEmployees = (explicitIdSupplier = null) => {
     const { user, currentRole } = useAuth();
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const fetchEmployees = useCallback(async () => {
-        const idSupplier = currentRole?.role === 'PROVEEDOR'
+        const idSupplier = explicitIdSupplier || (currentRole?.role === 'PROVEEDOR'
             ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier;
+            : user?.suppliers?.[0]?.id_supplier);
 
         if (!idSupplier) {
             setLoading(false);

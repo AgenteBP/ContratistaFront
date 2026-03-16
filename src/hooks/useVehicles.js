@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import elementService from '../services/elementService';
 import { useAuth } from '../context/AuthContext';
 
-export const useVehicles = () => {
+export const useVehicles = (explicitIdSupplier = null) => {
     const { user, currentRole } = useAuth();
     const [vehicles, setVehicles] = useState([]);
     const [marcas, setMarcas] = useState([]);
@@ -10,9 +10,9 @@ export const useVehicles = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchVehicles = useCallback(async () => {
-        const idSupplier = currentRole?.role === 'PROVEEDOR'
+        const idSupplier = explicitIdSupplier || (currentRole?.role === 'PROVEEDOR'
             ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier;
+            : user?.suppliers?.[0]?.id_supplier);
 
         if (!idSupplier) {
             setLoading(false);

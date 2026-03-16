@@ -61,14 +61,42 @@ const NewVehicle = () => {
                 return;
             }
 
+            // Process documents to get base64 files
+            const files_submitted = [];
+            if (finalData.documents && finalData.documents.length > 0) {
+                const { fileToBase64 } = await import('../../../utils/fileUtils');
+
+                for (const doc of finalData.documents) {
+                    if (doc.rawFile) {
+                        try {
+                            const base64Data = await fileToBase64(doc.rawFile);
+                            const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+                            
+                            files_submitted.push({
+                                id_attribute: doc.id_attribute, // Use dynamic id_attribute from requirement
+                                period: new Date().getFullYear().toString(),
+                                file_name: doc.archivo,
+                                file_size: doc.rawFile.size,
+                                file_type: doc.rawFile.type,
+                                file_content: pureBase64,
+                                date_submitted: new Date().toISOString(),
+                                expiration_date: doc.fechaVencimiento ? (doc.fechaVencimiento.includes('T') ? doc.fechaVencimiento : `${doc.fechaVencimiento}T12:00:00.000Z`) : null
+                            });
+                        } catch (err) {
+                            console.error(`Failed to process document ${doc.archivo}`, err);
+                        }
+                    }
+                }
+            }
+
+            // Remove unnecessary properties from data
+            const { documents, idActive, ...cleanData } = finalData;
+
             const payload = {
                 id_supplier: idSupplier,
                 id_active: finalData.idActive, // Set in VehicleData
-                data: {
-                    ...finalData,
-                    // Remove internal fields if necessary, or backend ignores them
-                    // Documents are usually handled separately or included if backend supports it
-                }
+                data: cleanData,
+                ...(files_submitted.length > 0 ? { files_submitted } : {})
             };
 
             // Remove non-data fields from data payload if strictly needed, 
@@ -111,9 +139,11 @@ const NewVehicle = () => {
                     />
                 );
             case 3:
+                const idGrp = currentRole?.id_group || user?.suppliers?.[0]?.id_group || 1;
+                const idSupp = currentRole?.role === 'PROVEEDOR' ? currentRole.id_entity : user?.suppliers?.[0]?.id_supplier;
                 return (
                     <DocumentsData
-                        data={formData}
+                        data={{ ...formData, id_group: idGrp, id_supplier: idSupp }}
                         onBack={handleBack}
                         onSubmit={handleFinalSubmit}
                         type="VEHICLE"

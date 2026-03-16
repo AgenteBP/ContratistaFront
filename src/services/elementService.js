@@ -90,14 +90,18 @@ const elementService = {
             modelo: e.data?.modelo || 'N/A',
             anio: e.data?.anio || 'N/A',
             tipo: e.active?.description || 'N/A',
+            combustible: e.data?.tipoCombustible || 'N/A',
+            categoria: e.data?.categoriaVehiculo || 'N/A',
+            capacidadCarga: e.data?.capacidadCarga || null,
+            cantidadAsientos: e.data?.cantidadAsientos || null,
             estado: e.data?.estado || 'ACTIVO',
+            servicio: e.data?.servicio || 'MANTENIMIENTO', // Add default or mapped value
+            chofer: e.data?.choferAsignado?.nombre || 'S/A',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
                 : (suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || '',
-            color: e.data?.color || 'No especificado',
-            peso: e.data?.peso || 'No especificado',
             detalles_tecnicos: e.data?.detalles_tecnicos || {}
         };
     },
@@ -109,11 +113,13 @@ const elementService = {
         return {
             id: e.id_elements,
             codigo: e.data?.codigo || 'N/A',
-            nombre: e.data?.nombre || e.active?.description || 'No especificado',
+            nombre: (e.data?.nombre && e.data?.apellido) ? `${e.data.nombre} ${e.data.apellido}` : (e.data?.nombre || e.active?.description || 'No especificado'),
             dni: e.data?.dni || 'N/A',
             legajo: e.data?.legajo || 'N/A',
-            puesto: e.data?.puesto || e.active?.description || 'N/A',
+            puesto: e.data?.servicio || e.data?.puesto || e.active?.description || 'N/A',
             area: e.data?.area || 'N/A',
+            telefono: e.data?.telefono || 'N/A',
+            esChofer: e.data?.esChofer || false,
             estado: e.data?.estado || 'ACTIVO',
             habilitado: e.data?.habilitado ?? true,
             proveedor: currentRole?.role === 'PROVEEDOR'
