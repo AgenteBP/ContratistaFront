@@ -41,6 +41,7 @@ export const supplierService = {
             empleadorAFIP: response.is_an_afip_employer,
             esTemporal: response.is_temporary_hiring,
             estado: response.active === 0 ? 'ACTIVO' : 'INACTIVO',
+            isTecSuccess: response.is_tec_success, // New field from technical audits
             pais: response.country,
             provincia: response.province,
             localidad: response.city,

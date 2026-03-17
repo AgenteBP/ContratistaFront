@@ -13,9 +13,17 @@ export const companyService = {
         return response.data;
     },
 
-    // Crear nuevo (POST) - if needed
+    // Crear nuevo (POST)
     create: async (companyData) => {
         const response = await api.post('/company/save', companyData);
+        return response.data;
+    },
+
+    // Actualizar estado de auditoría técnica (PUT)
+    updateStatus: async (idCompany, requiredTechnical) => {
+        const response = await api.put(`/company/updateStatus`, null, {
+            params: { idCompany, requiredTechnical }
+        });
         return response.data;
     }
 };

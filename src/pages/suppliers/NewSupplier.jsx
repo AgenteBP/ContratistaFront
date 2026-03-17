@@ -538,18 +538,19 @@ const NewSupplier = () => {
 
               <div className="mt-6">
                 {supplierMode === 'NEW' ? (
-                  <SupplierForm
-                    title={isExistingRole ? "Agregar Nueva Entidad Proveedor" : "Datos del Proveedor"}
-                    subtitle={isExistingRole
-                      ? `El usuario ya es Proveedor. Complete los datos de la NUEVA empresa a asociar.`
-                      : `Configurando el primer perfil de proveedor para ${userData?.username}`}
-                    onSubmit={handleSupplierSubmit}
-                    onBack={handleBack}
-                    groups={groups}
-                    availableCompanies={filteredCompanies.length > 0 ? filteredCompanies : companies}
-                    availableRequirements={availableRequirements}
-                    onGroupChange={fetchRequirementsByGroup}
-                  />
+                    <SupplierForm
+                      title={isExistingRole ? "Agregar Nueva Entidad Proveedor" : "Datos del Proveedor"}
+                      subtitle={isExistingRole
+                        ? `El usuario ya es Proveedor. Complete los datos de la NUEVA empresa a asociar.`
+                        : `Configurando el primer perfil de proveedor para ${userData?.username}`}
+                      onSubmit={handleSupplierSubmit}
+                      onBack={handleBack}
+                      groups={groups}
+                      availableCompanies={filteredCompanies.length > 0 ? filteredCompanies : companies}
+                      availableRequirements={availableRequirements}
+                      onGroupChange={fetchRequirementsByGroup}
+                      isWizardMode={true}
+                    />
                 ) : (
                   <div className="flex flex-col gap-6 max-w-md mx-auto text-center py-4">
                     <div className="bg-blue-50 text-blue-700 p-4 rounded-lg flex items-start gap-3 text-sm text-left">

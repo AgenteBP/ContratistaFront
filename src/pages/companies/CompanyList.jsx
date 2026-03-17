@@ -91,7 +91,7 @@ const CompanyList = () => {
                 const groupName = c.group?.description || groupsMap[c.idGroup] || groupsMap[c.id_group] || 'Sin Grupo';
 
                 return {
-                    id: c.idCompany,
+                    id: c.id_company || c.idCompany,
                     razonSocial: c.description || 'Sin Razón Social',
                     cuit: formatCUIT(c.cuit),
                     // User Query: "De donde sacas el dato de servicio?" 
@@ -99,7 +99,7 @@ const CompanyList = () => {
                     rubro: c.rubro || 'No especificado',
                     grupo: groupName,
                     estado: 'ACTIVO', // Default field as requested previously
-                    requiredTechnical: c.requiredTechnical
+                    requiredTechnical: c.required_technical ?? c.requiredTechnical
                 };
             });
 
@@ -124,7 +124,7 @@ const CompanyList = () => {
             label: 'Editar',
             icon: 'pi pi-pencil',
             command: () => {
-                console.log("Editando a:", selectedRow?.razonSocial);
+                navigate(`/empresas/editar/${selectedRow.id}`);
             }
         },
         {

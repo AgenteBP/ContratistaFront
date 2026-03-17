@@ -238,7 +238,7 @@ const AuditDocumentModal = ({ visible, onHide, docData, onAuditComplete }) => {
                                 placeholder={auditForm.status === 'OBSERVADO' ? "Motivo obligatorio del rechazo u observación detallada..." : "Opcional. Notas o detalles adicionales de la aprobación..."}
                             />
                              {auditForm.status === 'OBSERVADO' && !auditForm.observation.trim() && (
-                                <p className="text-[10px] text-danger font-bold mt-1 animate-pulse">
+                                <p className="text-[10px] text-danger font-bold mt-1">
                                     <i className="pi pi-info-circle mr-1"></i>
                                     La observación es obligatoria para rechazar.
                                 </p>

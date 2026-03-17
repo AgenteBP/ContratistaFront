@@ -274,7 +274,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
                 SUBMENU_RECURSOS_STD,
                 SUBMENU_DOCUMENTOS,
-                // ITEM_REPORTES
+                { type: 'item', icon: 'pi-cog', label: 'Configuración', to: '/configuracion' },
             ];
         }
 
