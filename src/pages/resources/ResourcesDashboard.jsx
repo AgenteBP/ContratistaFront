@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TabView, TabPanel } from 'primereact/tabview';
 import VehiclesList from './vehicles/VehiclesList';
 import EmployeesList from './employees/EmployeesList';
 import MachineryList from './machinery/MachineryList';
 import PageHeader from '../../components/ui/PageHeader';
 import { TbBackhoe } from 'react-icons/tb';
+import { useAuth } from '../../context/AuthContext';
+import AdminSupplierFilterModal from '../../components/resources/AdminSupplierFilterModal';
 
 // --- COMPONENTE TARJETA OPTIMIZADO (Reutilizado del DashboardHome) ---
 const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick, isActive, watermarkSize = "text-[11rem]", iconSize = "text-xl" }) => {
@@ -87,7 +90,18 @@ const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick,
 };
 
 const ResourcesDashboard = () => {
+    const navigate = useNavigate();
     const [activeIndex, setActiveIndex] = useState(0);
+    const { currentRole } = useAuth();
+    
+    const [selectedSupplier, setSelectedSupplier] = useState(null);
+    const [modalVisible, setModalVisible] = useState(false);
+
+    useEffect(() => {
+        if (currentRole?.role === 'ADMIN' && !selectedSupplier) {
+            setModalVisible(true);
+        }
+    }, [currentRole, selectedSupplier]);
 
     // Mock Data adapted for StatCard
     const summaryData = [
@@ -131,6 +145,41 @@ const ResourcesDashboard = () => {
                 title="Gestión de Recursos"
                 subtitle="Administración de flota, personal y equipos especiales."
                 icon="pi pi-box"
+                actionButton={
+                    currentRole?.role === 'ADMIN' && (
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                            {selectedSupplier && (
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <div className="text-right sm:text-left bg-white px-4 py-2 rounded-xl shadow-sm border border-secondary/10 min-w-[120px]">
+                                        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Grupo Seleccionado</p>
+                                        <p className="text-sm font-bold text-secondary-dark truncate" title={selectedSupplier.group?.label}>
+                                            {selectedSupplier.group?.label}
+                                        </p>
+                                    </div>
+                                    <div className="text-right sm:text-left bg-white px-4 py-2 rounded-xl shadow-sm border border-secondary/10 min-w-[120px]">
+                                        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Empresa Seleccionada</p>
+                                        <p className="text-sm font-bold text-secondary-dark truncate" title={selectedSupplier.company?.label}>
+                                            {selectedSupplier.company?.label}
+                                        </p>
+                                    </div>
+                                    <div className="text-right sm:text-left bg-white px-4 py-2 rounded-xl shadow-sm border border-secondary/10 min-w-[140px]">
+                                        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Proveedor Seleccionado</p>
+                                        <p className="text-sm font-bold text-primary truncate" title={selectedSupplier.supplier?.label}>
+                                            {selectedSupplier.supplier?.label}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            <button 
+                                onClick={() => setModalVisible(true)}
+                                className="bg-white border border-secondary/20 hover:bg-secondary-light text-secondary-dark font-bold rounded-lg shadow-sm text-sm px-4 py-2 mt-2 sm:mt-0 transition-all flex items-center justify-center gap-2"
+                                title="Filtrar por Proveedor"
+                            >
+                                <i className="pi pi-filter"></i> Cambiar
+                            </button>
+                        </div>
+                    )
+                }
             />
 
             {/* Summary Cards with StatCard */}
@@ -145,8 +194,25 @@ const ResourcesDashboard = () => {
                 ))}
             </div>
 
-            <div className="bg-white rounded-3xl shadow-xl shadow-secondary/5 border border-secondary/10 overflow-hidden">
-                <TabView
+            {currentRole?.role === 'ADMIN' && !selectedSupplier ? (
+                <div className="bg-white rounded-3xl shadow-xl shadow-secondary/5 border border-secondary/10 p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                        <i className="pi pi-filter text-2xl text-primary"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-secondary-dark mb-2">Seleccione un Proveedor</h3>
+                    <p className="text-secondary max-w-md mx-auto">
+                        Para visualizar o gestionar los recursos, por favor seleccione una empresa y su correspondiente proveedor utilizando el filtro.
+                    </p>
+                    <button 
+                        onClick={() => setModalVisible(true)}
+                        className="mt-6 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg shadow-sm text-sm px-6 py-2.5 transition-all flex items-center gap-2 mx-auto"
+                    >
+                        <i className="pi pi-filter"></i> Abrir Selector
+                    </button>
+                </div>
+            ) : (
+                <div className="bg-white rounded-3xl shadow-xl shadow-secondary/5 border border-secondary/10 overflow-hidden">
+                    <TabView
                     activeIndex={activeIndex}
                     onTabChange={(e) => setActiveIndex(e.index)}
                     pt={{
@@ -167,7 +233,11 @@ const ResourcesDashboard = () => {
                             </div>
                         }
                     >
-                        <VehiclesList isEmbedded={true} />
+                        <VehiclesList 
+                            isEmbedded={true} 
+                            explicitIdSupplier={selectedSupplier?.supplier?.value || selectedSupplier?.supplier?.id}
+                            explicitIdGroup={selectedSupplier?.group?.value || selectedSupplier?.group?.id}
+                        />
                     </TabPanel>
 
                     <TabPanel
@@ -180,7 +250,11 @@ const ResourcesDashboard = () => {
                             </div>
                         }
                     >
-                        <EmployeesList isEmbedded={true} />
+                        <EmployeesList 
+                            isEmbedded={true} 
+                            explicitIdSupplier={selectedSupplier?.supplier?.value || selectedSupplier?.supplier?.id}
+                            explicitIdGroup={selectedSupplier?.group?.value || selectedSupplier?.group?.id}
+                        />
                     </TabPanel>
 
                     <TabPanel
@@ -193,10 +267,27 @@ const ResourcesDashboard = () => {
                             </div>
                         }
                     >
-                        <MachineryList isEmbedded={true} />
+                        <MachineryList 
+                            isEmbedded={true} 
+                            explicitIdSupplier={selectedSupplier?.supplier?.value || selectedSupplier?.supplier?.id}
+                            explicitIdGroup={selectedSupplier?.group?.value || selectedSupplier?.group?.id}
+                        />
                     </TabPanel>
                 </TabView>
             </div>
+            )}
+
+            <AdminSupplierFilterModal 
+                visible={modalVisible} 
+                onConfirm={(supp) => {
+                    setSelectedSupplier(supp);
+                    setModalVisible(false);
+                }}
+                onCancel={() => {
+                    setModalVisible(false);
+                    navigate('/dashboard');
+                }}
+            />
         </div>
     );
 };

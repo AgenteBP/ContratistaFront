@@ -22,6 +22,12 @@ export const supplierService = {
         }
     },
 
+    // 1b. Obtener por Empresa (GET)
+    getByCompany: async (idCompany) => {
+        const response = await api.get(`/supplier/byCompany/${idCompany}`);
+        return response.data;
+    },
+
     /**
      * Utility to map Backend response to UI-friendly structure
      */

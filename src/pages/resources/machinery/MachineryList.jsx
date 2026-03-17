@@ -12,13 +12,15 @@ import { useAuth } from '../../../context/AuthContext';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
+import { useAuth } from '../../../context/AuthContext';
 import { useMachinery } from '../../../hooks/useMachinery';
 
-const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
+const MachineryList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
-    const { machinery, loading, marcas, modelos } = useMachinery();
     const { currentRole } = useAuth();
     const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
+    const { isAdmin } = useAuth();
+    const { machinery, loading, marcas, modelos } = useMachinery(explicitIdSupplier);
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -105,12 +107,15 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
+                    <button
+                        onClick={() => navigate(`/recursos/documentacion/maquinaria/${data.id}`)}
+                        className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                    >
+                        <i className="pi pi-file-pdf"></i> Ver Documentación
+                    </button>
+                    {/* <button className="w-full text-primary bg-primary-light/30 hover:bg-primary-light/50 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2">
                         <i className="pi pi-file-pdf"></i> Inspecciones Técnicas
-                    </button>
-                    <button className="w-full text-secondary-dark bg-white hover:bg-secondary-light font-bold rounded-lg text-[11px] py-2 transition-all border border-secondary/20 flex items-center justify-center gap-2">
-                        <i className="pi pi-shield"></i> Pólizas y Seguros
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>
@@ -121,7 +126,15 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
             <button className="flex-1 sm:flex-none text-secondary-dark bg-white border border-secondary/20 hover:bg-secondary-light font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9">
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
-            {isEmbedded && currentRole?.role !== 'EMPRESA' && (
+            {isAdmin && isEmbedded && explicitIdSupplier && (
+                <button
+                    onClick={() => navigate(`/recursos/configurar-documentacion?type=4&supplier=${explicitIdSupplier}&group=${explicitIdGroup}`)}
+                    className="flex-1 sm:flex-none bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9"
+                >
+                    <i className="pi pi-plus"></i> <span className="hidden sm:inline">Nueva Documentación</span><span className="sm:hidden">+ Doc</span>
+                </button>
+            )}
+            {isEmbedded && !isAdmin && (
                 <PrimaryButton
                     label="Nueva Maquinaria"
                     icon="pi pi-plus"
@@ -170,7 +183,7 @@ const MachineryList = ({ isEmbedded = false, showProvider = false }) => {
                     subtitle="Registro de máquinas y equipos especiales."
                     icon={<TbBackhoe className="text-[33px] md:text-[42px] font-bold" />}
                     actionButton={
-                        currentRole?.role !== 'EMPRESA' && (
+                        !isAdmin && (
                             <PrimaryButton
                                 label="Nueva Maquinaria"
                                 icon="pi pi-plus"

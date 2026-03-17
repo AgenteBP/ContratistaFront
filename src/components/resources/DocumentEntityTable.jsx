@@ -152,10 +152,107 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
                     const idGroup = supplierData?.id_group || supplierData?.idGroup;
 
-                    if (idSupplier) {
-                        const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
-                        let groupReqs = idGroup ? await requirementService.getGroupRequirementsDetails({ idSupplier, idGroup, idActiveType: categoryId }) : [];
-                        allDocuments = mapElementsToDocuments(elements, groupReqs, categoryId, type);
+                    // if (idSupplier) {
+                    //     const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
+                    //     let groupReqs = idGroup ? await requirementService.getGroupRequirementsDetails({ idSupplier, idGroup, idActiveType: categoryId }) : [];
+                    //     allDocuments = mapElementsToDocuments(elements, groupReqs, categoryId, type);
+                    if (idGroup && idSupplier) {
+                        try {
+                            const groupReqs = await groupService.getSpecific(idSupplier, idGroup, categoryId);
+                            if (groupReqs && groupReqs.length > 0) {
+                                const docMap = new Map();
+                                groupReqs.forEach(req => {
+                                    const listReq = req.list_requirements || req.listRequirements;
+                                    if (!listReq) return;
+
+                                    const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
+                                    const attrs = attrTempl?.attributes;
+                                    const files = listReq.files || [];
+                                    const submittedFile = files.length > 0 ? files[0] : null;
+
+                                    const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
+                                    const key = req.idGroupRequirements || req.id_group_requirements || requirementId;
+
+                                    if (!docMap.has(key)) {
+                                        const label = listReq.description || attrs?.description || 'Documento';
+                                        let finalStatus = 'PENDIENTE';
+                                        const isFile = !!submittedFile;
+                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
+                                        const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
+
+                                        if (isFile) {
+                                            const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
+                                            const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
+
+                                            if (hasAudit && !isForwarded) {
+                                                if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
+                                                else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
+                                                else finalStatus = 'EN REVISIÓN';
+                                            } else {
+                                                finalStatus = 'EN REVISIÓN';
+                                                // Check for vencimiento if needed
+                                            }
+                                        }
+
+                                        docMap.set(key, {
+                                            id: key,
+                                            id_group_req: key, // Ensure it's explicitly named for handleSaveUpload
+                                            id_attribute: attrs?.id_attributes || attrs?.idAttributes,
+                                            id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
+                                            entityId: String(idSupplier),
+                                            entityName: response.company_name,
+                                            entityType: 'Proveedor',
+                                            tipo: attrs?.id_attributes || requirementId,
+                                            id_active_type: categoryId,
+                                            label: label.replace(/ obligatorio/i, '').trim(),
+                                            estado: finalStatus,
+                                            fechaVencimiento: submittedFile?.expiration_date || null,
+                                            observacion: isForwarded ? null : (auditInfo?.audit_observations || auditInfo?.auditObservations || null),
+                                            frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
+                                            archivo: submittedFile?.file_name || submittedFile?.fileName || null,
+                                            obligatorio: true
+                                        });
+                                    }
+                                });
+                                allDocuments = Array.from(docMap.values());
+                            }
+                        } catch (err) {
+                            console.warn("DocumentEntityTable: Failed to fetch group requirements", err);
+                        }
+                    }
+
+                    if (allDocuments.length === 0 && response.elements) {
+                        // Filter elements that match the current categoryId
+                        allDocuments = response.elements
+                            .filter(el => {
+                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType;
+                                // If we can't determine the type, we might want to include it or not. 
+                                // For suppliers, categoryId is 5.
+                                return !elActiveType || Number(elActiveType) === Number(categoryId);
+                            })
+                            .map(el => {
+                                const activeDesc = el.active?.description || 'DOCUMENTO';
+                                const docTypeStr = el.data?.tipo || activeDesc;
+                                const submittedFile = el.files_submitted?.[0];
+                                let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType || categoryId;
+
+                                return {
+                                    id: el.id_elements,
+                                    entityId: String(idSupplier),
+                                    entityName: response.company_name,
+                                    entityType: 'Proveedor',
+                                    tipo: docTypeStr,
+                                    id_active_type: Number(elActiveType),
+                                    label: el.active?.description || docTypeStr.replace(/_/g, ' '),
+                                    estado: finalStatus,
+                                    fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
+                                    observacion: submittedFile?.audit_info?.audit_observations || el.data?.observacion || null,
+                                    frecuencia: el.data?.frecuencia || 'Mensual',
+                                    archivo: submittedFile?.id_file_submitted || el.data?.archivo || null,
+                                    obligatorio: true
+                                };
+                            });
                     }
                 }
             } else {

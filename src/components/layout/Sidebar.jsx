@@ -286,6 +286,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-shield', label: 'Auditores', to: '/auditores', end: true, badge: '5' },
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
                 { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
+                SUBMENU_RECURSOS_STD,
                 SUBMENU_AUDITORIA_TECNICA,
                 SUBMENU_AUDITORIA_LEGAL,
                 SUBMENU_DOCUMENTOS,
