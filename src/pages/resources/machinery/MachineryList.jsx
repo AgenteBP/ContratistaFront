@@ -12,7 +12,6 @@ import { useAuth } from '../../../context/AuthContext';
 
 import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
-import { useAuth } from '../../../context/AuthContext';
 import { useMachinery } from '../../../hooks/useMachinery';
 
 const MachineryList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {

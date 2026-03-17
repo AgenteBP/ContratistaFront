@@ -756,9 +756,9 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                         onClick={() => openUploadModal(rowData)}
                         disabled={loadingDocs[rowData.id]}
                         className="text-primary bg-primary-light hover:bg-primary hover:text-white rounded-lg px-3 py-1.5 transition-all text-[10px] font-bold flex items-center gap-1.5 disabled:opacity-50"
-                        title={rowData.estado === 'VIGENTE' ? "Actualizar documento" : "Subir documento"}
+                        title={['VIGENTE', 'VENCIDO', 'CON OBSERVACIÓN'].includes(rowData.estado) ? "Actualizar documento" : "Subir documento"}
                     >
-                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} {rowData.estado === 'VIGENTE' ? 'ACTUALIZAR' : 'SUBIR'}
+                        {loadingDocs[rowData.id] ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-upload"></i>} {['VIGENTE', 'VENCIDO', 'CON OBSERVACIÓN'].includes(rowData.estado) ? 'ACTUALIZAR' : 'SUBIR'}
                     </button>
                 )}
             </div>

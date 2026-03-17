@@ -7,6 +7,8 @@ import { formatCUIT } from '../../utils/formatUtils';
 import { base64ToBlobUrl } from '../../utils/fileUtils';
 import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 import { useAuth } from '../../context/AuthContext';
+import { companyService } from '../../services/companyService';
+import { Tag } from 'primereact/tag';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -19,6 +21,23 @@ const SupplierDetail = () => {
   const { currentRole } = useAuth();
   const isEmpresa = currentRole?.role === 'EMPRESA';
   const [isEditing, setIsEditing] = useState(initialEditMode && !isEmpresa);
+  const [requiredTechnical, setRequiredTechnical] = useState(false);
+
+  useEffect(() => {
+    const checkRequired = async () => {
+        if (!isEmpresa || !currentRole?.id_company) return;
+        try {
+            const companies = await companyService.getAll();
+            const currentComp = companies.find(c => (c.id_company || c.idCompany) === currentRole.id_company);
+            if (currentComp) {
+                setRequiredTechnical(currentComp.required_technical);
+            }
+        } catch (error) {
+            console.error("Error checking required technical:", error);
+        }
+    };
+    checkRequired();
+  }, [isEmpresa, currentRole]);
 
   const handleSave = async (data) => {
     const success = await updateSupplier(data);
@@ -56,6 +75,15 @@ const SupplierDetail = () => {
               {supplierData.razonSocial}
             </h1>
             <StatusBadge status={supplierData.estado} />
+            {requiredTechnical && (
+                <Tag 
+                    value={`AUDITORÍA TÉCNICA: ${supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? 'PENDIENTE' : (supplierData.isTecSuccess ? 'APROBADO' : 'RECHAZADO')}`} 
+                    severity={supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? "warning" : (supplierData.isTecSuccess ? "success" : "danger")}
+                    icon={supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? "pi pi-clock" : (supplierData.isTecSuccess ? "pi pi-check-circle" : "pi pi-shield")}
+                    className="px-3"
+                    style={{ borderRadius: '20px' }}
+                />
+            )}
           </div>
           <p className="text-secondary mt-1">{supplierData.servicio}</p>
         </div>

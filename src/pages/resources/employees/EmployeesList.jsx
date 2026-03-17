@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router-dom';
 import PrimaryButton from '../../../components/ui/PrimaryButton';
 import { useAuth } from '../../../context/AuthContext';
 import { useEmployees } from '../../../hooks/useEmployees';
-import { useAuth } from '../../../context/AuthContext';
 
 const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();

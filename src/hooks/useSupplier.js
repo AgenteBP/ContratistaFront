@@ -354,7 +354,9 @@ export const useSupplier = (explicitCuit = null) => {
                 }))
             },
             document_supplier: {
-                list: (mergedData.documentacion || []).map(d => ({
+                list: (mergedData.documentacion || [])
+                    .filter(d => d.modified === true || String(d.id).startsWith('CUSTOM_'))
+                    .map(d => ({
                     id: String(d.id).startsWith('req-') ? null : d.id, // Don't send string IDs if backend expects integers
                     tipo: d.tipo,
                     estado: d.estado,

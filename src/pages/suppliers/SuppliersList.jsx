@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supplierService } from '../../services/supplierService';
+import { companyService } from '../../services/companyService';
 import { useAuth } from '../../context/AuthContext';
 
 // --- IMPORTACIONES DE PRIME REACT ---
@@ -37,6 +38,7 @@ const SuppliersList = () => {
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
     const [expandedRows, setExpandedRows] = useState(null);
+    const [requiredTechnical, setRequiredTechnical] = useState(false);
 
     const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
     const estadoOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
@@ -79,6 +81,7 @@ const SuppliersList = () => {
                 localidad: s.city || '-',
                 motivo: s.document_supplier?.observaciones || null,
                 accesoHabilitado: s.user?.active || false,
+                isTecSuccess: s.is_tec_success, // Contextual flag from intermediate table
                 facturasAPOC: 'No',
                 altaSistema: 'N/A'
             }));
@@ -93,10 +96,30 @@ const SuppliersList = () => {
         }
     }, [user, currentRole]);
 
+    const loadSettings = useCallback(async () => {
+        const companyId = currentRole?.id_company || currentRole?.id_entity;
+        if (!isEmpresa || !companyId) return;
+        try {
+            const companies = await companyService.getAll();
+            console.log("SuppliersList: Loaded all companies for settings", companies);
+            const currentComp = companies.find(c => (c.id_company || c.idCompany) === companyId);
+            console.log("SuppliersList: Found current company settings", currentComp);
+            if (currentComp) {
+                // Check both naming conventions just in case
+                const flag = currentComp.required_technical ?? currentComp.requiredTechnical ?? false;
+                console.log("SuppliersList: Setting requiredTechnical to", flag);
+                setRequiredTechnical(flag);
+            }
+        } catch (error) {
+            console.error("Error loading company settings:", error);
+        }
+    }, [isEmpresa, currentRole]);
+
     useEffect(() => {
         initFilters();
         loadSuppliers();
-    }, [loadSuppliers]);
+        loadSettings();
+    }, [loadSuppliers, loadSettings]);
 
     const initFilters = () => {
         setFilters({
@@ -337,6 +360,27 @@ const SuppliersList = () => {
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
                 <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
+                {requiredTechnical && (
+                    <Column 
+                        header="Auditoría Técnica" 
+                        body={(d) => {
+                            const isNull = d.isTecSuccess === null || d.isTecSuccess === undefined;
+                            const label = isNull ? 'PENDIENTE' : (d.isTecSuccess ? 'APROBADO' : 'RECHAZADO');
+                            const color = isNull ? 'text-warning' : (d.isTecSuccess ? 'text-success' : 'text-danger');
+                            const icon = isNull ? 'pi-clock' : 'pi-shield';
+                            
+                            return (
+                                <div className="flex items-center gap-2">
+                                    <i className={`pi ${icon} text-xs ${color}`}></i>
+                                    <span className={`text-[10px] font-bold ${color}`}>
+                                        {label}
+                                    </span>
+                                </div>
+                            );
+                        }}
+                        sortable
+                    />
+                )}
                 <Column field="estado" header="Estado" sortable body={(d) => <StatusBadge status={d.estado} />}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>
