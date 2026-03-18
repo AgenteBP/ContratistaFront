@@ -17,6 +17,8 @@ import { useVehicles } from '../../../hooks/useVehicles';
 
 const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
+    const { currentRole } = useAuth();
+    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
     const { isAdmin } = useAuth();
     const { vehicles, loading, marcas, modelos } = useVehicles(explicitIdSupplier);
 
@@ -34,7 +36,8 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
             global: { value: null, matchMode: FilterMatchMode.CONTAINS },
             estado: { value: null, matchMode: FilterMatchMode.EQUALS },
             marca: { value: null, matchMode: FilterMatchMode.EQUALS },
-            modelo: { value: null, matchMode: FilterMatchMode.EQUALS }
+            modelo: { value: null, matchMode: FilterMatchMode.EQUALS },
+            proveedor: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
     };
@@ -118,7 +121,7 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
                 )}
 
                 <div className="flex flex-col justify-end gap-2">
-                    <button 
+                    <button
                         onClick={() => navigate(`/recursos/documentacion/vehiculo/${data.id}`)}
                         className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
                     >
@@ -138,7 +141,7 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
             {isAdmin && isEmbedded && explicitIdSupplier && (
-                <button 
+                <button
                     onClick={() => navigate(`/recursos/configurar-documentacion?type=2&supplier=${explicitIdSupplier}&group=${explicitIdGroup}`)}
                     className="flex-1 sm:flex-none bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9"
                 >
@@ -151,15 +154,22 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
                     icon="pi pi-plus"
                     onClick={() => navigate('/recursos/vehiculos/nuevo')}
                 />
-            )}
-        </div>
+            )
+            }
+        </div >
     );
+
+    const uniqueProveedores = [...new Set(vehicles.map(v => v.proveedor).filter(Boolean))].map(p => ({ label: p, value: p }));
 
     const filterConfig = [
         { label: 'MARCA', value: 'marca', options: marcas },
         { label: 'MODELO', value: 'modelo', options: modelos },
         { label: 'ESTADO', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
     ];
+
+    if (displayProvider) {
+        filterConfig.unshift({ label: 'PROVEEDOR', value: 'proveedor', options: uniqueProveedores });
+    }
 
     const renderHeader = () => (
         <TableFilters
@@ -219,7 +229,7 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
                     <Column field="marca" header="Marca" sortable className="text-sm" headerClassName="text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="modelo" header="Modelo" sortable className="text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="tipo" header="Tipo" sortable className="hidden lg:table-cell text-secondary/60 text-sm" headerClassName="hidden lg:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
-                    {showProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
+                    {displayProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
                     <Column field="estado" header="Estado" body={(d) => <StatusBadge status={d.estado} />} sortable className="pr-6 text-sm" headerClassName="pr-6 text-[10px] font-bold uppercase tracking-wider text-secondary/60 text-right" />
                 </AppTable>
             </div>

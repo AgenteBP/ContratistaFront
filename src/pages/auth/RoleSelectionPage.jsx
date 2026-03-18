@@ -54,6 +54,15 @@ const RoleCard = ({ roleData, onSelect }) => {
     onSelect({ role: roleData.role, roleId: roleData.id, selectedEntity });
   };
 
+  const getLabel = () => {
+    if (roleData.role === 'AUDITOR') {
+      const type = selectedOption?.type || options[0]?.value?.type;
+      if (type === 'LEGAL') return 'Auditor Legal';
+      return 'Auditor Técnico';
+    }
+    return theme.label;
+  };
+
   return (
     <div
       role="button"
@@ -70,7 +79,7 @@ const RoleCard = ({ roleData, onSelect }) => {
         {/* Contenido principal */}
         <div className="flex-1 min-w-0">
           <span className={`text-[12px] font-extrabold uppercase tracking-widest ${theme.text} block mb-0.5`}>
-            {theme.label}
+            {getLabel()}
           </span>
 
           <h4 className="text-secondary-dark font-bold text-base md:text-lg leading-tight truncate">
@@ -82,7 +91,7 @@ const RoleCard = ({ roleData, onSelect }) => {
             <div className="w-full max-w-xs mt-2" onClick={(e) => e.stopPropagation()}>
               <p className='text-secondary text-xs mb-1'>
                 {roleData.role === 'PROVEEDOR' ? 'Seleccione proveedor:' :
-                  roleData.role === 'AUDITOR' ? 'Seleccione proveedor:' :
+                  roleData.role === 'AUDITOR' ? 'Seleccione registro:' :
                     roleData.role === 'EMPRESA' ? 'Seleccione empresa:' : 'Seleccione entidad:'}
               </p>
               <Dropdown

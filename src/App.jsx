@@ -27,6 +27,12 @@ import LegalAuditDashboard from './pages/auditors/LegalAuditDashboard';
 import GlobalAuditInbox from './pages/auditors/GlobalAuditInbox';
 import CompanyList from './pages/companies/CompanyList';
 import NewCompany from './pages/companies/NewCompany';
+import EditCompany from './pages/companies/EditCompany';
+import CompanySettings from './pages/companies/CompanySettings';
+
+// 0. Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 
 // 4. Recursos
 import ResourcesDashboard from './pages/resources/ResourcesDashboard';
@@ -75,6 +81,8 @@ const router = createBrowserRouter(
                 {/* Empresas */}
                 <Route path="/empresas" element={<CompanyList />} />
                 <Route path="/empresas/nueva" element={<NewCompany />} />
+                <Route path="/empresas/editar/:id" element={<EditCompany />} />
+                <Route path="/configuracion" element={<CompanySettings />} />
 
                 {/* Recursos */}
                 <Route path="/recursos" element={<ResourcesDashboard />} />
@@ -107,11 +115,7 @@ const router = createBrowserRouter(
     )
 );
 
-// 0. Context Provider
-import { AuthProvider } from './context/AuthContext';
-import { NotificationProvider } from './context/NotificationContext';
 
-// ... (previous imports)
 
 function App() {
     return (

@@ -14,6 +14,11 @@ import { useEmployees } from '../../../hooks/useEmployees';
 
 const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
+    const { currentRole } = useAuth();
+
+    // Si isEmbedded=true y showProvider prop fue pasada como true, la respetamos.
+    // O si el rol del usuario no es PROVEEDOR, siempre mostramos el proveedor.
+    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
     const { isAdmin } = useAuth();
     const { employees, loading } = useEmployees(explicitIdSupplier);
 
@@ -31,7 +36,8 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
         setFilters({
             global: { value: null, matchMode: FilterMatchMode.CONTAINS },
             estado: { value: null, matchMode: FilterMatchMode.EQUALS },
-            habilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
+            habilitado: { value: null, matchMode: FilterMatchMode.EQUALS },
+            proveedor: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
     };
@@ -85,14 +91,14 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
 
                 <div className="space-y-3">
                     <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Vinculación</h6>
-                    {showProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Empresa Proveedora</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
+                    {displayProvider && <div><span className="block text-[10px] text-secondary font-bold uppercase">Empresa Proveedora</span><span className="text-sm font-medium text-primary hover:underline cursor-pointer">{data.proveedor}</span></div>}
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Área Operativa</span><span className="text-sm font-medium text-secondary-dark">{data.area}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">Teléfono</span><span className="text-sm font-medium text-secondary-dark">{data.telefono}</span></div>
                     <div><span className="block text-[10px] text-secondary font-bold uppercase">¿Es Chofer?</span><span className="text-sm font-medium text-secondary-dark">{data.esChofer ? 'SÍ' : 'NO'}</span></div>
                 </div>
 
                 <div className="flex flex-col justify-end gap-2">
-                    <button 
+                    <button
                         onClick={() => navigate(`/recursos/documentacion/empleado/${data.id}`)}
                         className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
                     >
@@ -106,10 +112,16 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
         </div>
     );
 
+    const uniqueProveedores = [...new Set(employees.map(e => e.proveedor).filter(Boolean))].map(p => ({ label: p, value: p }));
+
     const filterConfig = [
         { label: 'Habilitación', value: 'habilitado', options: [{ label: 'Habilitado', value: true }, { label: 'No Habilitado', value: false }] },
         { label: 'Estado', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
     ];
+
+    if (displayProvider) {
+        filterConfig.unshift({ label: 'Proveedor', value: 'proveedor', options: uniqueProveedores });
+    }
 
     const topActions = (
         <div className="flex items-center gap-2">
@@ -117,7 +129,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
                 <i className="pi pi-file-excel"></i> <span className="hidden sm:inline">Exportar Excel</span><span className="sm:hidden">Exportar</span>
             </button>
             {isAdmin && isEmbedded && explicitIdSupplier && (
-                <button 
+                <button
                     onClick={() => navigate(`/recursos/configurar-documentacion?type=1&supplier=${explicitIdSupplier}&group=${explicitIdGroup}`)}
                     className="flex-1 sm:flex-none bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-bold rounded-lg text-xs px-4 py-2 transition-all flex items-center justify-center gap-2 h-9"
                 >
@@ -198,7 +210,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
                         </div>
                     )} sortable headerClassName="text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
                     <Column field="puesto" header="Puesto" sortable className="hidden lg:table-cell text-sm" headerClassName="hidden lg:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />
-                    {showProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
+                    {displayProvider && <Column field="proveedor" header="Proveedor" sortable className="text-xs text-secondary hidden xl:table-cell" headerClassName="hidden xl:table-cell text-[10px] font-bold uppercase tracking-wider text-secondary/60" />}
                     <Column field="estado" header="Estado" body={(d) => <StatusBadge status={d.estado} />} sortable className="pr-6 text-sm" headerClassName="pr-6 text-[10px] font-bold uppercase tracking-wider text-secondary/60 text-right" />
                 </AppTable>
             </div>

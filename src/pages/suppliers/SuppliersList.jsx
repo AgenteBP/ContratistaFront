@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supplierService } from '../../services/supplierService';
+import { companyService } from '../../services/companyService';
 import { useAuth } from '../../context/AuthContext';
 
 // --- IMPORTACIONES DE PRIME REACT ---
@@ -23,8 +24,9 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 
 const SuppliersList = () => {
     const navigate = useNavigate();
-    const { currentRole } = useAuth();
+    const { currentRole, user } = useAuth();
     const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
+    const isEmpresa = currentRole?.role === 'EMPRESA';
 
     const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -36,25 +38,27 @@ const SuppliersList = () => {
     const menuRef = useRef(null);
     const [selectedRow, setSelectedRow] = useState(null);
     const [expandedRows, setExpandedRows] = useState(null);
+    const [requiredTechnical, setRequiredTechnical] = useState(false);
 
     const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
     const estadoOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
 
-    useEffect(() => {
-        initFilters();
-        loadSuppliers();
-    }, []);
+    const loadSuppliers = useCallback(async () => {
+        if (!user?.id || !currentRole?.role) {
+            setLoading(false);
+            return;
+        }
 
-    const loadSuppliers = async () => {
         try {
             setLoading(true);
-            console.log("Fetching suppliers...");
-            const response = await supplierService.getAll();
+            console.log("Fetching suppliers for:", { userId: user.id, role: currentRole.role, entityId: currentRole.id_entity });
+            const response = await supplierService.getAuthorizedSuppliers(user.id, currentRole.role, currentRole.id_entity);
             console.log("API Response:", response);
 
             if (!response || !Array.isArray(response)) {
                 console.warn("Invalid API response format:", response);
-                throw new Error("Invalid response");
+                setProveedores([]);
+                return;
             }
 
             // Map API data to Table structure
@@ -77,6 +81,7 @@ const SuppliersList = () => {
                 localidad: s.city || '-',
                 motivo: s.document_supplier?.observaciones || null,
                 accesoHabilitado: s.user?.active || false,
+                isTecSuccess: s.is_tec_success, // Contextual flag from intermediate table
                 facturasAPOC: 'No',
                 altaSistema: 'N/A'
             }));
@@ -85,12 +90,36 @@ const SuppliersList = () => {
             setFilteredProveedores(null);
         } catch (error) {
             console.error("Error loading suppliers:", error);
-            // Fallback to empty but log it
             setProveedores([]);
         } finally {
             setLoading(false);
         }
-    };
+    }, [user, currentRole]);
+
+    const loadSettings = useCallback(async () => {
+        const companyId = currentRole?.id_company || currentRole?.id_entity;
+        if (!isEmpresa || !companyId) return;
+        try {
+            const companies = await companyService.getAll();
+            console.log("SuppliersList: Loaded all companies for settings", companies);
+            const currentComp = companies.find(c => (c.id_company || c.idCompany) === companyId);
+            console.log("SuppliersList: Found current company settings", currentComp);
+            if (currentComp) {
+                // Check both naming conventions just in case
+                const flag = currentComp.required_technical ?? currentComp.requiredTechnical ?? false;
+                console.log("SuppliersList: Setting requiredTechnical to", flag);
+                setRequiredTechnical(flag);
+            }
+        } catch (error) {
+            console.error("Error loading company settings:", error);
+        }
+    }, [isEmpresa, currentRole]);
+
+    useEffect(() => {
+        initFilters();
+        loadSuppliers();
+        loadSettings();
+    }, [loadSuppliers, loadSettings]);
 
     const initFilters = () => {
         setFilters({
@@ -120,6 +149,7 @@ const SuppliersList = () => {
         {
             label: 'Asociar Empresa',
             icon: 'pi pi-link',
+            visible: !isEmpresa,
             command: () => {
                 if (selectedRow?.rawCuit) {
                     navigate(`/proveedores/${selectedRow.rawCuit}/asociar-empresa`);
@@ -295,10 +325,12 @@ const SuppliersList = () => {
                 subtitle="Base de datos de contratistas."
                 icon="pi pi-briefcase"
                 actionButton={
-                    <PrimaryButton
-                        label="Nuevo Proveedor"
-                        onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
-                    />
+                    currentRole?.role === 'ADMIN' && (
+                        <PrimaryButton
+                            label="Nuevo Proveedor"
+                            onClick={() => navigate('/proveedores/nuevo?role=PROVEEDOR')}
+                        />
+                    )
                 }
             />
 
@@ -328,6 +360,27 @@ const SuppliersList = () => {
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
                 <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
+                {requiredTechnical && (
+                    <Column 
+                        header="Auditoría Técnica" 
+                        body={(d) => {
+                            const isNull = d.isTecSuccess === null || d.isTecSuccess === undefined;
+                            const label = isNull ? 'PENDIENTE' : (d.isTecSuccess ? 'APROBADO' : 'RECHAZADO');
+                            const color = isNull ? 'text-warning' : (d.isTecSuccess ? 'text-success' : 'text-danger');
+                            const icon = isNull ? 'pi-clock' : 'pi-shield';
+                            
+                            return (
+                                <div className="flex items-center gap-2">
+                                    <i className={`pi ${icon} text-xs ${color}`}></i>
+                                    <span className={`text-[10px] font-bold ${color}`}>
+                                        {label}
+                                    </span>
+                                </div>
+                            );
+                        }}
+                        sortable
+                    />
+                )}
                 <Column field="estado" header="Estado" sortable body={(d) => <StatusBadge status={d.estado} />}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>
             </AppTable>

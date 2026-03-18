@@ -3,14 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import Label from '../../components/ui/Label';
 import MultiSelect from '../../components/ui/MultiSelect';
-import { MOCK_SUPPLIERS } from '../../data/mockSuppliers';
+
 import { StatusBadge } from '../../components/ui/Badges';
 import { formatCUIT } from '../../utils/formatUtils';
 import { supplierService } from '../../services/supplierService';
+import { groupService } from '../../services/groupService';
+import { companyService } from '../../services/companyService';
+import { useNotification } from '../../context/NotificationContext';
 
 const AssociateCompany = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { showSuccess, showError } = useNotification();
     const [supplier, setSupplier] = useState(null);
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [selectedCompanies, setSelectedCompanies] = useState([]);
@@ -19,73 +23,104 @@ const AssociateCompany = () => {
     // Structure: { [groupName]: [companyValues] }
     const [associations, setAssociations] = useState({});
 
-    const empresasByGrupo = {
-        'EDESAL': [{ label: 'Edesal', value: 'Edesal' }],
-        'ROVELLA': [
-            { label: 'Semisa', value: 'Semisa' },
-            { label: 'Nativo', value: 'Nativo' },
-            { label: 'Alubry', value: 'Alubry' },
-            { label: 'Limay', value: 'Limay' }
-        ]
-    };
+    const [empresasByGrupo, setEmpresasByGrupo] = useState({});
+    const [loadingData, setLoadingData] = useState(true);
 
     useEffect(() => {
-        const fetchSupplier = async () => {
+        const fetchAllData = async () => {
             if (!id) return;
             try {
-                // The 'id' param from URL is now the CUIT
-                const data = await supplierService.getById(id);
-                if (data) {
-                    // Normalize data structure if needed to match what the UI expects
-                    const mappedSupplier = {
-                        ...data,
-                        // If the API returns different field names, map them here. 
-                        // Based on supplierService.getById it seems to return raw API response.
-                        razonSocial: data.company_name,
-                        cuit: data.cuit,
-                        estado: data.active === 0 ? 'ACTIVO' : 'INACTIVO', // Mapping active int to status string if needed
-                        grupo: null, // API might not return 'grupo' directly if it's in a sub-object, adjust as needed. 
-                        // For now, initializing empty or preserving if API sends it.
-                        // If associations come from a different endpoint, we might need another call.
-                    };
-                    setSupplier(mappedSupplier);
-
-                    // Initialize associations if available in data
-                    // For now, we leave it empty or map from data if structure is known
-                    // const initialAssoc = {};
-                    // if (data.groups) ...
-                    // setAssociations(initialAssoc);
+                setLoadingData(true);
+                // 1. Fetch supplier
+                const supplierData = await supplierService.getById(id);
+                if (supplierData) {
+                    setSupplier({
+                        ...supplierData,
+                        razonSocial: supplierData.company_name,
+                        cuit: supplierData.cuit,
+                        estado: supplierData.active === 0 ? 'ACTIVO' : 'INACTIVO'
+                    });
                 }
+
+                // 2. Fetch groups and companies
+                const groups = await groupService.getAll();
+                const companies = await companyService.getAll();
+
+                const groupedCompanies = {};
+                groups.forEach(g => {
+                    groupedCompanies[g.description] = [];
+                });
+                groupedCompanies['Sin Grupo'] = [];
+
+                companies.forEach(c => {
+                    const group = groups.find(g => g.idGroup === c.idGroup);
+                    const groupName = group ? group.description : 'Sin Grupo';
+                    if (!groupedCompanies[groupName]) {
+                        groupedCompanies[groupName] = [];
+                    }
+                    groupedCompanies[groupName].push({
+                        label: c.description,
+                        value: c.idCompany
+                    });
+                });
+
+                // We no longer remove empty groups so they are visible in the UI
+                setEmpresasByGrupo(groupedCompanies);
+
+                // 3. Fetch existing associations
+                const assocData = await supplierService.getAssociations(id);
+                if (assocData && assocData.associations) {
+                    setAssociations(assocData.associations);
+                }
+
             } catch (error) {
-                console.error("Error fetching supplier for association:", error);
+                console.error("Error fetching data for association:", error);
+            } finally {
+                setLoadingData(false);
             }
         };
 
-        fetchSupplier();
+        fetchAllData();
     }, [id]);
 
-    const handleSave = () => {
-        setAssociations(prev => {
-            const currentGroupAssoc = prev[selectedGroup] || [];
-            return {
-                ...prev,
-                [selectedGroup]: [...new Set([...currentGroupAssoc, ...selectedCompanies])]
-            };
-        });
+    const handleSave = async () => {
+        try {
+            await supplierService.associateCompanies({
+                cuit: supplier.cuit,
+                companyIds: selectedCompanies
+            });
 
-        setIsSaved(true);
-        setSelectedGroup(null);
-        setSelectedCompanies([]);
+            setAssociations(prev => {
+                const currentGroupAssoc = prev[selectedGroup] || [];
+                const selectedDescriptions = selectedCompanies.map(id => {
+                    const comp = empresasByGrupo[selectedGroup].find(c => c.value === id);
+                    return comp ? comp.label : id;
+                });
+                return {
+                    ...prev,
+                    [selectedGroup]: [...new Set([...currentGroupAssoc, ...selectedDescriptions])]
+                };
+            });
 
-        console.log(`Asociación exitosa para ${supplier?.razonSocial}`);
+            setIsSaved(true);
+            setSelectedGroup(null);
+            setSelectedCompanies([]);
+
+            showSuccess('Guardado Exitoso', 'Las empresas han sido asociadas correctamente.');
+
+            setTimeout(() => setIsSaved(false), 3000);
+        } catch (error) {
+            console.error("Error saving associations:", error);
+            showError('Error', 'No se pudieron guardar las asociaciones.');
+        }
     };
 
-    if (!supplier) return <div className="p-8 text-center text-secondary">Cargando...</div>;
+    if (loadingData || !supplier) return <div className="p-8 text-center text-secondary">Cargando...</div>;
 
     const getFilteredOptions = (grupo) => {
         const allOptions = empresasByGrupo[grupo] || [];
         const currentGroupAssoc = associations[grupo] || [];
-        return allOptions.filter(opt => !currentGroupAssoc.includes(opt.value));
+        return allOptions.filter(opt => !currentGroupAssoc.includes(opt.label));
     };
 
     const hasAnyAssociation = Object.values(associations).some(arr => arr.length > 0);

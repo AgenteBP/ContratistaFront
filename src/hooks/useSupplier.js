@@ -4,7 +4,7 @@ import { groupService } from '../services/groupService';
 import elementService from '../services/elementService';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { MOCK_SUPPLIERS } from '../data/mockSuppliers';
+
 
 import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
 
@@ -115,47 +115,65 @@ export const useSupplier = (explicitCuit = null) => {
                                         const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
                                         const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
 
+                                        const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
+                                        let isExpired = false;
+                                        let isExpiringSoon = false;
+
+                                        if (rawVencForStatus && isFile) {
+                                            try {
+                                                const dateStr = String(rawVencForStatus);
+                                                let expDate;
+                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                                if (match) {
+                                                    expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                                                } else {
+                                                    expDate = new Date(dateStr);
+                                                    expDate.setHours(0, 0, 0, 0);
+                                                }
+
+                                                const today = new Date();
+                                                today.setHours(0, 0, 0, 0);
+
+                                                const tenDaysFromNow = new Date();
+                                                tenDaysFromNow.setHours(0, 0, 0, 0);
+                                                tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+
+                                                if (expDate < today) {
+                                                    isExpired = true;
+                                                } else if (expDate <= tenDaysFromNow) {
+                                                    isExpiringSoon = true;
+                                                }
+                                            } catch (e) {
+                                                console.warn("Invalid date format:", rawVencForStatus);
+                                            }
+                                        }
+
                                         if (hasAudit && !isForwarded) {
-                                            if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
+                                            if (auditStatus === 'APROBADO') {
+                                                if (isExpired) finalStatus = 'VENCIDO';
+                                                else finalStatus = 'VIGENTE';
+                                            }
                                             else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
                                             else finalStatus = 'EN REVISIÓN';
                                         } else {
-                                            const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
-                                            if (rawVencForStatus) {
-                                                try {
-                                                    // Parse securely handling both YYYY-MM-DD and full ISO strings
-                                                    const dateStr = String(rawVencForStatus);
-
-                                                    // By default, assume the string's YYYY-MM-DD prefix is correct
-                                                    let expDate;
-                                                    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                                                    if (match) {
-                                                        expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
-                                                    } else {
-                                                        expDate = new Date(dateStr);
-                                                        expDate.setHours(0, 0, 0, 0);
-                                                    }
-
-                                                    const today = new Date();
-                                                    today.setHours(0, 0, 0, 0);
-
-                                                    if (isFile && expDate < today) {
-                                                        finalStatus = 'VENCIDO';
-                                                    } else {
-                                                        finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
-                                                    }
-                                                } catch (e) {
-                                                    console.warn("Invalid date format:", rawVencForStatus);
-                                                    finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
-                                                }
+                                            if (isFile) {
+                                                if (isExpired) finalStatus = 'VENCIDO';
+                                                else finalStatus = 'EN REVISIÓN';
                                             } else {
-                                                finalStatus = isFile ? 'EN REVISIÓN' : 'PENDIENTE';
+                                                finalStatus = 'PENDIENTE';
                                             }
                                         }
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
                                         const finalObs = (hasAudit && !isForwarded) ? (auditInfo?.audit_observations || auditInfo?.auditObservations || null) : ((!isForwarded && (folderMeta?.observacion || submittedFile?.observacion)) || null);
-                                        const rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || submittedFile?.date_submitted || null;
+                                        const docFrequency = attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez';
+
+                                        // Do not fallback to date_submitted for 'UNICA VEZ'
+                                        const isUnicaVez = docFrequency.toUpperCase() === 'ÚNICA VEZ' || docFrequency.toUpperCase() === 'UNICA VEZ';
+                                        let rawVenc = submittedFile?.expiration_date || folderMeta?.fechaVencimiento;
+                                        if (!rawVenc && !isUnicaVez) {
+                                            rawVenc = submittedFile?.date_submitted || null;
+                                        }
                                         const finalVenc = rawVenc ? String(rawVenc).split('T')[0] : null;
 
                                         docMap.set(key, {
@@ -168,8 +186,9 @@ export const useSupplier = (explicitCuit = null) => {
                                             id_active: attrTempl?.id_active || attrTempl?.idActive,
                                             tipo: docKey,
                                             label: cleanLabel,
-                                            frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
+                                            frecuencia: docFrequency,
                                             estado: finalStatus,
+                                            isExpiringSoon: isExpiringSoon,
                                             archivo: finalFileName,
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
@@ -335,7 +354,9 @@ export const useSupplier = (explicitCuit = null) => {
                 }))
             },
             document_supplier: {
-                list: (mergedData.documentacion || []).map(d => ({
+                list: (mergedData.documentacion || [])
+                    .filter(d => d.modified === true || String(d.id).startsWith('CUSTOM_'))
+                    .map(d => ({
                     id: String(d.id).startsWith('req-') ? null : d.id, // Don't send string IDs if backend expects integers
                     tipo: d.tipo,
                     estado: d.estado,

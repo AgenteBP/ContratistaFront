@@ -6,6 +6,9 @@ import { useSupplier } from '../../hooks/useSupplier';
 import { formatCUIT } from '../../utils/formatUtils';
 import { base64ToBlobUrl } from '../../utils/fileUtils';
 import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
+import { useAuth } from '../../context/AuthContext';
+import { companyService } from '../../services/companyService';
+import { Tag } from 'primereact/tag';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -15,7 +18,26 @@ const SupplierDetail = () => {
   const initialEditMode = queryParams.get('mode') === 'edit';
 
   const { supplierData, loading, updateSupplier } = useSupplier(id);
-  const [isEditing, setIsEditing] = useState(initialEditMode);
+  const { currentRole } = useAuth();
+  const isEmpresa = currentRole?.role === 'EMPRESA';
+  const [isEditing, setIsEditing] = useState(initialEditMode && !isEmpresa);
+  const [requiredTechnical, setRequiredTechnical] = useState(false);
+
+  useEffect(() => {
+    const checkRequired = async () => {
+        if (!isEmpresa || !currentRole?.id_company) return;
+        try {
+            const companies = await companyService.getAll();
+            const currentComp = companies.find(c => (c.id_company || c.idCompany) === currentRole.id_company);
+            if (currentComp) {
+                setRequiredTechnical(currentComp.required_technical);
+            }
+        } catch (error) {
+            console.error("Error checking required technical:", error);
+        }
+    };
+    checkRequired();
+  }, [isEmpresa, currentRole]);
 
   const handleSave = async (data) => {
     const success = await updateSupplier(data);
@@ -53,6 +75,15 @@ const SupplierDetail = () => {
               {supplierData.razonSocial}
             </h1>
             <StatusBadge status={supplierData.estado} />
+            {requiredTechnical && (
+                <Tag 
+                    value={`AUDITORÍA TÉCNICA: ${supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? 'PENDIENTE' : (supplierData.isTecSuccess ? 'APROBADO' : 'RECHAZADO')}`} 
+                    severity={supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? "warning" : (supplierData.isTecSuccess ? "success" : "danger")}
+                    icon={supplierData.isTecSuccess === null || supplierData.isTecSuccess === undefined ? "pi pi-clock" : (supplierData.isTecSuccess ? "pi pi-check-circle" : "pi pi-shield")}
+                    className="px-3"
+                    style={{ borderRadius: '20px' }}
+                />
+            )}
           </div>
           <p className="text-secondary mt-1">{supplierData.servicio}</p>
         </div>
@@ -61,21 +92,21 @@ const SupplierDetail = () => {
           <button onClick={() => navigate('/proveedores')} className="bg-white border border-secondary/30 text-secondary-dark px-4 py-2 rounded-lg text-sm font-medium hover:bg-secondary-light transition-colors">
             Volver
           </button>
-          {!isEditing ? (
+          {!isEditing && !isEmpresa ? (
             <button
               onClick={() => setIsEditing(true)}
               className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg shadow-primary/30 hover:bg-primary-hover transition-colors"
             >
               <i className="pi pi-pencil mr-2"></i>Editar
             </button>
-          ) : (
+          ) : isEditing ? (
             <button
               onClick={() => setIsEditing(false)}
               className="bg-secondary text-white px-4 py-2 rounded-lg text-sm font-medium border border-secondary/30 hover:bg-secondary-dark transition-colors"
             >
               Cancelar
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 

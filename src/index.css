@@ -131,19 +131,30 @@ body {
 
 /* --- ANIMACIONES PERSONALIZADAS --- */
 @keyframes wiggle {
+    0%, 100% { transform: rotate(-4deg); }
+    50% { transform: rotate(4deg); }
+}
 
-    0%,
-    100% {
-        transform: rotate(-4deg);
-    }
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
-    50% {
-        transform: rotate(4deg);
-    }
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .animate-wiggle:hover {
     animation: wiggle 0.3s ease-in-out infinite;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.8s ease-out forwards;
 }
 
 /* --- OPTIMIZACIÓN MÓVIL (Tablas) --- */

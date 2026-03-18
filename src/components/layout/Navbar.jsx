@@ -25,14 +25,25 @@ const Navbar = ({ onToggleSidebar }) => {
         ? `${user.firstName} ${user.lastName}`
         : (user?.name || 'Usuario');
 
-    const userInfo = currentRole ? {
-        user: fullName,
-        email: user?.username || user?.email || 'usuario@contratista.com',
-        role: currentRole.role,
-        roleLabel: roleLabels[currentRole.role] || currentRole.role,
-        entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || '',
-        id_entity: currentRole.id_entity
-    } : null;
+    const userInfo = useMemo(() => {
+        if (!currentRole) return null;
+
+        let roleLabel = roleLabels[currentRole.role] || currentRole.role;
+
+        // Caso especial para Auditor Legal/Técnico
+        if (currentRole.role === 'AUDITOR' && currentRole.type) {
+            roleLabel = currentRole.type === 'LEGAL' ? 'Auditor Legal' : 'Auditor Técnico';
+        }
+
+        return {
+            user: fullName,
+            email: user?.username || user?.email || 'usuario@contratista.com',
+            role: currentRole.role,
+            roleLabel: roleLabel,
+            entityName: currentRole.entity_name || currentRole.entity?.name || currentRole.entity?.entity || '',
+            id_entity: currentRole.id_entity
+        };
+    }, [currentRole, user, fullName]);
 
     // --- Profile Switcher Logic ---
     const availableProfiles = useMemo(() => {
@@ -281,8 +292,8 @@ const Navbar = ({ onToggleSidebar }) => {
                 </div>
 
                 <div className="flex items-center gap-1 md:gap-3">
-                    {/* Switcher Trigger (Refined Mobile Design) */}
-                    {availableProfiles.length > 1 && (() => {
+                    {/* Role Context / Switcher Trigger */}
+                    {userInfo && (() => {
                         const activeTheme = {
                             'PROVEEDOR': { color: 'text-success', bg: 'bg-success/5', border: 'border-success/20', iconBg: 'bg-success/10', icon: 'pi-briefcase', short: 'PRO' },
                             'EMPRESA': { color: 'text-primary', bg: 'bg-primary/5', border: 'border-primary/20', iconBg: 'bg-primary/10', icon: 'pi-building', short: 'EMP' },
@@ -290,21 +301,25 @@ const Navbar = ({ onToggleSidebar }) => {
                             'ADMIN': { color: 'text-secondary-dark', bg: 'bg-secondary/5', border: 'border-secondary/20', iconBg: 'bg-secondary/10', icon: 'pi-cog', short: 'ADM' }
                         }[userInfo?.role] || { color: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', iconBg: 'bg-gray-100', icon: 'pi-user', short: 'USR' };
 
+                        const isSwitchable = availableProfiles.length > 1;
+
                         return (
                             <div
-                                onClick={(e) => switcherRef.current?.toggle(e)}
+                                onClick={(e) => isSwitchable && switcherRef.current?.toggle(e)}
                                 className={`
-                                    flex items-center justify-center transition-all cursor-pointer group shadow-sm
+                                    flex items-center justify-center transition-all shadow-sm
                                     md:px-4 md:py-2 md:gap-3 md:rounded-full md:border md:${activeTheme.bg} md:${activeTheme.border}
                                     w-10 h-10 rounded-full md:w-auto md:h-auto ${activeTheme.bg} border ${activeTheme.border} md:border-inherit
+                                    ${isSwitchable ? 'cursor-pointer group hover:bg-white/50' : 'cursor-default opacity-95'}
                                 `}
+                                title={isSwitchable ? "Cambiar de perfil" : "Rol actual"}
                             >
                                 <div className={`
                                     flex items-center justify-center transition-transform duration-500 shrink-0
                                     md:w-6 md:h-6 md:rounded-full md:${activeTheme.iconBg} ${activeTheme.color}
                                     text-lg md:text-[10px]
                                 `}>
-                                    <i className="pi pi-sync font-bold"></i>
+                                    <i className={`pi ${isSwitchable ? 'pi-sync group-hover:rotate-180 transition-transform duration-500' : activeTheme.icon} font-bold`}></i>
                                 </div>
 
                                 <div className="hidden md:flex flex-col min-w-0 pr-1 overflow-hidden">
@@ -312,9 +327,14 @@ const Navbar = ({ onToggleSidebar }) => {
                                         {userInfo?.roleLabel}
                                     </span>
                                     <span className="text-xs font-bold text-secondary-dark truncate max-w-[120px] md:max-w-[160px] leading-none">
-                                        {userInfo?.entityName || 'Cambiar'}
+                                        {userInfo?.entityName || (userInfo?.role === 'ADMIN' ? 'Gestión Central' : 'Mi Cuenta')}
                                     </span>
                                 </div>
+                                {isSwitchable && (
+                                    <div className="hidden md:flex items-center justify-center pl-1">
+                                        <i className={`pi pi-angle-down text-[10px] ${activeTheme.color} opacity-60`}></i>
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}
@@ -376,9 +396,9 @@ const Navbar = ({ onToggleSidebar }) => {
                 >
                     <div className="flex flex-col">
                         {/* Search Header */}
-                        <div className="p-3 bg-gray-50/80 border-b border-gray-100">
+                        <div className="p-4 bg-gray-50/80 border-b border-gray-100">
                             <div className="relative">
-                                <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                                <i className="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-secondary/30 text-xs"></i>
                                 <input
                                     type="text"
                                     placeholder="Buscar empresa o rol..."
@@ -394,8 +414,8 @@ const Navbar = ({ onToggleSidebar }) => {
                         <div className="max-h-[350px] overflow-y-auto p-1 py-1 scroll-smooth">
                             {/* Perfil Actual (Modo Lectura - SOLO EN MÓVIL) */}
                             {userInfo && (
-                                <div className="mb-2 border-b border-gray-100 pb-2 sm:hidden">
-                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest">
+                                <div className="mb-2 border-b border-gray-50 pb-3 sm:hidden">
+                                    <div className="px-4 py-2 text-[10px] font-bold text-secondary/50 uppercase tracking-widest">
                                         Perfil Activo
                                     </div>
                                     <div className="flex items-center gap-3 p-2.5 mx-1 bg-gray-50/80 rounded-xl border border-primary/20 shadow-inner opacity-90 cursor-default">
@@ -429,8 +449,8 @@ const Navbar = ({ onToggleSidebar }) => {
 
                             {filteredProfiles.length > 0 ? (
                                 <>
-                                    <div className="px-3 py-1 text-[9px] font-black text-secondary/40 uppercase tracking-widest mt-1">
-                                        Cambiar a otro perfil
+                                    <div className="px-4 py-2 text-[10px] font-bold text-secondary/50 uppercase tracking-widest mt-1">
+                                        Perfiles Disponibles
                                     </div>
                                     {filteredProfiles.map((profile, idx) => {
                                         const theme = {
@@ -439,6 +459,11 @@ const Navbar = ({ onToggleSidebar }) => {
                                             'PROVEEDOR': { icon: 'pi-briefcase', color: 'text-success', bg: 'bg-success/5' },
                                             'ADMIN': { icon: 'pi-cog', color: 'text-secondary-dark', bg: 'bg-secondary/5' }
                                         }[profile.role] || { icon: 'pi-user', color: 'text-gray-500', bg: 'bg-gray-50' };
+
+                                        let label = roleLabels[profile.role] || profile.role;
+                                        if (profile.role === 'AUDITOR' && profile.type) {
+                                            label = profile.type === 'LEGAL' ? 'Auditor Legal' : 'Auditor Técnico';
+                                        }
 
                                         return (
                                             <div
@@ -453,7 +478,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                                     <span className="text-xs font-bold text-gray-800 truncate leading-tight">{profile.name}</span>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${theme.bg} ${theme.color} uppercase tracking-wider`}>
-                                                            {roleLabels[profile.role] || profile.role}
+                                                            {label}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -470,10 +495,6 @@ const Navbar = ({ onToggleSidebar }) => {
                             )}
                         </div>
 
-                        {/* Footer tip */}
-                        <div className="p-2 bg-gray-50/50 text-[10px] text-center text-gray-400 font-bold border-top border-gray-100 uppercase tracking-wider">
-                            cambiar de perfil
-                        </div>
                     </div>
                 </OverlayPanel>
             </div>

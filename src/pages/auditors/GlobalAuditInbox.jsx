@@ -52,14 +52,14 @@ const GlobalAuditInbox = () => {
                 backButton={() => navigate('/auditoria-legal')}
             />
 
-            <div className="bg-white rounded-2xl border border-secondary/10 shadow-md overflow-hidden">
-                <div className="px-6 py-4 bg-info/5 border-b border-secondary/10 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <i className="pi pi-info-circle text-info"></i>
-                        <span className="text-xs font-bold text-info-dark uppercase tracking-wider">Documentos esperando intervención</span>
-                    </div>
+            <div className="px-6 py-4 bg-info/5 border border-info/20 rounded-2xl mb-4 shadow-sm flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <i className="pi pi-info-circle text-info"></i>
+                    <span className="text-xs font-bold text-info-dark uppercase tracking-wider">Documentos esperando intervención</span>
                 </div>
+            </div>
 
+            <div className="bg-white rounded-2xl border border-secondary/10 shadow-md overflow-hidden">
                 <AppTable
                     value={pendingDocs}
                     loading={loading}

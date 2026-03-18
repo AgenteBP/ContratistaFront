@@ -538,18 +538,19 @@ const NewSupplier = () => {
 
               <div className="mt-6">
                 {supplierMode === 'NEW' ? (
-                  <SupplierForm
-                    title={isExistingRole ? "Agregar Nueva Entidad Proveedor" : "Datos del Proveedor"}
-                    subtitle={isExistingRole
-                      ? `El usuario ya es Proveedor. Complete los datos de la NUEVA empresa a asociar.`
-                      : `Configurando el primer perfil de proveedor para ${userData?.username}`}
-                    onSubmit={handleSupplierSubmit}
-                    onBack={handleBack}
-                    groups={groups}
-                    availableCompanies={filteredCompanies.length > 0 ? filteredCompanies : companies}
-                    availableRequirements={availableRequirements}
-                    onGroupChange={fetchRequirementsByGroup}
-                  />
+                    <SupplierForm
+                      title={isExistingRole ? "Agregar Nueva Entidad Proveedor" : "Datos del Proveedor"}
+                      subtitle={isExistingRole
+                        ? `El usuario ya es Proveedor. Complete los datos de la NUEVA empresa a asociar.`
+                        : `Configurando el primer perfil de proveedor para ${userData?.username}`}
+                      onSubmit={handleSupplierSubmit}
+                      onBack={handleBack}
+                      groups={groups}
+                      availableCompanies={filteredCompanies.length > 0 ? filteredCompanies : companies}
+                      availableRequirements={availableRequirements}
+                      onGroupChange={fetchRequirementsByGroup}
+                      isWizardMode={true}
+                    />
                 ) : (
                   <div className="flex flex-col gap-6 max-w-md mx-auto text-center py-4">
                     <div className="bg-blue-50 text-blue-700 p-4 rounded-lg flex items-start gap-3 text-sm text-left">
@@ -734,28 +735,28 @@ const NewSupplier = () => {
                           }
                         }}
                         itemTemplate={(option) => {
-                          const desc = option.description ? option.description.toUpperCase() : '';
-                          const isEdesal = desc.includes('EDESAL');
+                          let dbIcon = option.icon;
+                          if (dbIcon && !dbIcon.startsWith('pi-')) dbIcon = `pi-${dbIcon}`;
+                          const finalIcon = dbIcon || (option.description?.toUpperCase().includes('EDESAL') || option.description?.toUpperCase().includes('BOLT') ? 'pi-bolt' : 'pi-building');
+                          const iconColor = finalIcon === 'pi-bolt' ? 'text-primary' : 'text-secondary';
+
                           return (
                             <div className="flex items-center gap-2">
-                              {isEdesal ?
-                                <i className="pi pi-bolt text-primary"></i> :
-                                <i className="pi pi-building text-secondary"></i>
-                              }
+                              <i className={`pi ${finalIcon} ${iconColor}`}></i>
                               <span>{option.description}</span>
                             </div>
                           );
                         }}
                         valueTemplate={(option, props) => {
                           if (option) {
-                            const desc = option.description ? option.description.toUpperCase() : '';
-                            const isEdesal = desc.includes('EDESAL');
+                            let dbIcon = option.icon;
+                            if (dbIcon && !dbIcon.startsWith('pi-')) dbIcon = `pi-${dbIcon}`;
+                            const finalIcon = dbIcon || (option.description?.toUpperCase().includes('EDESAL') || option.description?.toUpperCase().includes('BOLT') ? 'pi-bolt' : 'pi-building');
+                            const iconColor = finalIcon === 'pi-bolt' ? 'text-primary' : 'text-secondary';
+
                             return (
                               <div className="flex items-center gap-2">
-                                {isEdesal ?
-                                  <i className="pi pi-bolt text-primary"></i> :
-                                  <i className="pi pi-building text-secondary"></i>
-                                }
+                                <i className={`pi ${finalIcon} ${iconColor}`}></i>
                                 <span>{option.description}</span>
                               </div>
                             );
@@ -854,7 +855,7 @@ const NewSupplier = () => {
             </p>
 
             <div className="flex justify-center gap-4">
-              <button onClick={() => navigate('/proveedores')} className="text-secondary-dark bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-sm px-5 py-2.5 transition-all">
+              <button onClick={() => navigate(id ? '/usuarios' : '/proveedores')} className="text-secondary-dark bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-sm px-5 py-2.5 transition-all">
                 Ir al Listado
               </button>
               {id && (

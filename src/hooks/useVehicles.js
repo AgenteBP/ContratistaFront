@@ -24,11 +24,19 @@ export const useVehicles = (explicitIdSupplier = null) => {
         setVehicles([]);
 
         try {
-            // ID 2 corresponds to Vehicles
-            const allElements = await elementService.getBySupplierAndActiveType(idSupplier, 2);
+            let allElements = [];
+
+            if (currentRole?.role === 'PROVEEDOR') {
+                const idSupplier = currentRole.id_entity || user?.suppliers?.[0]?.id_supplier;
+                if (!idSupplier) { setLoading(false); return; }
+                allElements = await elementService.getBySupplierAndActiveType(idSupplier, 2);
+            } else {
+                if (!user?.id || !currentRole?.role) { setLoading(false); return; }
+                allElements = await elementService.getAuthorized(2, user.id, currentRole.role, currentRole.id_entity);
+            }
 
             const vehiclesData = allElements.map(e =>
-                elementService.mapToUIVehicle(e, idSupplier, currentRole, user?.suppliers)
+                elementService.mapToUIVehicle(e, e.supplier?.id_supplier || e.supplier?.idSupplier, currentRole, user?.suppliers)
             );
 
             setVehicles(vehiclesData);

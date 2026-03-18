@@ -28,8 +28,6 @@ export const StatusBadge = ({ status }) => {
             case 'BLOQUEADO':
             case 'RECHAZADO':
             case 'VENCIDO':
-            case 'OBSERVADO':
-            case 'CON OBSERVACIÓN':
                 // Danger: Red
                 return 'bg-danger-light text-danger-hover border-danger/30';
 
@@ -38,8 +36,11 @@ export const StatusBadge = ({ status }) => {
             case 'SIN COMPLETAR':
             case 'INCOMPLETA':
             case 'POR VENCER':
-                // Warning: Amber
-                return 'bg-warning-light text-warning-hover border-warning/30';
+            case 'OBSERVADO':
+            case 'CON OBSERVACIÓN':
+            case 'CON OBSERVACION':
+                // Observation: Orange
+                return 'bg-orange-50 text-orange-600 border-orange-200';
 
             case 'EN REVISIÓN':
             case 'EN REVISION':

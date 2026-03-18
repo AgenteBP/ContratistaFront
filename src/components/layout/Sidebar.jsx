@@ -258,34 +258,23 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
         if (isAuditor) {
             return [
                 ITEM_INICIO,
-                { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
-                SUBMENU_RECURSOS_STD,
                 // FILTRADO DINÁMICO: Mostramos los items según la especialidad del auditor.
                 isAuditorTecnico && SUBMENU_AUDITORIA_TECNICA,
                 isAuditorLegal && SUBMENU_AUDITORIA_LEGAL,
+                { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true, badge: '5' },
+                SUBMENU_RECURSOS_STD,
                 SUBMENU_DOCUMENTOS,
                 // ITEM_REPORTES
             ].filter(Boolean); // Limpiamos los nulls
         }
 
         if (isEmpresa) {
-            // "Recursos" renamed to "Datos" excluding "Proveedores" as first item
             return [
                 ITEM_INICIO,
-                {
-                    type: 'submenu',
-                    icon: 'pi-database', // Changed icon for "Datos" distinction
-                    label: 'Datos',
-                    items: [
-                        { label: 'Proveedores', to: '/proveedores', icon: 'pi-briefcase' }, // Moved here
-                        { label: 'Resumen', to: '/recursos', icon: 'pi-objects-column', end: true },
-                        { label: 'Vehículos', to: '/recursos/vehiculos', icon: 'pi-car' },
-                        { label: 'Empleados', to: '/recursos/empleados', icon: 'pi-users' },
-                        { label: 'Maquinaria', to: '/recursos/maquinaria', icon: <TbBackhoe className="text-[26px]" /> }
-                    ]
-                },
+                { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
+                SUBMENU_RECURSOS_STD,
                 SUBMENU_DOCUMENTOS,
-                // ITEM_REPORTES
+                { type: 'item', icon: 'pi-cog', label: 'Configuración', to: '/configuracion' },
             ];
         }
 
