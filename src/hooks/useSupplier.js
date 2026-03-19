@@ -54,6 +54,45 @@ export const useSupplier = (explicitCuit = null) => {
                 console.log("Requesting data for CUIT:", activeCuit);
                 const data = await supplierService.getWithDocuments(activeCuit);
                 if (data) {
+                    
+                    try {
+                        console.log("Fetching associations (Grupo y Empresas) para CUIT", activeCuit);
+                        const assocData = await supplierService.getAssociations(activeCuit);
+                        if (assocData && assocData.associations) {
+                             const groupNames = Object.keys(assocData.associations);
+                             data.associationsMap = assocData.associations; // Guardar mapa completo
+                             if (groupNames.length > 0) {
+                                  data.grupo = groupNames[0]; // Retrocompatibilidad para vista del grupo principal
+                                  data.empresas = assocData.associations[groupNames[0]] || [];
+                             }
+                        }
+                        
+                        // Obtener todos los grupos para armar un mapa de íconos por nombre de grupo
+                        try {
+                            const allGroups = await groupService.getAll();
+                            const iconsMap = {};
+                            allGroups.forEach(g => {
+                                const groupName = (g.description || g.name || '').trim().toUpperCase();
+                                if (groupName) {
+                                    iconsMap[groupName] = g.icon || 'pi pi-sitemap';
+                                }
+                            });
+                            data.groupIconsMap = iconsMap;
+                            
+                            // Retrocompatibilidad con grupoIcon singular
+                            if (data.idGroup) {
+                                 const matchedGroup = allGroups.find(g => String(g.idGroup || g.id_group || g.id) === String(data.idGroup));
+                                 if (matchedGroup && matchedGroup.icon) {
+                                     data.grupoIcon = matchedGroup.icon;
+                                 }
+                            }
+                        } catch (groupError) {
+                            console.warn("Fallo al obtener iconos de grupos para associationsMap", groupError);
+                        }
+                    } catch (assocErr) {
+                        console.warn("No se pudieron obtener asociaciones de grupo y empresa para vista", assocErr);
+                    }
+
                     // 3. If Group ID is present, fetch specific group requirements (DYNAMIC FLOW)
                     if (data.idGroup) {
                         try {

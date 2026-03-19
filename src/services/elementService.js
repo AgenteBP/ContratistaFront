@@ -120,7 +120,7 @@ const elementService = {
             chofer: e.data?.choferAsignado?.nombre || 'S/A',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || '',
             detalles_tecnicos: e.data?.detalles_tecnicos || {}
@@ -145,7 +145,7 @@ const elementService = {
             habilitado: e.data?.habilitado ?? true,
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || ''
         };
@@ -167,7 +167,7 @@ const elementService = {
             estado: e.data?.estado || 'ACTIVO',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
-                : (e.supplier?.companyName || e.supplier?.company_name || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
+                : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || 'PENDIENTE',
             motivo: e.data?.motivo || ''
         };

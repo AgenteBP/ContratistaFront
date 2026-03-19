@@ -97,16 +97,17 @@ const SupplierStepLocation = ({
                 <Select
                     label={<>País {!isAdmin && <span className="text-red-500">*</span>}</>}
                     name="pais"
-                    value={formData.paisCode || formData.pais}
+                    value={formData.paisCode || (countriesOptions.find(c => c.label?.toUpperCase() === formData.pais?.toUpperCase())?.value) || ''}
                     options={countriesOptions}
                     onChange={(e) => handleLocationChange('pais', e.target.value, e.target.options[e.target.selectedIndex])}
                     disabled={isStepDisabled}
+                    placeholder="Seleccione país"
                     required={!isAdmin}
                 />
                 <Select
                     label={<>Provincia/Estado {!isAdmin && <span className="text-red-500">*</span>}</>}
                     name="provincia"
-                    value={formData.provinciaCode || formData.provincia}
+                    value={formData.provinciaCode || (states.find(s => s.label?.toUpperCase() === formData.provincia?.toUpperCase())?.value) || ''}
                     options={states}
                     onChange={(e) => handleLocationChange('provincia', e.target.value, e.target.options[e.target.selectedIndex])}
                     disabled={isStepDisabled || states.length === 0}

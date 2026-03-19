@@ -133,29 +133,23 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
             if (effectiveCuit) {
                 // Optimized Path: We have a specific CUIT (Provider view or Audit Modal)
+                const response = await requirementService.getSupplierDocuments(effectiveCuit);
+                if (!response) {
+                    setLoading(false);
+                    return;
+                }
+
                 if (type === 'suppliers') {
-                    const response = await requirementService.getSupplierDocuments(effectiveCuit);
-                    if (response) {
-                        const idSupplier = response.id_supplier || response.idSupplier || response.id;
-                        const idGroup = response.id_group || response.idGroup;
-                        allDocuments = await mapSupplierToDocuments(response, idSupplier, idGroup, categoryId);
-                    }
+                    const idSupplier = response.id_supplier || response.idSupplier || response.id;
+                    const idGroup = response.id_group || response.idGroup;
+                    allDocuments = await mapSupplierToDocuments(response, idSupplier, idGroup, categoryId);
                 } else {
-                    // Try to get internal supplier ID from supplierData hook or by fetching it quickly
                     let idSupplier = supplierData?.id_supplier || supplierData?.internalId;
-
-                    if (!idSupplier && effectiveCuit) {
-                        // Minimal fetch to get ID if hook hasn't loaded it yet
-                        const s = await supplierService.getById(effectiveCuit);
-                        idSupplier = s?.id_supplier || s?.idSupplier || s?.id;
+                    if (!idSupplier) {
+                        idSupplier = response.id_supplier || response.idSupplier || response.id;
                     }
+                    const idGroup = supplierData?.id_group || supplierData?.idGroup || response.id_group || response.idGroup;
 
-                    const idGroup = supplierData?.id_group || supplierData?.idGroup;
-
-                    // if (idSupplier) {
-                    //     const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
-                    //     let groupReqs = idGroup ? await requirementService.getGroupRequirementsDetails({ idSupplier, idGroup, idActiveType: categoryId }) : [];
-                    //     allDocuments = mapElementsToDocuments(elements, groupReqs, categoryId, type);
                     if (idGroup && idSupplier) {
                         try {
                             const groupReqs = await groupService.getSpecific(idSupplier, idGroup, categoryId);
@@ -459,10 +453,36 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         const tempDocs = [];
         elements.forEach(el => {
             const proveedor = el.supplier?.company_name || el.supplier?.businessName || el.data?.proveedor || 'Proveedor';
-            groupReqs.forEach(req => {
-                const submittedFile = (el.files_submitted || []).find(fs =>
-                    fs.id_attributes === req.listRequirements?.attribute_template?.attributes?.id_attributes
-                );
+            
+            if (!groupReqs || groupReqs.length === 0) {
+                const activeDesc = el.active?.description || 'DOCUMENTO';
+                const docTypeStr = el.data?.tipo || activeDesc;
+                const submittedFile = el.files_submitted?.[0];
+                let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
+
+                tempDocs.push({
+                    id: `${el.id_elements}_default`,
+                    id_file_submitted: submittedFile?.id_file_submitted || null,
+                    entityId: String(el.id_elements),
+                    entityName: el.active?.description || el.data?.nombre || 'Recurso',
+                    entityType: typeName === 'employees' ? 'Empleado' : typeName === 'vehicles' ? 'Vehículo' : 'Maquinaria',
+                    tipo: docTypeStr.replace(/_/g, ' '),
+                    id_active_type: categoryId,
+                    label: el.active?.description || docTypeStr.replace(/_/g, ' '),
+                    estado: finalStatus,
+                    fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
+                    observacion: submittedFile?.audit_info?.audit_observations || null,
+                    frecuencia: el.data?.frecuencia || 'Mensual',
+                    archivo: submittedFile?.file_name || el.data?.archivo || null,
+                    obligatorio: false,
+                    proveedor: proveedor,
+                    isExpiringSoon: false
+                });
+            } else {
+                groupReqs.forEach(req => {
+                    const submittedFile = (el.files_submitted || []).find(fs =>
+                        fs.id_attributes === req.listRequirements?.attribute_template?.attributes?.id_attributes
+                    );
 
                 let finalStatus = 'PENDIENTE';
                 const isFile = !!submittedFile;
@@ -540,6 +560,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     isExpiringSoon: isExpiringSoon
                 });
             });
+            }
         });
         return tempDocs;
     };

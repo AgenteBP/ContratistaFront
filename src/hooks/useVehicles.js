@@ -10,11 +10,9 @@ export const useVehicles = (explicitIdSupplier = null) => {
     const [loading, setLoading] = useState(true);
 
     const fetchVehicles = useCallback(async () => {
-        const idSupplier = explicitIdSupplier || (currentRole?.role === 'PROVEEDOR'
-            ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier);
+        const isProvider = currentRole?.role === 'PROVEEDOR';
 
-        if (!idSupplier) {
+        if (isProvider && !currentRole.id_entity && !user?.suppliers?.[0]?.id_supplier) {
             setLoading(false);
             return;
         }
@@ -26,9 +24,10 @@ export const useVehicles = (explicitIdSupplier = null) => {
         try {
             let allElements = [];
 
-            if (currentRole?.role === 'PROVEEDOR') {
+            if (explicitIdSupplier) {
+                allElements = await elementService.getBySupplierAndActiveType(explicitIdSupplier, 2);
+            } else if (isProvider) {
                 const idSupplier = currentRole.id_entity || user?.suppliers?.[0]?.id_supplier;
-                if (!idSupplier) { setLoading(false); return; }
                 allElements = await elementService.getBySupplierAndActiveType(idSupplier, 2);
             } else {
                 if (!user?.id || !currentRole?.role) { setLoading(false); return; }
@@ -53,7 +52,7 @@ export const useVehicles = (explicitIdSupplier = null) => {
         } finally {
             setLoading(false);
         }
-    }, [user, currentRole]);
+    }, [user, currentRole, explicitIdSupplier]);
 
     useEffect(() => {
         fetchVehicles();

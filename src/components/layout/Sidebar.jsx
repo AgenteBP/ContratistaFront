@@ -173,7 +173,8 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
         isAuditorTecnico,
         isAuditorLegal,
         isEmpresa,
-        isProveedor
+        isProveedor,
+        user
     } = useAuth();
 
     // El rol string sigue siendo útil para el switch de menús, 
@@ -285,7 +286,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                 { type: 'item', icon: 'pi-building', label: 'Empresas', to: '/empresas', end: true, badge: '5' },
                 { type: 'item', icon: 'pi-shield', label: 'Auditores', to: '/auditores', end: true, badge: '5' },
                 { type: 'item', icon: 'pi-briefcase', label: 'Proveedores', to: '/proveedores', end: true },
-                { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: '/usuarios/1', badge: '', badgeColor: 'info' }, // Mocking admin profile
+                { type: 'item', icon: 'pi-user', label: 'Mis Datos', to: `/usuarios/${user?.id || 1}`, badge: '', badgeColor: 'info' }, // Perfil del Admin
                 SUBMENU_RECURSOS_STD,
                 SUBMENU_AUDITORIA_TECNICA,
                 SUBMENU_AUDITORIA_LEGAL,

@@ -64,6 +64,11 @@ body {
 }
 
 /* --- COMPACT CALENDAR (PrimeReact) --- */
+/* Fix spacing between month and year in translations */
+.p-datepicker .p-datepicker-header .p-datepicker-title .p-datepicker-month {
+    margin-right: 0.25rem !important;
+}
+
 /* Removed hardcoded small fonts for improved readability */
 
 .compact-calendar-panel {
