@@ -18,7 +18,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
 
     // Si isEmbedded=true y showProvider prop fue pasada como true, la respetamos.
     // O si el rol del usuario no es PROVEEDOR, siempre mostramos el proveedor.
-    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
+    const displayProvider = (showProvider || currentRole?.role !== 'PROVEEDOR') && !explicitIdSupplier;
     const { isAdmin } = useAuth();
     const { employees, loading } = useEmployees(explicitIdSupplier);
 

@@ -8,10 +8,10 @@ import { activeService } from '../services/activeService';
  * Manages the entire state object, step progress, and dirtiness tracking for the SupplierForm wizard.
  * Encapsulates the logic so the UI component focuses only on layout and rendering.
  */
-export const useSupplierForm = ({ initialData, isWizardMode, readOnly, isAdmin, groups, availableCompanies, availableRequirements = [], onSubmit }) => {
+export const useSupplierForm = ({ initialData, isWizardMode, readOnly, isAdmin, isAuditor, groups, availableCompanies, availableRequirements = [], onSubmit }) => {
     // Defines standard steps depending on execution mode
     const allSteps = ['Proveedor', 'Grupo y Empresa', 'Ubicación', 'Contactos', 'Documentos'];
-    const steps = isAdmin ? allSteps : allSteps.filter(s => s !== 'Grupo y Empresa');
+    const steps = (isAdmin || isAuditor) ? allSteps : allSteps.filter(s => s !== 'Grupo y Empresa');
     
     const [currentStep, setCurrentStep] = useState(1);
     const [dirtySteps, setDirtySteps] = useState(new Set());
@@ -252,6 +252,10 @@ export const useSupplierForm = ({ initialData, isWizardMode, readOnly, isAdmin, 
     const [uniqueActives, setUniqueActives] = useState([]);
 
     useEffect(() => {
+        // Optimización: Solo descargar el catálogo completo de activos
+        // si estamos en modo Admin o Creación (donde se configura a medida)
+        if (!isAdmin && !isWizardMode) return;
+
         const fetchActives = async () => {
             try {
                 const data = await activeService.getByType(5); // Activo Legajo Proveedor
@@ -261,7 +265,7 @@ export const useSupplierForm = ({ initialData, isWizardMode, readOnly, isAdmin, 
             }
         };
         fetchActives();
-    }, [availableRequirements]);
+    }, [isAdmin, isWizardMode]);
 
     const [localRequiredDocs, setLocalRequiredDocs] = useState([]);
     const [isCustomConfig, setIsCustomConfig] = useState(isWizardMode);

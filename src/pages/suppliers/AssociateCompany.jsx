@@ -53,14 +53,20 @@ const AssociateCompany = () => {
                 groupedCompanies['Sin Grupo'] = [];
 
                 companies.forEach(c => {
-                    const group = groups.find(g => g.idGroup === c.idGroup);
-                    const groupName = group ? group.description : 'Sin Grupo';
+                    // Try to find group ID from various possible backend structures
+                    const groupId = c.id_group || c.idGroup || c.group?.idGroup;
+                    const group = groups.find(g => g.idGroup === groupId);
+                    // Use description from matched group, nested group object, or fallback to 'Sin Grupo'
+                    const groupName = group ? group.description : (c.group?.description || 'Sin Grupo');
+                    
                     if (!groupedCompanies[groupName]) {
                         groupedCompanies[groupName] = [];
                     }
+                    
+                    const companyId = c.id_company || c.idCompany;
                     groupedCompanies[groupName].push({
                         label: c.description,
-                        value: c.idCompany
+                        value: companyId
                     });
                 });
 

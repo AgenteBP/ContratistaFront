@@ -8,11 +8,9 @@ export const useEmployees = (explicitIdSupplier = null) => {
     const [loading, setLoading] = useState(true);
 
     const fetchEmployees = useCallback(async () => {
-        const idSupplier = explicitIdSupplier || (currentRole?.role === 'PROVEEDOR'
-            ? currentRole.id_entity
-            : user?.suppliers?.[0]?.id_supplier);
+        const isProvider = currentRole?.role === 'PROVEEDOR';
 
-        if (!idSupplier) {
+        if (isProvider && !currentRole.id_entity && !user?.suppliers?.[0]?.id_supplier) {
             setLoading(false);
             return;
         }
@@ -24,9 +22,10 @@ export const useEmployees = (explicitIdSupplier = null) => {
         try {
             let employeesDataReq = [];
 
-            if (currentRole?.role === 'PROVEEDOR') {
+            if (explicitIdSupplier) {
+                employeesDataReq = await elementService.getBySupplierAndActiveType(explicitIdSupplier, 1);
+            } else if (isProvider) {
                 const idSupplier = currentRole.id_entity || user?.suppliers?.[0]?.id_supplier;
-                if (!idSupplier) { setLoading(false); return; }
                 employeesDataReq = await elementService.getBySupplierAndActiveType(idSupplier, 1);
             } else {
                 if (!user?.id || !currentRole?.role) { setLoading(false); return; }
@@ -43,7 +42,7 @@ export const useEmployees = (explicitIdSupplier = null) => {
         } finally {
             setLoading(false);
         }
-    }, [user, currentRole]);
+    }, [user, currentRole, explicitIdSupplier]);
 
     useEffect(() => {
         fetchEmployees();

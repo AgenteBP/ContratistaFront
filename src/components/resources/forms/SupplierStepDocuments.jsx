@@ -47,8 +47,8 @@ const SupplierStepDocuments = ({
         }));
     };
 
-    const isStep4ConfigReadOnly = !isWizardMode && !isAdmin;
-    const isStep4ActionsEnabled = partialEdit && isEditingStep && !isAdmin && !readOnly; // Proveedor edit mode
+    const isDocsConfigReadOnly = !isWizardMode && !isAdmin;
+    const isDocsActionsEnabled = partialEdit && isEditingStep && !isAdmin && !readOnly; // Proveedor edit mode
     const editDocMode = isEditingStep || isWizardMode; // Admin trying to edit config
 
     const resetDocConfig = () => {
@@ -122,7 +122,7 @@ const SupplierStepDocuments = ({
                 </div>
             )}
 
-            {!isStep4ConfigReadOnly && !editDocMode && (
+            {!isDocsConfigReadOnly && !editDocMode && (
                 <div className="mb-4 bg-warning-light/50 border border-warning/30 rounded-lg p-3 flex items-center justify-between text-xs">
                     <span className="text-warning-hover font-medium flex items-center gap-2">
                         <i className="pi pi-exclamation-triangle"></i> Configuración personalizada
@@ -142,7 +142,7 @@ const SupplierStepDocuments = ({
             {docViewMode === 'grid' || isWizardMode ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Card para AGREGAR NUEVO (Solo en modo edición de CONFIGURACION) */}
-                    {!isStep4ConfigReadOnly && editDocMode && (
+                    {!isDocsConfigReadOnly && editDocMode && (
                         <button
                             onClick={() => setShowDocModal(true)}
                             className="border-2 border-dashed border-secondary/30 rounded-lg p-4 flex flex-col items-center justify-center gap-2 text-secondary hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all h-full min-h-[140px]"
@@ -173,7 +173,7 @@ const SupplierStepDocuments = ({
                             <div key={doc.id} className={`border rounded-lg p-4 flex flex-col justify-between transition-all hover:shadow-md ${isWizardMode ? 'border-secondary/20 bg-white' : getStatusColor(status, docData?.isExpiringSoon)} group relative h-full min-h-[150px]`}>
 
                                 {/* Botón Eliminar Requisito (Solo edición config admin) */}
-                                {!isStep4ConfigReadOnly && editDocMode && (
+                                {!isDocsConfigReadOnly && editDocMode && (
                                     <button
                                         onClick={() => toggleDocRequirement(doc.id)}
                                         className="absolute -top-2 -right-2 bg-white text-red-500 shadow-md rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-50 hover:scale-110 transition-all z-10"
@@ -330,11 +330,11 @@ const SupplierStepDocuments = ({
                                                 <span className="text-xs font-medium text-secondary-dark">{docData?.frecuencia || doc.frecuencia}{doc.obligatoriedad === 'Opcional' || doc.isOptional ? ' — Opcional' : ''}</span>
                                             </div>
 
-                                            {((docData?.fechaVencimiento || isStep4ActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez' && (docData?.frecuencia || doc.frecuencia) !== 'UNICA VEZ') && (
+                                            {((docData?.fechaVencimiento || isDocsActionsEnabled) && (docData?.frecuencia || doc.frecuencia) !== 'Única vez' && (docData?.frecuencia || doc.frecuencia) !== 'UNICA VEZ') && (
                                                 <div className="flex flex-col w-full">
                                                     <div className="flex items-center gap-2">
                                                         <i className="pi pi-calendar text-secondary/50 text-base"></i>
-                                                        {isStep4ActionsEnabled ? (
+                                                        {isDocsActionsEnabled ? (
                                                             <Calendar
                                                                 value={docData?.fechaVencimiento ? (() => { const p = String(docData.fechaVencimiento).split('T')[0].split('-'); return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : null; })() : null}
                                                                 onChange={(e) => handleDateChange(doc.id, e.value)}
@@ -349,7 +349,7 @@ const SupplierStepDocuments = ({
                                                             <span className="text-xs font-semibold text-secondary">Vence: {docData?.fechaVencimiento ? (() => { const dateStr = String(docData.fechaVencimiento).split('T')[0]; const p = dateStr.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr; })() : '-'}</span>
                                                         )}
                                                     </div>
-                                                    {isStep4ActionsEnabled && !docData?.archivo && !(status === 'CON OBSERVACIÓN') && (
+                                                    {isDocsActionsEnabled && !docData?.archivo && !(status === 'CON OBSERVACIÓN') && (
                                                         <span className="text-[10px] text-warning font-medium ml-6 mt-1.5">
                                                             * Requiere archivo para editar fecha
                                                         </span>
@@ -360,7 +360,7 @@ const SupplierStepDocuments = ({
                                             {/* ACTION AREA: Placeholder / Upload / File Info */}
                                             {/* 1. Pending + No File OR Observado => Placeholder or Upload Zone */}
                                             {(!docData?.archivo || (status === 'CON OBSERVACIÓN' && !docData?.modified)) && (
-                                                isStep4ActionsEnabled ? (
+                                                isDocsActionsEnabled ? (
                                                     <div className="mt-auto pt-3 relative flex-1">
                                                         <input
                                                             type="file"
@@ -385,7 +385,7 @@ const SupplierStepDocuments = ({
                                             )}
 
                                             {/* 2. File Exists => File Info Row (View/Delete) - ONLY IN EDIT MODE */}
-                                            {(docData?.archivo && (status !== 'CON OBSERVACIÓN' || docData?.modified) && isStep4ActionsEnabled) && (
+                                            {(docData?.archivo && (status !== 'CON OBSERVACIÓN' || docData?.modified) && isDocsActionsEnabled) && (
                                                 <>
                                                     <div className="mt-auto group/file flex items-center justify-between p-2 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
                                                         onClick={() => handleViewFile(docData)}
@@ -406,7 +406,7 @@ const SupplierStepDocuments = ({
                                                             )}
                                                         </div>
 
-                                                        {isStep4ActionsEnabled ? (
+                                                        {isDocsActionsEnabled ? (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -434,7 +434,7 @@ const SupplierStepDocuments = ({
                                             )}
 
                                             {/* 3. Read-Only Mode + File Exists => Absolute External Link Icon */}
-                                            {(!isStep4ActionsEnabled && docData?.archivo) && (
+                                            {(!isDocsActionsEnabled && docData?.archivo) && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -509,7 +509,7 @@ const SupplierStepDocuments = ({
                                                 <span className="text-[11px] font-bold text-secondary/40">N/A</span>
                                             ) : (
                                                 <div className="flex flex-col items-center">
-                                                    {isStep4ActionsEnabled ? (
+                                                    {isDocsActionsEnabled ? (
                                                         <Calendar
                                                             value={docData?.fechaVencimiento ? new Date(docData.fechaVencimiento) : null}
                                                             onChange={(e) => handleDateChange(doc.id, e.value)}
@@ -557,7 +557,7 @@ const SupplierStepDocuments = ({
                                                     )}
 
                                                     {/* Subir / Actualizar Button */}
-                                                    {isStep4ActionsEnabled && (
+                                                    {isDocsActionsEnabled && (
                                                         <label className="relative flex items-center cursor-pointer">
                                                             <input 
                                                                 type="file" 

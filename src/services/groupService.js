@@ -28,5 +28,13 @@ export const groupService = {
     getByElement: async (idElement) => {
         const response = await api.get('/group_requirements/getByElement', { params: { idElement } });
         return response.data;
+    },
+
+    getSpecificResource: async (idSupplier, idGroup, idActive, idElement) => {
+        const params = { idSupplier, idGroup, _t: Date.now() }; // Cache buster
+        if (idActive != null) params.idActive = idActive;
+        if (idElement != null) params.idElement = idElement;
+        const response = await api.get('/group_requirements/specificResource', { params });
+        return response.data;
     }
 };

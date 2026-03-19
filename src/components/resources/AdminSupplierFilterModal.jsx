@@ -30,8 +30,8 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
         try {
             const data = await groupService.getAll();
             const formatted = data.map(g => ({
-                label: g.description || g.name || `Grupo ${g.idGroup}`,
-                value: g.idGroup,
+                label: g.description || g.name || `Grupo ${g.idGroup || g.id_group || g.id}`,
+                value: g.idGroup || g.id_group || g.id,
                 ...g
             }));
             // Sort alphabetically
@@ -59,8 +59,8 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
             try {
                 const data = await companyService.getByGroup(groupId);
                 const formatted = data.map(c => ({
-                    label: c.description || c.name || `Empresa ${c.idCompany}`,
-                    value: c.idCompany,
+                    label: c.description || c.name || `Empresa ${c.id_company || c.idCompany || c.id}`,
+                    value: c.id_company || c.idCompany || c.id,
                     ...c
                 }));
                 // Sort alphabetically
@@ -76,6 +76,7 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
 
     const handleCompanyChange = async (e) => {
         const companyId = e.value;
+        console.log("handleCompanyChange - companyId:", companyId);
         setSelectedCompany(companyId);
         
         // Reset downward cascade
@@ -86,11 +87,15 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
             setLoadingSuppliers(true);
             try {
                 const data = await supplierService.getByCompany(companyId);
+                console.log("supplierService.getByCompany data:", data);
+                
                 const formatted = data.map(s => ({
                     label: s.company_name || s.fantasy_name || s.razonSocial || s.companyName || s.fantasyName || `Proveedor ${s.id_supplier || s.internalId || s.id}`,
                     value: s.id_supplier || s.internalId || s.id,
                     ...s // Keep full object in case
                 }));
+                console.log("Formatted suppliers array:", formatted);
+                
                 // Sort alphabetically
                 formatted.sort((a,b) => a.label.localeCompare(b.label));
                 setSuppliers(formatted);
@@ -167,6 +172,8 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
                         options={groups}
                         value={selectedGroup}
                         onChange={handleGroupChange}
+                        optionValue="value"
+                        optionLabel="label"
                         placeholder={loadingGroups ? "Cargando grupos..." : "Seleccionar Grupo"}
                         className="w-full"
                         filter
@@ -181,6 +188,8 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
                         options={companies}
                         value={selectedCompany}
                         onChange={handleCompanyChange}
+                        optionValue="value"
+                        optionLabel="label"
                         placeholder={loadingCompanies ? "Cargando empresas..." : "Seleccionar Empresa"}
                         className="w-full"
                         filter
@@ -201,6 +210,8 @@ const AdminSupplierFilterModal = ({ visible, onConfirm, onCancel }) => {
                         options={suppliers}
                         value={selectedSupplier}
                         onChange={(e) => setSelectedSupplier(e.value)}
+                        optionValue="value"
+                        optionLabel="label"
                         placeholder={loadingSuppliers ? "Cargando proveedores..." : "Seleccionar Proveedor"}
                         className="w-full"
                         filter

@@ -18,7 +18,7 @@ import { useVehicles } from '../../../hooks/useVehicles';
 const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupplier = null, explicitIdGroup = null }) => {
     const navigate = useNavigate();
     const { currentRole } = useAuth();
-    const displayProvider = showProvider || currentRole?.role !== 'PROVEEDOR';
+    const displayProvider = (showProvider || currentRole?.role !== 'PROVEEDOR') && !explicitIdSupplier;
     const { isAdmin } = useAuth();
     const { vehicles, loading, marcas, modelos } = useVehicles(explicitIdSupplier);
 

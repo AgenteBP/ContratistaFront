@@ -39,7 +39,7 @@ const SupplierForm = ({
     isEdit = false
 }) => {
     // 1. Role-based Permissions & Flags
-    const { isAdmin: isAuthAdmin } = usePermissions();
+    const { isAdmin: isAuthAdmin, isAuditor } = usePermissions();
     const effectiveIsAdmin = isAdmin || isAuthAdmin;
 
     // 2. Form Logic & State Management
@@ -82,6 +82,7 @@ const SupplierForm = ({
         isWizardMode, 
         readOnly, 
         isAdmin: effectiveIsAdmin, 
+        isAuditor,
         groups, 
         availableCompanies,
         availableRequirements,
@@ -228,6 +229,7 @@ const SupplierForm = ({
                         handleStartEdit={handleStartEdit}
                         handleCancelEdit={handleCancelEdit}
                         handleStopEdit={() => baseHandleSubmit('Grupo y Empresa')}
+                        isWizardMode={isWizardMode}
                     />
                 );
             case 'Contactos':
