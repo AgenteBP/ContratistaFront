@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { TabView, TabPanel } from 'primereact/tabview';
+import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { TbBackhoe } from 'react-icons/tb';
 
 import PageHeader from '../../components/ui/PageHeader';
@@ -58,12 +57,12 @@ const MOCK_METRICS = {
 };
 
 // --- STAT CARD COMPONENT (Enhanced & Context Aware) ---
-const StatCard = ({ title, icon, type = 'primary', isActive, onClick, metrics, activeFilter }) => {
+const StatCard = ({ title, icon, type = 'primary', metrics, activeFilter }) => {
     const styles = {
-        primary: { border: 'border-primary', iconBg: 'bg-primary-light', iconText: 'text-primary' },
-        success: { border: 'border-success', iconBg: 'bg-success-light', iconText: 'text-success' },
-        warning: { border: 'border-warning', iconBg: 'bg-warning-light', iconText: 'text-warning' },
-        info: { border: 'border-blue-500', iconBg: 'bg-blue-100', iconText: 'text-blue-600' }
+        primary: { iconBg: 'bg-primary-light', iconText: 'text-primary' },
+        success: { iconBg: 'bg-success-light', iconText: 'text-success' },
+        warning: { iconBg: 'bg-warning-light', iconText: 'text-warning' },
+        info: { iconBg: 'bg-blue-100', iconText: 'text-blue-600' }
     };
     const style = styles[type] || styles.primary;
 
@@ -100,10 +99,7 @@ const StatCard = ({ title, icon, type = 'primary', isActive, onClick, metrics, a
     }
 
     return (
-        <div
-            onClick={onClick}
-            className={`bg-white rounded-xl p-5 shadow-sm border hover:shadow-md transition-all duration-300 relative overflow-hidden group cursor-pointer flex flex-col justify-between h-full ${isActive ? `ring-2 ring-offset-2 ${style.border} border-transparent` : 'border-secondary/10'}`}
-        >
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-secondary/10 transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-full">
             {/* Header */}
             <div className="flex justify-between items-start z-10 relative mb-4">
                 <div>
@@ -118,7 +114,7 @@ const StatCard = ({ title, icon, type = 'primary', isActive, onClick, metrics, a
                         <p className={`text-[10px] font-bold mt-1 ${style.iconText}`}>{label}</p>
                     )}
                 </div>
-                <div className={`p-2.5 rounded-xl ${style.iconBg} ${style.iconText} transition-all duration-300 group-hover:scale-110 flex items-center justify-center`}>
+                <div className={`p-2.5 rounded-xl ${style.iconBg} ${style.iconText} flex items-center justify-center`}>
                     {renderIcon(icon, "text-lg")}
                 </div>
             </div>
@@ -157,8 +153,12 @@ const StatCard = ({ title, icon, type = 'primary', isActive, onClick, metrics, a
 
 const ProviderDocuments = () => {
     const { status } = useParams();
-    const navigate = useNavigate();
+
     const [activeIndex, setActiveIndex] = useState(0);
+    // Tracks which tabs have been visited — once mounted, never unmount (preserves loaded data)
+    const [mountedTabs, setMountedTabs] = useState(new Set([0]));
+    // Refresh counter per tab — incrementing triggers a silent background re-fetch
+    const [refreshKeys, setRefreshKeys] = useState({ 0: 0, 1: 0, 2: 0, 3: 0 });
 
     // Filter Logic
     const getFilterFromParam = (param) => {
@@ -175,11 +175,13 @@ const ProviderDocuments = () => {
     const currentFilter = getFilterFromParam(status || 'general');
 
     // Handler to sync external cards/tabs when internal table categories are clicked
-    const handleTypeChange = (newType) => {
-        const typeToIndex = { 'suppliers': 0, 'employees': 1, 'vehicles': 2, 'machinery': 3 };
-        if (typeToIndex[newType] !== undefined) {
-            setActiveIndex(typeToIndex[newType]);
+    const handleTabChange = (index) => {
+        if (mountedTabs.has(index)) {
+            // Tab already loaded — trigger silent background re-fetch
+            setRefreshKeys(prev => ({ ...prev, [index]: prev[index] + 1 }));
         }
+        setActiveIndex(index);
+        setMountedTabs(prev => new Set([...prev, index]));
     };
 
     // Pivot Data for Cards (Aggregate by Type)
@@ -239,92 +241,58 @@ const ProviderDocuments = () => {
                 icon="pi pi-folder-open"
             />
 
-            {/* Stat Cards - Act as Tabs/Summary */}
+            {/* Stat Cards — display only, no navigation */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    title="Proveedores"
-                    icon="pi-briefcase"
-                    type="primary"
-                    isActive={activeIndex === 0}
-                    onClick={() => setActiveIndex(0)}
-                    metrics={cardMetrics.suppliers}
-                    activeFilter={currentFilter}
-                />
-                <StatCard
-                    title="Empleados"
-                    icon="pi-users"
-                    type="info"
-                    isActive={activeIndex === 1}
-                    onClick={() => setActiveIndex(1)}
-                    metrics={cardMetrics.employees}
-                    activeFilter={currentFilter}
-                />
-                <StatCard
-                    title="Vehículos"
-                    icon="pi-car"
-                    type="warning"
-                    isActive={activeIndex === 2}
-                    onClick={() => setActiveIndex(2)}
-                    metrics={cardMetrics.vehicles}
-                    activeFilter={currentFilter}
-                />
-                <StatCard
-                    title="Maquinaria"
-                    icon={<TbBackhoe />}
-                    type="success"
-                    isActive={activeIndex === 3}
-                    onClick={() => setActiveIndex(3)}
-                    metrics={cardMetrics.machinery}
-                    activeFilter={currentFilter}
-                />
+                <StatCard title="Proveedores" icon="pi-briefcase" type="primary" metrics={cardMetrics.suppliers} activeFilter={currentFilter} />
+                <StatCard title="Empleados"   icon="pi-users"     type="info"    metrics={cardMetrics.employees} activeFilter={currentFilter} />
+                <StatCard title="Vehículos"   icon="pi-car"       type="warning" metrics={cardMetrics.vehicles}  activeFilter={currentFilter} />
+                <StatCard title="Maquinaria"  icon={<TbBackhoe />} type="success" metrics={cardMetrics.machinery} activeFilter={currentFilter} />
             </div>
 
-            {/* TabView Container */}
-            <div className="bg-white rounded-3xl shadow-xl shadow-secondary/5 border border-secondary/10 overflow-hidden">
-                <TabView
-                    activeIndex={activeIndex}
-                    onTabChange={(e) => setActiveIndex(e.index)}
-                    pt={{
-                        navContainer: { className: 'hidden' }, // Hide default tabs since we use StatCards
-                        panelContainer: { className: 'p-0' }
-                    }}
-                >
-                    <TabPanel header="Proveedores">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
-                                Listado de Proveedores - {headerInfo.title}
-                            </h3>
-                            <DocumentEntityTable type="suppliers" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
-                        </div>
-                    </TabPanel>
+            {/* Tab navigation */}
+            <div className="bg-white rounded-2xl shadow-sm border border-secondary/10 overflow-hidden">
+                <div className="flex border-b border-secondary/10">
+                    {[
+                        { index: 0, label: 'Proveedores', icon: 'pi-briefcase' },
+                        { index: 1, label: 'Empleados',   icon: 'pi-users' },
+                        { index: 2, label: 'Vehículos',   icon: 'pi-car' },
+                        { index: 3, label: 'Maquinaria',  icon: null },
+                    ].map(({ index, label, icon }) => (
+                        <button
+                            key={index}
+                            onClick={() => handleTabChange(index)}
+                            className={`flex items-center gap-2 px-6 py-4 text-sm font-bold transition-all border-b-2 -mb-px
+                                ${activeIndex === index
+                                    ? 'border-primary text-primary bg-primary/5'
+                                    : 'border-transparent text-secondary/50 hover:text-secondary hover:bg-slate-50'
+                                }`}
+                        >
+                            {icon ? <i className={`pi ${icon} text-xs`}></i> : <TbBackhoe className="text-sm" />}
+                            {label}
+                        </button>
+                    ))}
+                </div>
 
-                    <TabPanel header="Empleados">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
-                                Listado de Empleados - {headerInfo.title}
-                            </h3>
-                            <DocumentEntityTable type="employees" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
+                {/* Tab Panels — stay mounted once visited, never unmount = no re-fetch on tab switch */}
+                <div>
+                    {[
+                        { index: 0, type: 'suppliers', label: 'Proveedores' },
+                        { index: 1, type: 'employees', label: 'Empleados' },
+                        { index: 2, type: 'vehicles',  label: 'Vehículos' },
+                        { index: 3, type: 'machinery', label: 'Maquinaria' },
+                    ].map(({ index, type, label }) => (
+                        <div key={type} className={activeIndex === index ? 'block' : 'hidden'}>
+                            <div className="p-6">
+                                <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
+                                    Listado de {label} - {headerInfo.title}
+                                </h3>
+                                {mountedTabs.has(index) && (
+                                    <DocumentEntityTable type={type} filterStatus={currentFilter} hideCategoryNav refreshKey={refreshKeys[index]} />
+                                )}
+                            </div>
                         </div>
-                    </TabPanel>
-
-                    <TabPanel header="Vehículos">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
-                                Listado de Vehículos - {headerInfo.title}
-                            </h3>
-                            <DocumentEntityTable type="vehicles" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
-                        </div>
-                    </TabPanel>
-
-                    <TabPanel header="Maquinaria">
-                        <div className="p-6">
-                            <h3 className="text-lg font-bold text-secondary-dark mb-4 border-b border-secondary/10 pb-2">
-                                Listado de Maquinaria - {headerInfo.title}
-                            </h3>
-                            <DocumentEntityTable type="machinery" filterStatus={currentFilter} onTypeChange={handleTypeChange} />
-                        </div>
-                    </TabPanel>
-                </TabView>
+                    ))}
+                </div>
             </div>
         </div>
     );
