@@ -34,8 +34,10 @@ const getDisplayInfo = (metrics, activeFilter) => {
 /** Barras de progreso + mini badges — contenido específico de documento */
 const DocCardBody = ({ metrics, activeFilter, iconText }) => {
     const total = metrics.total || 0;
-    const cargaPct   = total > 0 ? Math.round(((metrics.uploaded ?? 0) / total) * 100) : 0;
-    const compliance = total > 0 ? Math.round(((metrics.valid   ?? 0) / total) * 100) : 0;
+    const isZeroTotal = total === 0 && (metrics.entityCount ?? 0) > 0;
+    const cargaPct   = isZeroTotal ? 100 : (total > 0 ? Math.round(((metrics.uploaded ?? 0) / total) * 100) : 0);
+    const compliance = isZeroTotal ? 100 : (total > 0 ? Math.round(((metrics.valid   ?? 0) / total) * 100) : 0);
+    const reviewPct  = total > 0 ? Math.round(((metrics.review  ?? 0) / total) * 100) : 0;
 
     const barColor = (pct) =>
         pct === 100 ? 'bg-success' : pct < 50 ? 'bg-danger' : 'bg-warning';
@@ -60,14 +62,14 @@ const DocCardBody = ({ metrics, activeFilter, iconText }) => {
                     </span>
                     <span className="text-xs font-bold text-secondary/70">{cargaPct}%</span>
                 </div>
-                <div className="h-1.5 w-full bg-secondary-light/30 rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-secondary-light/30 rounded-full overflow-hidden border border-gray-100">
                     <div className={`h-full rounded-full transition-all duration-500 ${barColor(cargaPct)}`}
                         style={{ width: `${cargaPct}%` }} />
                 </div>
             </div>
 
             {/* Cumplimiento */}
-            <div className="mb-4">
+            <div className="mb-3">
                 <div className="flex justify-between items-end mb-1">
                     <span className="text-[10px] font-bold text-secondary/60 uppercase">
                         Cumplimiento
@@ -79,21 +81,45 @@ const DocCardBody = ({ metrics, activeFilter, iconText }) => {
                         {compliance}%
                     </span>
                 </div>
-                <div className="h-1.5 w-full bg-secondary-light/30 rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-secondary-light/30 rounded-full overflow-hidden border border-gray-100">
                     <div className={`h-full rounded-full transition-all duration-500 ${barColor(compliance)}`}
                         style={{ width: `${compliance}%` }} />
                 </div>
             </div>
 
+            {/* En Revisión */}
+            {reviewPct > 0 && (
+                <div className="mb-4">
+                    <div className="flex justify-between items-end mb-1">
+                        <span className="text-[10px] font-bold text-secondary/60 uppercase">
+                            En Revisión
+                            {activeFilter !== 'general' && (
+                                <span className="font-normal normal-case text-secondary/40 ml-1">del total</span>
+                            )}
+                        </span>
+                        <span className="text-xs font-bold text-blue-500">
+                            {reviewPct}%
+                        </span>
+                    </div>
+                    <div className="h-2 w-full bg-secondary-light/30 rounded-full overflow-hidden border border-gray-100">
+                        <div className="h-full rounded-full transition-all duration-500 bg-blue-400"
+                            style={{ width: `${reviewPct}%` }} />
+                    </div>
+                </div>
+            )}
+
             {/* Mini badges */}
-            <div className="flex items-center gap-2 mt-auto">
-                <div className={`px-2 py-1 bg-red-50 text-red-600 rounded-md text-[10px] font-bold flex items-center gap-1 ${activeFilter === 'expiring' ? 'ring-1 ring-red-200 bg-red-100' : ''}`}>
+            <div className="flex items-center gap-2 mt-auto flex-wrap">
+                <div title="Vencidos o por vencer" className={`px-2 py-1 bg-red-50 text-red-600 rounded-md text-[10px] font-bold flex items-center gap-1 ${activeFilter === 'expiring' ? 'ring-1 ring-red-200 bg-red-100' : ''}`}>
                     <i className="pi pi-exclamation-circle text-[10px]" /> {metrics.expiring}
                 </div>
-                <div className={`px-2 py-1 bg-orange-50 text-orange-600 rounded-md text-[10px] font-bold flex items-center gap-1 ${activeFilter === 'pending_upload' ? 'ring-1 ring-orange-200 bg-orange-100' : ''}`}>
+                <div title="Pendientes de carga" className={`px-2 py-1 bg-orange-50 text-orange-600 rounded-md text-[10px] font-bold flex items-center gap-1 ${activeFilter === 'pending_upload' ? 'ring-1 ring-orange-200 bg-orange-100' : ''}`}>
                     <i className="pi pi-clock text-[10px]" /> {metrics.pending}
                 </div>
-                <div className="px-2 py-1 bg-green-50 text-green-600 rounded-md text-[10px] font-bold flex items-center gap-1 ml-auto">
+                <div title="En revisión por el auditor" className={`px-2 py-1 bg-blue-50 text-blue-500 rounded-md text-[10px] font-bold flex items-center gap-1 ${activeFilter === 'in_review' ? 'ring-1 ring-blue-200 bg-blue-100' : ''}`}>
+                    <i className="pi pi-eye text-[10px]" /> {metrics.review}
+                </div>
+                <div title="Vigentes" className="px-2 py-1 bg-green-50 text-green-600 rounded-md text-[10px] font-bold flex items-center gap-1 ml-auto">
                     <i className="pi pi-check-circle text-[10px]" /> {metrics.valid}
                 </div>
             </div>

@@ -1,10 +1,10 @@
-# Design System: ProCer (ContratistaFront)
+# Design System: ProCer360 (ContratistaFront)
 
-This document serves as the "source of truth" for the design language used in the ProCer project. It details the visual theme, color palette, typography, and component styling to ensure consistency across the application.
+This document serves as the "source of truth" for the design language used in the ProCer360 project. It details the visual theme, color palette, typography, and component styling to ensure consistency across the application.
 
 ## 1. Visual Theme & Atmosphere
 
-The ProCer interface is designed with a **Clean Industrial** aesthetic. It aims to be **professional, dependable, and efficient**, focusing on clear data presentation for utility and contractor management. The atmosphere is **Utilitarian yet Premium**, characterized by high contrast between dark text and light backgrounds, with vibrant indigo and lime accents providing a modern feel.
+The ProCer360 interface is designed with a **Clean Industrial** aesthetic. It aims to be **professional, dependable, and efficient**, focusing on clear data presentation for utility and contractor management. The atmosphere is **Utilitarian yet Premium**, characterized by high contrast between dark text and light backgrounds, with vibrant indigo and lime accents providing a modern feel.
 
 ## 2. Color Palette & Roles
 

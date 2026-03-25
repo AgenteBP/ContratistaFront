@@ -96,7 +96,7 @@ const LoginPage = () => {
                     <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-primary-hover flex items-center justify-center text-white shadow-lg">
                         <i className="pi pi-bolt text-sm"></i>
                     </div>
-                    <span className="text-xl font-bold text-secondary-dark tracking-tight">ProCer</span>
+                    <span className="text-xl font-bold text-secondary-dark tracking-tight">ProCer360</span>
                 </div>
 
                 {/* TÍTULO (Fuera de la tarjeta, estilo "Good to see you again") */}

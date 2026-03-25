@@ -17,13 +17,13 @@ const DETAIL_ROWS = {
     enRevision: { key: 'enRevision', label: 'En revisión', icon: 'pi-clock', iconColor: 'text-blue-500', badgeClass: 'bg-blue-100 text-blue-600' },
     conObservacion: { key: 'conObservacion', label: 'Con observaciones', icon: 'pi-exclamation-circle', iconColor: 'text-warning', badgeClass: 'bg-warning-light text-warning-hover' },
     vencidos: { key: 'vencidos', label: 'Vencidos', icon: 'pi-times-circle', iconColor: 'text-danger', badgeClass: 'bg-danger-light text-danger-hover' },
-    docPendiente: { key: 'docPendiente', label: 'Documentación pendiente', icon: 'pi-ban', iconColor: 'text-secondary', badgeClass: 'bg-gray-100 text-secondary' },
+    docPendiente: { key: 'docPendiente', label: 'No Habilitados', icon: 'pi-times-circle', iconColor: 'text-danger', badgeClass: 'bg-danger-light text-danger-hover' },
 };
 
 const buildDetails = (s, isAuditorLegal) => {
     const keys = isAuditorLegal
         ? ['enRevision', 'habilitados', 'conObservacion', 'vencidos', 'docPendiente']
-        : ['habilitados', 'docPendiente', 'vencidos', 'conObservacion', 'enRevision'];
+        : ['habilitados', 'docPendiente', 'enRevision'];
     const alwaysShow = isAuditorLegal ? ['enRevision', 'habilitados'] : ['habilitados', 'docPendiente'];
 
     return keys.map(key => {

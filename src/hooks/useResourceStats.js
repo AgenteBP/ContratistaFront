@@ -3,15 +3,16 @@ import { useEmployees } from './useEmployees';
 import { useVehicles } from './useVehicles';
 import { useMachinery } from './useMachinery';
 
-const HABILITADO_STATUSES = ['COMPLETA', 'VIGENTE', 'APROBADO'];
+const HABILITADO_STATUSES = ['COMPLETA', 'VIGENTE', 'APROBADO', 'SIN_REQUISITOS', 'HABILITADO'];
+const PENDIENTE_STATUSES = ['PENDIENTE', 'INCOMPLETA', 'FALTANTE', 'VENCIDO', 'CON_OBSERVACION', 'OBSERVADO', 'RECHAZADO', 'NO HABILITADO', 'NO_HABILITADO'];
 
 const computeStats = (items) => {
     const total          = items.length;
     const habilitados    = items.filter(r => HABILITADO_STATUSES.includes(r.docStatus)).length;
     const enRevision     = items.filter(r => r.docStatus === 'EN_REVISION').length;
-    const conObservacion = items.filter(r => r.docStatus === 'CON_OBSERVACION').length;
+    const conObservacion = items.filter(r => ['CON_OBSERVACION', 'OBSERVADO', 'RECHAZADO'].includes(r.docStatus)).length;
     const vencidos       = items.filter(r => r.docStatus === 'VENCIDO').length;
-    const docPendiente   = total - habilitados - enRevision - conObservacion - vencidos;
+    const docPendiente   = items.filter(r => PENDIENTE_STATUSES.includes(r.docStatus)).length;
     const pct            = total > 0 ? Math.round((habilitados / total) * 100) : 0;
     const providerCount  = new Set(items.map(r => r.proveedor).filter(Boolean)).size;
     return { total, habilitados, enRevision, conObservacion, vencidos, docPendiente, pct, providerCount };

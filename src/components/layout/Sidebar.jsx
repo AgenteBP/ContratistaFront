@@ -366,7 +366,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
                             <i className="pi pi-chart-line font-bold text-xl"></i>
                         </div>
                         <span className={`self-center text-xl font-bold whitespace-nowrap text-secondary-dark tracking-tight transition-opacity duration-300 ${isExpanded ? 'opacity-100 ml-0' : 'opacity-0 w-0 ml-0 hidden'}`}>
-                            FlowTrack
+                            ProCer360
                         </span>
                     </div>
 

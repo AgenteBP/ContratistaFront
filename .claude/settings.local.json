@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls c:/Users/lmorandini/Documents/GitHub/ContratistaBack/src/main/java/com/edesal/Contratista/Services/*.java)",
+      "Bash(ls c:/Users/lmorandini/Documents/GitHub/ContratistaBack/src/main/java/com/edesal/Contratista/DTO/*.java)",
+      "Bash(grep -i \"DTO.java$\")",
+      "Bash(xargs cat:*)"
+    ]
+  }
+}

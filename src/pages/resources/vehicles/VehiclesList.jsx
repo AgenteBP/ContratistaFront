@@ -86,9 +86,9 @@ const VehiclesList = ({ isEmbedded = false, showProvider = false, explicitIdSupp
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
                             <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
-                                <span className={`w-1.5 h-1.5 rounded-full ${data.docStatus === 'COMPLETA' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-warning'}`}></span>
-                                <span className={`text-[10px] font-bold ${data.docStatus === 'COMPLETA' ? 'text-success' : 'text-warning-hover'}`}>
-                                    {data.docStatus || 'INCOMPLETA'}
+                                <span className={`w-1.5 h-1.5 rounded-full ${data.docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
+                                <span className={`text-[10px] font-bold ${data.docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>
+                                    {data.docStatus || 'NO HABILITADO'}
                                 </span>
                             </div>
                         </div>

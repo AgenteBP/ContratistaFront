@@ -20,7 +20,7 @@ import AuditDocumentModal from '../ui/AuditDocumentModal';
 import ResourceDetailContent from '../ui/ResourceDetailContent';
 import { TbBackhoe } from 'react-icons/tb';
 
-const computeDocumentStats = (docs) => {
+const computeDocumentStats = (docs, totalElements) => {
     const total = docs.length;
     const uploaded = docs.filter(d => ['EN REVISIÓN', 'VIGENTE', 'COMPLETA'].includes(d.estado)).length;
     const valid = docs.filter(d => ['VIGENTE', 'COMPLETA'].includes(d.estado)).length;
@@ -28,7 +28,7 @@ const computeDocumentStats = (docs) => {
     const expiring = docs.filter(d => d.isExpiringSoon || d.estado === 'VENCIDO').length;
     const observed = docs.filter(d => ['CON OBSERVACIÓN', 'OBSERVADO', 'RECHAZADO'].includes(d.estado)).length;
     const review = docs.filter(d => d.estado === 'EN REVISIÓN').length;
-    const entityCount = new Set(docs.map(d => d.entityId)).size;
+    const entityCount = totalElements !== undefined && totalElements !== null ? totalElements : new Set(docs.map(d => d.entityId)).size;
     return { total, uploaded, valid, pending, expiring, observed, review, entityCount };
 };
 
@@ -63,6 +63,8 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     const [detailModalVisible, setDetailModalVisible] = useState(false);
     const [detailElement, setDetailElement] = useState(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
+    const [totalEntities, setTotalEntities] = useState(null);
 
     // Race condition protection
     const lastFetchId = useRef(0);
@@ -156,10 +158,10 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
     useEffect(() => {
         if (onStatsChange && !loading) {
-            onStatsChange(computeDocumentStats(allRawDocs));
+            onStatsChange(computeDocumentStats(allRawDocs, totalEntities));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allRawDocs, loading]);
+    }, [allRawDocs, loading, totalEntities]);
 
     useEffect(() => {
         const filteredDocs = allRawDocs.filter(doc => {
@@ -189,6 +191,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
             // Reset data immediately to avoid showing "ghost" data from previous supplier
             setData([]);
             setAllRawDocs([]);
+            setTotalEntities(null);
         }
 
         try {
@@ -211,6 +214,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     const idSupplier = response.id_supplier || response.id;
                     const idGroup = response.id_group;
                     allDocuments = await mapSupplierToDocuments(response, idSupplier, idGroup, categoryId);
+                    setTotalEntities(1);
                 } else {
                     let idSupplier = supplierData?.id_supplier || supplierData?.internalId;
                     if (!idSupplier) {
@@ -221,6 +225,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     if (idSupplier) {
                         try {
                             const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
+                            setTotalEntities(elements ? elements.length : 0);
 
                             const perElementDocs = await Promise.all(
                                 (elements || []).map(async (el) => {
@@ -249,6 +254,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 // Auditor/Admin Logic - Global view (Multiple Suppliers)
                 if (type === 'suppliers') {
                     let suppliers = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
+                    setTotalEntities(suppliers ? suppliers.length : 0);
 
 
 
@@ -268,6 +274,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     allDocuments = results.flat();
                 } else {
                     let elements = await elementService.getAuthorized(categoryId, user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
+                    setTotalEntities(elements ? elements.length : 0);
 
                     const perElementDocs = await Promise.all(
                         (elements || []).map(async (el) => {
