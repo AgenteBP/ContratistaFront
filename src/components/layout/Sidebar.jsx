@@ -218,8 +218,8 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
             label: 'Recursos',
             items: [
                 { label: 'Resumen', to: '/recursos', icon: 'pi-objects-column', end: true },
-                { label: 'Vehículos', to: '/recursos/vehiculos', icon: 'pi-car' },
                 { label: 'Empleados', to: '/recursos/empleados', icon: 'pi-users' },
+                { label: 'Vehículos', to: '/recursos/vehiculos', icon: 'pi-car' },
                 { label: 'Maquinaria', to: '/recursos/maquinaria', icon: <TbBackhoe className="text-[26px]" /> }
             ]
         };

@@ -20,7 +20,19 @@ import AuditDocumentModal from '../ui/AuditDocumentModal';
 import ResourceDetailContent from '../ui/ResourceDetailContent';
 import { TbBackhoe } from 'react-icons/tb';
 
-const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete, onTypeChange, hideCategoryNav, refreshKey = 0 }) => {
+const computeDocumentStats = (docs) => {
+    const total = docs.length;
+    const uploaded = docs.filter(d => ['EN REVISIÓN', 'VIGENTE', 'COMPLETA'].includes(d.estado)).length;
+    const valid = docs.filter(d => ['VIGENTE', 'COMPLETA'].includes(d.estado)).length;
+    const pending = docs.filter(d => ['PENDIENTE', 'INCOMPLETA'].includes(d.estado)).length;
+    const expiring = docs.filter(d => d.isExpiringSoon || d.estado === 'VENCIDO').length;
+    const observed = docs.filter(d => ['CON OBSERVACIÓN', 'OBSERVADO', 'RECHAZADO'].includes(d.estado)).length;
+    const review = docs.filter(d => d.estado === 'EN REVISIÓN').length;
+    const entityCount = new Set(docs.map(d => d.entityId)).size;
+    return { total, uploaded, valid, pending, expiring, observed, review, entityCount };
+};
+
+const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete, onTypeChange, hideCategoryNav, refreshKey = 0, onStatsChange, onLoadingChange }) => {
     const navigate = useNavigate();
     const { user, currentRole, isAuditorLegal, isAdmin } = useAuth();
     const { showError, showWarning } = useNotification();
@@ -69,25 +81,25 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
 
 
-    const getCategoryFromDoc = (typeId, label) => {
-        const id = Number(typeId);
-        const name = String(label || '').toLowerCase();
+    // const getCategoryFromDoc = (typeId, label) => {
+    //     const id = Number(typeId);
+    //     const name = String(label || '').toLowerCase();
 
-        if (id === 1) return 1;
-        if (id === 2) return 2;
-        if (id === 3) return 3;
-        if (id === 5) return 5;
+    //     if (id === 1) return 1;
+    //     if (id === 2) return 2;
+    //     if (id === 3) return 3;
+    //     if (id === 5) return 5;
 
-        if (name.includes('seguro personal') || name.includes('accidentes personales') || name.includes('art')) {
-            return 5; // Force 'Seguro Personal' to Legajo (5)
-        }
+    //     if (name.includes('seguro personal') || name.includes('accidentes personales') || name.includes('art')) {
+    //         return 5; // Force 'Seguro Personal' to Legajo (5)
+    //     }
 
-        if (name.includes('empleado') || name.includes('personal') || name.includes('recurso')) return 1;
-        if (name.includes('vehiculo') || name.includes('unidad') || name.includes('camion')) return 2;
-        if (name.includes('maquinaria') || name.includes('equipo') || name.includes('herramienta')) return 3;
+    //     if (name.includes('empleado') || name.includes('personal') || name.includes('recurso')) return 1;
+    //     if (name.includes('vehiculo') || name.includes('unidad') || name.includes('camion')) return 2;
+    //     if (name.includes('maquinaria') || name.includes('equipo') || name.includes('herramienta')) return 3;
 
-        return 5; // Default to Legajo
-    };
+    //     return 5; // Default to Legajo
+    // };
 
     const getElementDisplayName = (el, typeName) => {
         const d = el.data || {};
@@ -118,15 +130,15 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     useEffect(() => {
         initFilters();
         loadData(false);
-    // Usar valores primitivos en lugar de los objetos user/currentRole para evitar
-    // que nuevas referencias del contexto de Auth disparen loadData múltiples veces.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // Usar valores primitivos en lugar de los objetos user/currentRole para evitar
+        // que nuevas referencias del contexto de Auth disparen loadData múltiples veces.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [type, user?.id, currentRole?.id || currentRole?.role, explicitCuit]);
 
     // Re-fetch silencioso al volver al tab: muestra datos cacheados mientras actualiza en background
     useEffect(() => {
         if (refreshKey > 0) loadData(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshKey]);
 
     useEffect(() => {
@@ -136,6 +148,18 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         else if (type === 'vehicles') setActiveCategory(2);
         else if (type === 'machinery') setActiveCategory(4);
     }, [type]);
+
+    useEffect(() => {
+        if (onLoadingChange) onLoadingChange(loading);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading]);
+
+    useEffect(() => {
+        if (onStatsChange && !loading) {
+            onStatsChange(computeDocumentStats(allRawDocs));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allRawDocs, loading]);
 
     useEffect(() => {
         const filteredDocs = allRawDocs.filter(doc => {
@@ -782,7 +806,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     const statusBodyTemplate = (rowData) => {
         const status = rowData.estado;
         return (
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' && rowData.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap inline-flex items-center justify-center ${status === 'VIGENTE' && rowData.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
                 status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
                     status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
                         status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
@@ -910,8 +934,9 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 header={renderHeader()}
                 rowClassName={() => 'hover:bg-secondary-light/5 transition-colors border-b border-secondary/5 group'}
             >
+                <Column header="#" body={(_, opts) => opts.rowIndex + 1} className="pl-6 w-10 text-center text-secondary/30 text-xs font-mono select-none" headerClassName="pl-6 text-center text-secondary/40" pt={{ headerContent: { className: 'justify-center' } }} />
                 {isAuditorOrAdmin && !explicitCuit && (
-                    <Column field="proveedor" header="Proveedor" sortable className="w-[20%]" body={(rowData) => (
+                    <Column field="proveedor" header="Proveedor" sortable className="w-[20%]" headerClassName="" body={(rowData) => (
                         <button
                             onClick={() => rowData.proveedorCuit && navigate(`/proveedores/${rowData.proveedorCuit}`)}
                             disabled={!rowData.proveedorCuit}
@@ -923,16 +948,16 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     )}></Column>
                 )}
                 {type !== 'suppliers' && (
-                    <Column field="entityName" header={getEntityHeader()} body={entityNameTemplate} sortable className="font-bold text-secondary-dark"></Column>
+                    <Column field="entityName" header={getEntityHeader()} body={entityNameTemplate} sortable className="font-bold text-secondary-dark" headerClassName=""></Column>
                 )}
-                <Column field="tipo" header="Documento" body={docTypeTemplate} sortable className="w-[30%]"></Column>
+                <Column field="tipo" header="Documento" body={docTypeTemplate} sortable className="w-[30%]" headerClassName=""></Column>
                 <Column field="fechaVencimiento" header="Vencimiento" body={(r) => {
                     if (r.frecuencia === 'Única vez' || r.frecuencia === 'UNICA VEZ') return <span className="text-[10px] font-bold text-secondary/30 italic">N/A</span>;
                     if (r.fechaVencimiento) return <span className="font-mono text-xs text-secondary-dark">{r.fechaVencimiento}</span>;
                     return <span className="text-[10px] font-bold text-orange-400">No cargado</span>;
                 }} sortable></Column>
-                <Column field="estado" header={(isAuditorLegal || isAdmin) ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center"></Column>
-                <Column header={(isAuditorLegal || isAdmin) ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
+                <Column field="estado" header={(isAuditorLegal || isAdmin) ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center" headerClassName="text-center" pt={{ headerContent: { className: 'justify-center' } }}></Column>
+                <Column header={(isAuditorLegal || isAdmin) ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="text-right pr-6" pt={{ headerContent: { className: 'justify-end' } }}></Column>
             </AppTable>
 
             <AuditDocumentModal
