@@ -1,5 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { auditorService } from '../../services/auditorService';
+import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/ui/PageHeader';
 import SelectionToggle from '../../components/ui/SelectionToggle';
 import { Dialog } from 'primereact/dialog';
@@ -9,18 +12,57 @@ import { StatusBadge } from '../../components/ui/Badges';
 
 const AUDIT_VALIDITY_DAYS = 30;
 
+const JORNADA_LABELS = {
+    hour: 'Horas / Día',
+    dayMonth: 'Días / Mes',
+    monthYear: 'Meses / Año',
+};
+
+const AFECTACION_LABELS = {
+    staff: 'Personal',
+    vehicle: 'Vehículo',
+    truck: 'Camión',
+    craneUnder25t: 'Grúa hasta 25Tn',
+    craneOver25t: 'Grúa > 25Tn',
+};
+
+const BAREMOS_ROOT_LABELS = {
+    staff: 'Personal',
+    vehicle: 'Vehículo',
+    truck: 'Camión',
+    craneUnder25t: 'Grúa hasta 25Tn',
+    craneOver25t: 'Grúa > 25Tn',
+};
+
+const DOC_STATUS_BADGE = {
+    EN_REVISION:     { label: 'EN REVISIÓN',  cls: 'bg-warning/10 text-warning border-warning/20' },
+    HABILITADO:      { label: 'HABILITADO',   cls: 'bg-success/10 text-success border-success/20' },
+    CON_OBSERVACION: { label: 'OBSERVADO',    cls: 'bg-warning/10 text-warning border-warning/20' },
+    COMPLETA:        { label: 'COMPLETO',     cls: 'bg-success/10 text-success border-success/20' },
+    PENDIENTE:       { label: 'PENDIENTE',    cls: 'bg-secondary/10 text-secondary border-secondary/20' },
+};
+const getDocStatusBadge = (status) =>
+    DOC_STATUS_BADGE[status] || { label: status || '—', cls: 'bg-slate-100 text-secondary border-secondary/10' };
+
 const TechnicalAudit = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     // Configuración de Baremos
-    const [params, setParams] = useState(() => {
-        const saved = localStorage.getItem('technical_audit_params_v2');
-        return saved ? JSON.parse(saved) : {
-            jornada: { horasDiaria: 8, diasMes: 22.5, mesesAnio: 12 },
-            afectacion: { personal: 5, vehiculo: 5, camion: 0.2, grua25: 4, gruaMas25: 0.1 },
-            baremos: { personal: 1366320, vehiculo: 1870000, camion: 4165000, grua25: 5100000, gruaMas25: 7000000 }
-        };
+    const [params, setParams] = useState({
+        jornada: { hour: 8, dayMonth: 22.5, monthYear: 12 },
+        afectacion: { staff: 5, vehicle: 5, truck: 0.2, craneUnder25t: 4, craneOver25t: 0.1 },
+        baremos: {
+            staffMonth: 1366320, vehicleMonth: 1870000, truckMonth: 4165000,
+            craneUnder25tMonth: 5100000, craneOver25tMonth: 7000000,
+            staffHour: 7590.67, vehicleHour: 10388.89, truckHour: 23138.89,
+            craneUnder25tHour: 28333.33, craneOver25tHour: 38888.89,
+            staffAnnual: 16395840, vehicleAnnual: 22440000, truckAnnual: 49800000,
+            craneUnder25tAnnual: 61200000, craneOver25tAnnual: 84000000,
+        }
     });
+    const [paramsLoading, setParamsLoading] = useState(true);
+    const [providers, setProviders] = useState([]);
 
     // Auditorías (Simulando Backend)
     const [audits, setAudits] = useState(() => {
@@ -29,6 +71,7 @@ const TechnicalAudit = () => {
     });
 
     const [tempParams, setTempParams] = useState(params);
+    const [baremosTab, setBaremosTab] = useState('Mensual');
     const [viewMode, setViewMode] = useState('Mensual');
     const [statusFilter, setStatusFilter] = useState('TODOS');
     const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -41,14 +84,50 @@ const TechnicalAudit = () => {
     const [modalPeriod, setModalPeriod] = useState('Mensual');
     const [modalTab, setModalTab] = useState('personal');
     const [isResourceTableOpen, setIsResourceTableOpen] = useState(true);
+    const [supplierResources, setSupplierResources] = useState(null);
+    const [supplierResourcesLoading, setSupplierResourcesLoading] = useState(false);
+    const [isLastAuditOpen, setIsLastAuditOpen] = useState(false);
+
+    const loadConfig = useCallback(async () => {
+        setParamsLoading(true);
+        try {
+            const [workingDay, dailyAffect, costScale, suppliersRaw] = await Promise.all([
+                auditorService.getTypicalWorkingDay(),
+                auditorService.getDailyAffect(),
+                auditorService.getCostScale(),
+                auditorService.getWithAuditTecReq(),
+            ]);
+            setParams({
+                jornada: workingDay,
+                afectacion: dailyAffect,
+                baremos: costScale,
+            });
+            setProviders(suppliersRaw.map(s => ({
+                id: s.id_supplier,
+                name: s.fantasy_name,
+                resources: {
+                    personal: s.amount_employees || 0,
+                    vehiculo: s.amount_vehicles_no_trucks || 0,
+                    camion: s.amount_trucks || 0,
+                    grua25: s.amount_cranes_small || 0,
+                    gruaMas25: s.amount_cranes_large || 0,
+                },
+                lastAudit: s.date_history_tec ? {
+                    date: s.date_history_tec,
+                    techniqueSurpassed: s.technique_surpassed,
+                    commentary: s.commentary,
+                } : null,
+            })));
+        } catch (err) {
+            console.error('Error cargando configuración técnica:', err);
+        } finally {
+            setParamsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        localStorage.setItem('technical_audit_params_v2', JSON.stringify(params));
-    }, [params]);
-
-    useEffect(() => {
-        localStorage.setItem('technical_audits_v1', JSON.stringify(audits));
-    }, [audits]);
+        loadConfig();
+    }, [loadConfig]);
 
     const handleOpenAudit = (provider) => {
         setSelectedProvider(provider);
@@ -64,7 +143,15 @@ const TechnicalAudit = () => {
         setModalPeriod('Mensual');
         setModalTab('personal');
         setIsResourceTableOpen(true);
+        setIsLastAuditOpen(false);
         setIsAuditModalOpen(true);
+
+        setSupplierResources(null);
+        setSupplierResourcesLoading(true);
+        auditorService.getElementsBySupplierForAuditTec(provider.id)
+            .then(data => setSupplierResources(data))
+            .catch(err => console.error('Error cargando recursos del proveedor:', err))
+            .finally(() => setSupplierResourcesLoading(false));
     };
 
     // --- PERSISTENCIA (BACKEND READY) ---
@@ -80,60 +167,66 @@ const TechnicalAudit = () => {
         }));
     };
 
-    const handleSaveAudit = () => {
+    const handleSaveAudit = async () => {
+        const payload = {
+            idCompany: supplierResources?.id_group,
+            idSupplier: selectedProvider.id,
+            idAuditor: user?.auditors?.[0]?.id_auditor,
+            techniqueSurpassed: auditForm.status === 'APROBADO',
+            commentary: auditForm.observations,
+            dateHistoryTec: new Date().toISOString(),
+        };
+        console.log('[AuditTec] payload:', payload);
+        try {
+            await auditorService.saveAuditTechnique(payload);
+        } catch (err) {
+            console.error('Error guardando auditoría técnica:', err);
+        }
         saveAuditToBackend(selectedProvider.id, auditForm);
         setIsAuditModalOpen(false);
     };
 
-    const getAuditStatus = (providerId) => {
-        const audit = audits[providerId];
-        if (!audit) return { label: 'PENDIENTE', icon: 'pi-circle', color: 'text-secondary/40' };
+    const getAuditStatus = (provider) => {
+        const local = audits[provider.id];
+        const backend = provider.lastAudit;
 
-        const auditDate = new Date(audit.date);
-        const daysSince = (new Date() - auditDate) / (1000 * 60 * 60 * 24);
-
-        if (daysSince > AUDIT_VALIDITY_DAYS) {
-            return { label: 'VENCIDO', icon: 'pi-clock', color: 'text-warning' };
+        let source = null;
+        if (local && backend) {
+            source = new Date(local.date) >= new Date(backend.date)
+                ? { date: local.date, status: local.status }
+                : { date: backend.date, status: backend.techniqueSurpassed ? 'APROBADO' : 'OBSERVADO' };
+        } else if (local) {
+            source = { date: local.date, status: local.status };
+        } else if (backend) {
+            source = { date: backend.date, status: backend.techniqueSurpassed ? 'APROBADO' : 'OBSERVADO' };
         }
 
-        if (audit.status === 'OBSERVADO') {
-            return { label: 'OBSERVADO', icon: 'pi-exclamation-triangle', color: 'text-warning' };
-        }
+        if (!source) return { label: 'PENDIENTE', icon: 'pi-circle', color: 'text-secondary/40', date: null };
 
-        return { label: 'APROBADO', icon: 'pi-check-circle', color: 'text-success' };
+        const daysSince = (new Date() - new Date(source.date)) / (1000 * 60 * 60 * 24);
+        if (daysSince > AUDIT_VALIDITY_DAYS) return { label: 'VENCIDO', icon: 'pi-clock', color: 'text-warning', date: source.date };
+        if (source.status === 'OBSERVADO') return { label: 'OBSERVADO', icon: 'pi-exclamation-triangle', color: 'text-warning', date: source.date };
+        return { label: 'APROBADO', icon: 'pi-check-circle', color: 'text-success', date: source.date };
     };
-
-    const providers = [
-        { id: 1, name: 'Prana', resources: { personal: 2, vehiculo: 1, camion: 0, grua25: 1, gruaMas25: 0 } },
-        { id: 2, name: 'Ingelmec', resources: { personal: 8, vehiculo: 2, camion: 0, grua25: 3, gruaMas25: 0 } },
-        { id: 3, name: 'Proton', resources: { personal: 5, vehiculo: 0, camion: 0, grua25: 1, gruaMas25: 2 } },
-        { id: 4, name: 'Origen', resources: { personal: 2, vehiculo: 0, camion: 0, grua25: 1, gruaMas25: 5 } },
-        { id: 5, name: 'AV Avance', resources: { personal: 11, vehiculo: 6, camion: 1, grua25: 2, gruaMas25: 0 } },
-        { id: 6, name: 'Paven', resources: { personal: 6, vehiculo: 2, camion: 0, grua25: 0, gruaMas25: 0 } },
-        { id: 7, name: 'Toto', resources: { personal: 8, vehiculo: 1, camion: 0, grua25: 1, gruaMas25: 1 } },
-        { id: 8, name: 'Fenix', resources: { personal: 7, vehiculo: 1, camion: 0, grua25: 1, gruaMas25: 0 } },
-        { id: 9, name: 'Ohm SRL', resources: { personal: 7, vehiculo: 1, camion: 0, grua25: 1, gruaMas25: 3 } },
-        { id: 10, name: 'Ohm SAS', resources: { personal: 4, vehiculo: 0, camion: 0, grua25: 2, gruaMas25: 0 } },
-    ];
 
     const calculatedData = useMemo(() => {
         let data = providers.map(p => {
-            const getHourlyRef = (key) => {
-                const mesConfig = params.jornada.diasMes || 22.5;
-                const hsConfig = params.jornada.horasDiaria || 8;
-                return (params.baremos[key] || 0) / (mesConfig * hsConfig);
+            const getHourlyRef = (monthKey) => {
+                const mesConfig = params.jornada.dayMonth || 22.5;
+                const hsConfig = params.jornada.hour || 8;
+                return (params.baremos[monthKey] || 0) / (mesConfig * hsConfig);
             };
 
             const itemDailyCosts = {
-                personal: p.resources.personal * getHourlyRef('personal') * params.afectacion.personal,
-                vehiculo: p.resources.vehiculo * getHourlyRef('vehiculo') * params.afectacion.vehiculo,
-                camion: p.resources.camion * getHourlyRef('camion') * params.afectacion.camion,
-                grua25: p.resources.grua25 * getHourlyRef('grua25') * params.afectacion.grua25,
-                gruaMas25: p.resources.gruaMas25 * getHourlyRef('gruaMas25') * params.afectacion.gruaMas25
+                personal: p.resources.personal * getHourlyRef('staffMonth') * (params.afectacion.staff || 0),
+                vehiculo: p.resources.vehiculo * getHourlyRef('vehicleMonth') * (params.afectacion.vehicle || 0),
+                camion: p.resources.camion * getHourlyRef('truckMonth') * (params.afectacion.truck || 0),
+                grua25: p.resources.grua25 * getHourlyRef('craneUnder25tMonth') * (params.afectacion.craneUnder25t || 0),
+                gruaMas25: p.resources.gruaMas25 * getHourlyRef('craneOver25tMonth') * (params.afectacion.craneOver25t || 0),
             };
 
             const subTotalDiario = Object.values(itemDailyCosts).reduce((a, b) => a + b, 0);
-            const subTotalMensual = subTotalDiario * (params.jornada.diasMes || 22.5);
+            const subTotalMensual = subTotalDiario * (params.jornada.dayMonth || 22.5);
             const subTotalAnual = subTotalMensual * 12;
 
             return {
@@ -142,7 +235,7 @@ const TechnicalAudit = () => {
                 subTotalDiario,
                 subTotalMensual,
                 subTotalAnual,
-                audit: getAuditStatus(p.id)
+                audit: getAuditStatus(p)
             };
         });
 
@@ -151,7 +244,7 @@ const TechnicalAudit = () => {
         }
 
         return data;
-    }, [params, audits, statusFilter]);
+    }, [params, audits, statusFilter, providers]);
 
     const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 
@@ -171,9 +264,18 @@ const TechnicalAudit = () => {
         setIsConfigOpen(true);
     };
 
-    const handleSaveConfig = () => {
-        setParams(tempParams);
-        setIsConfigOpen(false);
+    const handleSaveConfig = async () => {
+        try {
+            await Promise.all([
+                auditorService.updateTypicalWorkingDay(tempParams.jornada),
+                auditorService.updateDailyAffect(tempParams.afectacion),
+                auditorService.updateCostScale(tempParams.baremos),
+            ]);
+            setParams(tempParams);
+            setIsConfigOpen(false);
+        } catch (err) {
+            console.error('Error guardando configuracion tecnica:', err);
+        }
     };
 
     // Usamos tempParams si el modal está abierto para "Live Preview", de lo contrario params
@@ -239,7 +341,7 @@ const TechnicalAudit = () => {
                                         <span className="text-sm font-bold text-secondary-dark tabular-nums">
                                             {formatCurrency(selectedProvider ? (() => {
                                                 const daily = selectedProvider.itemDailyCosts[modalTab] || 0;
-                                                const diasMes = activeParams.jornada.diasMes || 22.5;
+                                                const diasMes = activeParams.jornada.dayMonth || 22.5;
                                                 if (modalPeriod === 'Anual') return daily * diasMes * 12;
                                                 if (modalPeriod === 'Mensual') return daily * diasMes;
                                                 return daily;
@@ -264,7 +366,11 @@ const TechnicalAudit = () => {
                                     <span className="flex-1">MODELO <i className="pi pi-angle-down ml-1"></i></span>
                                     <span className="flex-1">ESTADO <i className="pi pi-angle-down ml-1"></i></span>
                                     <div className="w-20 text-center flex flex-col items-center justify-center border-l border-secondary/10 pl-4 ml-4">
-                                        <span className="text-secondary-dark text-sm font-black leading-none">{selectedProvider?.resources[modalTab] || 0}</span>
+                                        <span className="text-secondary-dark text-sm font-black leading-none">
+                                            {supplierResources
+                                                ? ({ personal: supplierResources.personas, vehiculo: supplierResources.vehiculos, camion: supplierResources.camiones, grua25: supplierResources.gruas_hasta_25tn, gruaMas25: supplierResources.gruas_mayores_25tn }[modalTab] || []).length
+                                                : selectedProvider?.resources[modalTab] || 0}
+                                        </span>
                                         <span className="text-[8px] tracking-wider mt-0.5">ITEMS</span>
                                     </div>
                                 </div>
@@ -276,16 +382,32 @@ const TechnicalAudit = () => {
                                     <thead className="bg-slate-50/50 text-[10px] text-secondary font-bold uppercase sticky top-0 border-y border-secondary/10 z-10">
                                         <tr>
                                             <th className="px-6 py-3 font-bold">{modalTab === 'personal' ? 'DNI' : 'PATENTE'} <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
-                                            <th className="px-4 py-3 font-bold">MARCA <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
-                                            <th className="px-4 py-3 font-bold">MODELO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold">{modalTab === 'personal' ? 'NOMBRE' : 'MARCA'} <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
+                                            <th className="px-4 py-3 font-bold">{modalTab === 'personal' ? 'CATEGORÍA' : 'MODELO'} <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
                                             <th className="px-4 py-3 font-bold">TIPO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
                                             <th className="px-4 py-3 font-bold text-center">ESTADO <i className="pi pi-sort-alt ml-1 text-secondary/40"></i></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-secondary/5">
-                                        {selectedProvider && (() => {
-                                            const count = selectedProvider.resources[modalTab] || 0;
-                                            if (count === 0) {
+                                        {(() => {
+                                            if (supplierResourcesLoading) {
+                                                return (
+                                                    <tr>
+                                                        <td colSpan="5" className="py-12 text-center text-secondary/40 text-xs">
+                                                            <i className="pi pi-spin pi-spinner mr-2"></i>Cargando recursos...
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+                                            const tabDataMap = {
+                                                personal: supplierResources?.personas || [],
+                                                vehiculo: supplierResources?.vehiculos || [],
+                                                camion: supplierResources?.camiones || [],
+                                                grua25: supplierResources?.gruas_hasta_25tn || [],
+                                                gruaMas25: supplierResources?.gruas_mayores_25tn || [],
+                                            };
+                                            const items = tabDataMap[modalTab] || [];
+                                            if (items.length === 0) {
                                                 return (
                                                     <tr>
                                                         <td colSpan="5" className="py-12 text-center text-secondary/40 text-xs">
@@ -294,20 +416,36 @@ const TechnicalAudit = () => {
                                                     </tr>
                                                 );
                                             }
-                                            return Array.from({ length: count }).map((_, i) => (
-                                                <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                                                    <td className="px-6 py-3 flex items-center gap-3">
-                                                        <i className="pi pi-angle-right text-secondary/30 group-hover:text-primary transition-colors text-xs"></i>
-                                                        <span className="font-bold text-secondary-dark text-sm">{modalTab === 'personal' ? `2${Math.floor(1000000 + Math.random() * 9000000)}` : `AF${Math.floor(10 + Math.random() * 90)}${String.fromCharCode(65 + Math.random() * 26)}${String.fromCharCode(65 + Math.random() * 26)}`}</span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-secondary text-xs">{modalTab === 'personal' ? 'N/A' : (['Toyota', 'Ford', 'Chevrolet', 'Volkswagen', 'Mercedes-Benz', 'Scania'][i % 6])}</td>
-                                                    <td className="px-4 py-3 text-secondary text-xs">{modalTab === 'personal' ? 'Operario' : (['Hilux', 'Ranger', 'Amarok', 'Actros', 'FH'][i % 5])}</td>
-                                                    <td className="px-4 py-3 text-[10px] text-secondary/50 font-bold uppercase tracking-wider">{modalTab === 'personal' ? 'PERSONA' : modalTab === 'vehiculo' ? 'CAMIONETA' : 'PESADO'}</td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-success/10 text-success border border-success/20">ACTIVO</span>
-                                                    </td>
-                                                </tr>
-                                            ));
+                                            const isPersonal = modalTab === 'personal';
+                                            return items.map((item) => {
+                                                const badge = getDocStatusBadge(item.data?.docStatus);
+                                                return (
+                                                    <tr key={item.id_elements} className="hover:bg-slate-50 transition-colors group">
+                                                        <td className="px-6 py-3 flex items-center gap-3">
+                                                            <i className="pi pi-angle-right text-secondary/30 group-hover:text-primary transition-colors text-xs"></i>
+                                                            <span className="font-bold text-secondary-dark text-sm">
+                                                                {isPersonal ? item.data?.dni : item.data?.patente}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-secondary text-xs">
+                                                            {isPersonal
+                                                                ? `${item.data?.nombre || ''} ${item.data?.apellido || ''}`.trim()
+                                                                : item.data?.marca}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-secondary text-xs">
+                                                            {isPersonal ? item.data?.categoria : item.data?.modelo}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-[10px] text-secondary/50 font-bold uppercase tracking-wider">
+                                                            {item.active?.description}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${badge.cls}`}>
+                                                                {badge.label}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            });
                                         })()}
                                     </tbody>
                                 </table>
@@ -404,12 +542,55 @@ const TechnicalAudit = () => {
                                 />
                             </div>
 
-                            {selectedProvider && audits[selectedProvider.id] && (
-                                <div className="text-[10px] text-secondary/50 font-medium px-1 flex items-center gap-2">
-                                    <i className="pi pi-info-circle"></i>
-                                    Última auditoría realizada el {new Date(audits[selectedProvider.id].date).toLocaleDateString()}
-                                </div>
-                            )}
+                            {(() => {
+                                const local = selectedProvider && audits[selectedProvider.id];
+                                const backend = selectedProvider?.lastAudit;
+                                let auditInfo = null;
+                                if (local && backend) {
+                                    auditInfo = new Date(local.date) >= new Date(backend.date)
+                                        ? { date: local.date, status: local.status, commentary: local.observations }
+                                        : { date: backend.date, status: backend.techniqueSurpassed ? 'APROBADO' : 'OBSERVADO', commentary: backend.commentary };
+                                } else if (local) {
+                                    auditInfo = { date: local.date, status: local.status, commentary: local.observations };
+                                } else if (backend) {
+                                    auditInfo = { date: backend.date, status: backend.techniqueSurpassed ? 'APROBADO' : 'OBSERVADO', commentary: backend.commentary };
+                                }
+                                if (!auditInfo) return null;
+                                return (
+                                    <div className="border border-secondary/10 rounded-xl overflow-hidden">
+                                        <button
+                                            onClick={() => setIsLastAuditOpen(v => !v)}
+                                            className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <i className="pi pi-history text-primary text-xs"></i>
+                                                <span className="text-[10px] font-black text-secondary/60 uppercase tracking-widest">Última auditoría</span>
+                                            </div>
+                                            <i className={`pi pi-chevron-down text-secondary/40 text-xs transition-transform duration-200 ${isLastAuditOpen ? 'rotate-180' : ''}`}></i>
+                                        </button>
+                                        {isLastAuditOpen && (
+                                            <div className="px-4 py-3 bg-white space-y-3 border-t border-secondary/10">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] text-secondary/50 font-bold uppercase">Fecha</span>
+                                                    <span className="text-xs font-bold text-secondary-dark">{new Date(auditInfo.date).toLocaleDateString('es-AR')}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] text-secondary/50 font-bold uppercase">Estado</span>
+                                                    <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${auditInfo.status === 'APROBADO' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20'}`}>
+                                                        {auditInfo.status}
+                                                    </span>
+                                                </div>
+                                                {auditInfo.commentary && (
+                                                    <div>
+                                                        <span className="text-[10px] text-secondary/50 font-bold uppercase block mb-1">Comentario</span>
+                                                        <p className="text-xs text-secondary bg-slate-50 rounded-lg p-2 leading-relaxed">{auditInfo.commentary}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         <div className="p-6 bg-slate-50/50 border-t border-secondary/10 flex gap-3 mt-auto shrink-0">
@@ -432,7 +613,7 @@ const TechnicalAudit = () => {
             </Dialog>
 
             {/* MODAL DE CONFIGURACIÓN */}
-            {isConfigOpen && (
+            {isConfigOpen && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-secondary-dark/40 backdrop-blur-sm p-4 animate-fade-in">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden border border-secondary/20 flex flex-col max-h-[90vh]">
                         <div className="px-8 py-6 flex justify-between items-center border-b border-secondary/10 shrink-0">
@@ -453,9 +634,13 @@ const TechnicalAudit = () => {
                         <div className="p-8 overflow-y-auto space-y-8">
                             {/* Jornada */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {Object.entries(tempParams.jornada).map(([key, val]) => (
+                                {Object.entries(tempParams.jornada)
+                                    .filter(([key]) => key !== 'idTypicalWorkingDay')
+                                    .map(([key, val]) => (
                                     <div key={key} className="bg-slate-50 p-4 rounded-xl border border-secondary/10">
-                                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-2">{key.replace('horasDiaria', 'h / Día').replace('diasMes', 'Días / Mes').replace('mesesAnio', 'Meses / Año')}</label>
+                                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-2">
+                                            {JORNADA_LABELS[key] || key}
+                                        </label>
                                         <input
                                             type="number"
                                             step="any"
@@ -475,9 +660,13 @@ const TechnicalAudit = () => {
                                         h Afectación Diaria
                                     </h4>
                                     <div className="bg-white rounded-xl border border-secondary/10 p-6 space-y-4 shadow-sm">
-                                        {Object.entries(tempParams.afectacion).map(([key, val]) => (
+                                        {Object.entries(tempParams.afectacion)
+                                            .filter(([key]) => key !== 'idDailyAffect')
+                                            .map(([key, val]) => (
                                             <div key={key} className="flex items-center justify-between">
-                                                <label className="text-sm font-medium text-secondary capitalize">{key.replace('grua25', 'Grúas hasta 25Tn').replace('gruaMas25', 'Grúas > 25Tn').replace('personal', 'Personal').replace('vehiculo', 'Vehículos').replace('camion', 'Camiones')}</label>
+                                                <label className="text-sm font-medium text-secondary capitalize">
+                                                    {AFECTACION_LABELS[key] || key}
+                                                </label>
                                                 <div className="relative w-24">
                                                     <input
                                                         type="number"
@@ -495,26 +684,58 @@ const TechnicalAudit = () => {
 
                                 {/* Baremos */}
                                 <div className="space-y-4">
-                                    <h4 className="font-bold text-secondary-dark flex items-center gap-2 px-1 text-sm uppercase tracking-wide">
-                                        <i className="pi pi-wallet text-success"></i>
-                                        Baremos Mensuales
-                                    </h4>
+                                    <div className="flex items-center justify-between px-1">
+                                        <h4 className="font-bold text-secondary-dark flex items-center gap-2 text-sm uppercase tracking-wide">
+                                            <i className="pi pi-wallet text-success"></i>
+                                            Baremos
+                                        </h4>
+                                        <select
+                                            value={baremosTab}
+                                            onChange={(e) => setBaremosTab(e.target.value)}
+                                            className="text-xs font-bold text-secondary-dark bg-slate-50 border border-secondary/20 rounded-lg px-3 py-1.5 outline-none focus:border-primary transition-all cursor-pointer"
+                                        >
+                                            <option value="Mensual">Mensual</option>
+                                            <option value="Hora">Por Hora</option>
+                                            <option value="Anual">Anual</option>
+                                        </select>
+                                    </div>
+                                    {baremosTab !== 'Mensual' && (
+                                        <p className="text-[10px] text-secondary/50 px-1 flex items-center gap-1">
+                                            <i className="pi pi-lock text-[9px]"></i>
+                                            Solo lectura — modificar desde Mensual
+                                        </p>
+                                    )}
                                     <div className="bg-white rounded-xl border border-secondary/10 p-6 space-y-4 shadow-sm">
-                                        {Object.entries(tempParams.baremos).map(([key, val]) => (
-                                            <div key={key} className="flex items-center justify-between">
-                                                <label className="text-sm font-medium text-secondary capitalize">{key.replace('grua25', 'Grúas hasta 25Tn').replace('gruaMas25', 'Grúas > 25Tn').replace('personal', 'Personal').replace('vehiculo', 'Vehículos').replace('camion', 'Camiones')}</label>
-                                                <div className="relative w-32">
-                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-secondary/30 font-bold text-xs">$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="any"
-                                                        value={val}
-                                                        onChange={(e) => handleParamChange('baremos', key, e.target.value)}
-                                                        className="w-full font-bold text-secondary-dark py-1.5 pl-5 pr-2 bg-slate-50 rounded-lg border border-secondary/10 text-right focus:border-primary outline-none transition-all text-sm"
-                                                    />
-                                                </div>
-                                            </div>
-                                        ))}
+                                        {Object.entries(tempParams.baremos)
+                                            .filter(([key]) => {
+                                                if (key === 'idCostScale') return false;
+                                                if (baremosTab === 'Mensual') return key.endsWith('Month');
+                                                if (baremosTab === 'Hora') return key.endsWith('Hour');
+                                                if (baremosTab === 'Anual') return key.endsWith('Annual');
+                                                return false;
+                                            })
+                                            .map(([key, val]) => {
+                                                const rootKey = key.replace(/Month$/, '').replace(/Hour$/, '').replace(/Annual$/, '');
+                                                const isReadOnly = baremosTab !== 'Mensual';
+                                                return (
+                                                    <div key={key} className="flex items-center justify-between">
+                                                        <label className="text-sm font-medium text-secondary">
+                                                            {BAREMOS_ROOT_LABELS[rootKey] || rootKey}
+                                                        </label>
+                                                        <div className="relative w-32">
+                                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-secondary/30 font-bold text-xs">$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="any"
+                                                                value={val}
+                                                                readOnly={isReadOnly}
+                                                                onChange={isReadOnly ? undefined : (e) => handleParamChange('baremos', key, e.target.value)}
+                                                                className={`w-full font-bold py-1.5 pl-5 pr-2 rounded-lg border text-right outline-none transition-all text-sm ${isReadOnly ? 'bg-slate-100 border-secondary/5 text-secondary/50 cursor-not-allowed' : 'bg-slate-50 border-secondary/10 text-secondary-dark focus:border-primary'}`}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             </div>
@@ -536,7 +757,7 @@ const TechnicalAudit = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
 
             <PageHeader
                 title="Auditoría Técnica"
@@ -546,7 +767,7 @@ const TechnicalAudit = () => {
                         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-secondary/10 shadow-sm">
                             <div className="text-right">
                                 <span className="block text-[8px] font-bold text-secondary/60 uppercase">Jornada Actual</span>
-                                <span className="font-bold text-secondary-dark text-xs">{activeParams.jornada.horasDiaria}h × {activeParams.jornada.diasMes}d</span>
+                                <span className="font-bold text-secondary-dark text-xs">{activeParams.jornada.hour}h × {activeParams.jornada.dayMonth}d</span>
                             </div>
                         </div>
                         <button
@@ -734,8 +955,8 @@ const TechnicalAudit = () => {
                         <tbody className="divide-y divide-secondary/5 font-medium">
                             {calculatedData.map(p => {
                                 // Factor de escala para celdas individuales (Base es el día)
-                                const scaleFactor = viewMode === 'Anual' ? (activeParams.jornada.diasMes || 22.5) * 12 :
-                                    viewMode === 'Mensual' ? (activeParams.jornada.diasMes || 22.5) :
+                                const scaleFactor = viewMode === 'Anual' ? (activeParams.jornada.dayMonth || 22.5) * 12 :
+                                    viewMode === 'Mensual' ? (activeParams.jornada.dayMonth || 22.5) :
                                         1;
 
                                 const totalRow = viewMode === 'Anual' ? p.subTotalAnual :
@@ -766,7 +987,7 @@ const TechnicalAudit = () => {
                                             >
                                                 <i className={`pi ${p.audit.icon} ${p.audit.color} text-base`}></i>
                                                 <div className="flex flex-col items-center">
-                                                    {audits[p.id] && <span className="text-[9px] text-secondary font-bold mb-0.5">{new Date(audits[p.id].date).toLocaleDateString()}</span>}
+                                                    {p.audit.date && <span className="text-[9px] text-secondary font-bold mb-0.5">{new Date(p.audit.date).toLocaleDateString('es-AR')}</span>}
                                                     <span className={`text-[9px] font-black uppercase leading-none ${p.audit.color}`}>{p.audit.label}</span>
                                                 </div>
                                             </div>
