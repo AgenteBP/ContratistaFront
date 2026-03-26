@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import StatCard from '../../components/ui/StatCard';
 import { useAuth } from '../../context/AuthContext';
 import { dashboardService } from '../../services/dashboardService';
+import { supplierService } from '../../services/supplierService';
+import { groupService } from '../../services/groupService';
 import { useResourceStats } from '../../hooks/useResourceStats';
 import {
     Chart as ChartJS,
@@ -46,9 +48,12 @@ const DetailRow = ({ icon, iconColor, label, value }) => (
 
 const DashboardHome = () => {
     const navigate = useNavigate();
-    const { user, currentRole } = useAuth();
+    const { user, currentRole, isAuditorTecnico } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [authSuppliers, setAuthSuppliers] = useState([]);
+    const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+    const [groups, setGroups] = useState([]);
     const { stats: hookStats, loading: hookLoading } = useResourceStats();
 
     // Alertas estáticas (fuera del scope de cambios)
@@ -86,10 +91,44 @@ const DashboardHome = () => {
         fetchStats();
     }, [user?.id, currentRole?.role, currentRole?.id_entity]);
 
+    // Cargar proveedores autorizados (para EMPRESA, AUDITOR, ADMIN)
+    useEffect(() => {
+        if (!user?.id || !currentRole?.role) return;
+
+        const fetchSuppliers = async () => {
+            setLoadingSuppliers(true);
+            try {
+                const [suppliersData, groupsData] = await Promise.all([
+                    supplierService.getAuthorizedSuppliers(user.id, currentRole.role, currentRole.id_entity),
+                    groupService.getAll()
+                ]);
+                setAuthSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+                setGroups(Array.isArray(groupsData) ? groupsData : []);
+            } catch {
+                setAuthSuppliers([]);
+                setGroups([]);
+            } finally {
+                setLoadingSuppliers(false);
+            }
+        };
+
+        fetchSuppliers();
+    }, [user?.id, currentRole?.role, currentRole?.id_entity]);
+
     // Función para obtener cards según el rol
     const getCardsConfig = () => {
         const role = currentRole?.role;
         const s = stats;
+
+        // Totales calculados desde el hook (más confiables que la API para algunos roles)
+        const totalEnRevision  = (hookStats?.employees?.enRevision ?? 0) + (hookStats?.vehicles?.enRevision ?? 0) + (hookStats?.machinery?.enRevision ?? 0);
+        const totalVencidos    = (hookStats?.employees?.vencidos ?? 0) + (hookStats?.vehicles?.vencidos ?? 0) + (hookStats?.machinery?.vencidos ?? 0);
+        const totalConObs      = (hookStats?.employees?.conObservacion ?? 0) + (hookStats?.vehicles?.conObservacion ?? 0) + (hookStats?.machinery?.conObservacion ?? 0);
+        const totalPorVencer   = (hookStats?.employees?.expiringSoon ?? 0) + (hookStats?.vehicles?.expiringSoon ?? 0) + (hookStats?.machinery?.expiringSoon ?? 0);
+        const totalProviders     = authSuppliers.length > 0 ? authSuppliers.length : (hookStats?.totalProviders || s?.suppliers?.total || 0);
+        const suppliersApproved  = authSuppliers.filter(sup => sup.is_tec_success === true).length;
+        const suppliersRejected  = authSuppliers.filter(sup => sup.is_tec_success === false).length;
+        const suppliersPending   = authSuppliers.filter(sup => sup.is_tec_success === null || sup.is_tec_success === undefined).length;
 
         if (role === 'ADMIN') {
             return [
@@ -132,14 +171,14 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Auditoría Pend.',
-                    value: s?.pendingAuditFiles ?? '—',
+                    value: s?.suppliers?.tec_pending ?? '—',
                     icon: 'pi-file-excel',
                     type: 'danger',
                     watermark: true,
                     onClick: () => navigate('/auditores/tecnica'),
                     children: [
                         <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-[#ef4444]" label="Rechazados téc." value={s?.suppliers?.tec_rejected} />,
-                        <DetailRow key="2" icon="pi-eye" iconColor="text-[#f59e0b]" label="En revisión" value={s?.pendingAuditFiles} />
+                        <DetailRow key="2" icon="pi-eye" iconColor="text-[#f59e0b]" label="Pendientes téc." value={s?.suppliers?.tec_pending} />
                     ]
                 }
             ];
@@ -147,19 +186,19 @@ const DashboardHome = () => {
             return [
                 {
                     title: 'Proveedores',
-                    value: s?.suppliers?.total ?? '—',
+                    value: totalProviders || '—',
                     icon: 'pi-briefcase',
                     type: 'primary',
                     watermark: true,
                     onClick: () => navigate('/proveedores'),
                     children: [
-                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={s?.suppliers?.tec_approved} />,
-                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={s?.suppliers?.tec_pending} />
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
+                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={suppliersPending} />
                     ]
                 },
                 {
                     title: 'Empleados',
-                    value: s?.elements?.employees ?? '—',
+                    value: hookStats?.employees?.total ?? s?.elements?.employees ?? '—',
                     icon: 'pi-users',
                     type: 'info',
                     watermark: true,
@@ -171,7 +210,7 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Vehículos',
-                    value: s?.elements?.vehicles ?? '—',
+                    value: hookStats?.vehicles?.total ?? s?.elements?.vehicles ?? '—',
                     icon: 'pi-car',
                     type: 'warning',
                     watermark: true,
@@ -183,7 +222,7 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Maquinaria',
-                    value: s?.elements?.machinery ?? '—',
+                    value: hookStats?.machinery?.total ?? s?.elements?.machinery ?? '—',
                     icon: 'pi-cog',
                     type: 'success',
                     watermark: true,
@@ -248,99 +287,115 @@ const DashboardHome = () => {
             ];
         } else if (role === 'AUDITOR') {
             // AUDITOR TÉCNICO
-            if (currentRole?.type?.toUpperCase().includes('TECNIC')) {
+            if (isAuditorTecnico) {
+                const pendientes     = s?.suppliers?.tec_pending  || suppliersPending  || 0;
+                const aprobados      = s?.suppliers?.tec_approved || suppliersApproved || 0;
+                const rechazados     = s?.suppliers?.tec_rejected || suppliersRejected || 0;
+                const totalAsig      = s?.suppliers?.total || totalProviders || 0;
+                const groupBreakdown = Object.entries(
+                    authSuppliers.reduce((acc, sup) => {
+                        const key = sup.id_group ?? '__sin_grupo__';
+                        acc[key] = (acc[key] || 0) + 1;
+                        return acc;
+                    }, {})
+                ).map(([gId, count]) => {
+                    const g = groups.find(gr => String(gr.idGroup ?? gr.id_group ?? gr.id) === String(gId));
+                    const name = gId === '__sin_grupo__' ? 'Sin grupo' : (g?.descripcion || g?.description || g?.name || `Grupo ${gId}`);
+                    return { name, count };
+                }).sort((a, b) => b.count - a.count);
                 return [
                     {
-                        title: 'Pend. Auditoría',
-                        value: s?.suppliers?.tec_pending ?? '—',
-                        icon: 'pi-exclamation-circle',
-                        type: 'danger',
+                        title: 'Total Asignados',
+                        value: totalAsig || '—',
+                        icon: 'pi-briefcase',
+                        type: 'primary',
                         watermark: true,
-                        onClick: () => navigate('/auditores/tecnica'),
-                        children: [
-                            <DetailRow key="1" icon="pi-briefcase" iconColor="text-[#ef4444]" label="Sin revisar" value={s?.suppliers?.tec_pending} />
-                        ]
+                        onClick: () => navigate('/proveedores'),
+                        children: groupBreakdown.map((g, i) => (
+                            <DetailRow key={i} icon="pi-sitemap" iconColor="text-primary" label={g.name} value={g.count} />
+                        ))
                     },
                     {
                         title: 'Aprobados',
-                        value: s?.suppliers?.tec_approved ?? '—',
+                        value: aprobados || '—',
                         icon: 'pi-check-circle',
                         type: 'success',
                         watermark: true,
                         onClick: () => navigate('/proveedores'),
                         children: [
-                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Proveedores aptos" value={s?.suppliers?.tec_approved} />
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-success" label="Del total" value={totalAsig ? `${Math.round((aprobados / totalAsig) * 100)}%` : '—'} />
                         ]
                     },
                     {
-                        title: 'Desaprobados',
-                        value: s?.suppliers?.tec_rejected ?? '—',
-                        icon: 'pi-ban',
+                        title: 'Pendientes',
+                        value: pendientes || '—',
+                        icon: 'pi-clock',
                         type: 'warning',
+                        watermark: true,
+                        onClick: () => navigate('/auditores/tecnica'),
+                        children: [
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-warning" label="Del total" value={totalAsig ? `${Math.round((pendientes / totalAsig) * 100)}%` : '—'} />
+                        ]
+                    },
+                    {
+                        title: 'Rechazados',
+                        value: rechazados || '—',
+                        icon: 'pi-ban',
+                        type: 'danger',
                         watermark: true,
                         onClick: () => navigate('/auditores/tecnica/historial'),
                         children: [
-                            <DetailRow key="1" icon="pi-ban" iconColor="text-[#f59e0b]" label="Requieren corrección" value={s?.suppliers?.tec_rejected} />
-                        ]
-                    },
-                    {
-                        title: 'Total Asignados',
-                        value: s?.suppliers?.total ?? '—',
-                        icon: 'pi-briefcase',
-                        type: 'primary',
-                        watermark: true,
-                        onClick: () => navigate('/proveedores'),
-                        children: [
-                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={s?.suppliers?.tec_approved} />,
-                            <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={s?.suppliers?.tec_pending} />
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-danger" label="Del total" value={totalAsig ? `${Math.round((rechazados / totalAsig) * 100)}%` : '—'} />
                         ]
                     }
                 ];
             } else {
                 // AUDITOR LEGAL
+                const docsRevision = s?.pendingAuditFiles || totalEnRevision || 0;
                 return [
                     {
                         title: 'Docs en Revisión',
-                        value: s?.pendingAuditFiles ?? '—',
+                        value: docsRevision || '—',
                         icon: 'pi-file',
                         type: 'danger',
                         watermark: true,
                         onClick: () => navigate('/auditoria-legal/inbox'),
                         children: [
-                            <DetailRow key="1" icon="pi-file" iconColor="text-[#ef4444]" label="Documentos pendientes" value={s?.pendingAuditFiles} />
+                            <DetailRow key="1" icon="pi-file" iconColor="text-[#ef4444]" label="Documentos pendientes" value={docsRevision} />
                         ]
                     },
                     {
                         title: 'Proveedores',
-                        value: s?.suppliers?.total ?? '—',
+                        value: totalProviders || '—',
                         icon: 'pi-briefcase',
                         type: 'primary',
                         watermark: true,
                         onClick: () => navigate('/proveedores'),
                         children: [
-                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Con cumplimiento" value={s?.suppliers?.tec_approved} />
+                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Con cumplimiento" value={s?.suppliers?.tec_approved || 0} />
                         ]
                     },
                     {
-                        title: 'Por Vencer',
-                        value: Math.ceil((s?.pendingAuditFiles ?? 0) * 0.3),
+                        title: 'Vencidos / Por Vencer',
+                        value: (totalVencidos + totalPorVencer) || '—',
                         icon: 'pi-clock',
                         type: 'warning',
                         watermark: true,
                         onClick: () => navigate('/documentos/por-vencer'),
                         children: [
-                            <DetailRow key="1" icon="pi-clock" iconColor="text-[#f59e0b]" label="Próximos 10 días" value={Math.ceil((s?.pendingAuditFiles ?? 0) * 0.3)} />
+                            <DetailRow key="1" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Vencidos" value={totalVencidos} />,
+                            <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Por vencer" value={totalPorVencer} />
                         ]
                     },
                     {
                         title: 'Observados',
-                        value: Math.ceil((s?.pendingAuditFiles ?? 0) * 0.2),
+                        value: totalConObs || '—',
                         icon: 'pi-exclamation-circle',
                         type: 'info',
                         watermark: true,
                         onClick: () => navigate('/documentos/observados'),
                         children: [
-                            <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-info" label="Con observaciones" value={Math.ceil((s?.pendingAuditFiles ?? 0) * 0.2)} />
+                            <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-info" label="Con observaciones" value={totalConObs} />
                         ]
                     }
                 ];
@@ -401,7 +456,7 @@ const DashboardHome = () => {
                         value={config.value}
                         icon={config.icon}
                         type={config.type}
-                        loading={loading}
+                        loading={loading || hookLoading || loadingSuppliers}
                         watermark={config.watermark}
                         onClick={config.onClick}
                     >

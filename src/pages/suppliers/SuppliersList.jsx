@@ -24,7 +24,7 @@ import PrimaryButton from '../../components/ui/PrimaryButton';
 
 const SuppliersList = () => {
     const navigate = useNavigate();
-    const { currentRole, user } = useAuth();
+    const { currentRole, user, isAuditorTecnico } = useAuth();
     const isAdmin = currentRole?.role === 'ADMIN' || currentRole?.id_role === 1 || currentRole?.idRole === 1;
     const isEmpresa = currentRole?.role === 'EMPRESA';
 
@@ -82,6 +82,7 @@ const SuppliersList = () => {
                 motivo: s.document_supplier?.observaciones || null,
                 accesoHabilitado: s.user?.active || false,
                 isTecSuccess: s.is_tec_success, // Contextual flag from intermediate table
+                tecStatus: s.is_tec_success === true ? 'APROBADO' : s.is_tec_success === false ? 'RECHAZADO' : 'PENDIENTE',
                 facturasAPOC: 'No',
                 altaSistema: 'N/A'
             }));
@@ -129,7 +130,8 @@ const SuppliersList = () => {
             servicio: { value: null, matchMode: FilterMatchMode.EQUALS },
             tipoPersona: { value: null, matchMode: FilterMatchMode.EQUALS },
             estado: { value: null, matchMode: FilterMatchMode.EQUALS },
-            accesoHabilitado: { value: null, matchMode: FilterMatchMode.EQUALS }
+            accesoHabilitado: { value: null, matchMode: FilterMatchMode.EQUALS },
+            tecStatus: { value: null, matchMode: FilterMatchMode.EQUALS }
         });
         setGlobalFilterValue('');
     };
@@ -279,7 +281,8 @@ const SuppliersList = () => {
     const filterConfig = [
         { label: 'Tipo', value: 'tipoPersona', options: ['JURIDICA', 'FISICA'].map(t => ({ label: t, value: t })) },
         { label: 'Servicio', value: 'servicio', options: servicios.map(s => ({ label: s, value: s })) },
-        { label: 'Estado', value: 'estado', options: estadoOptions.map(s => ({ label: s, value: s })) }
+        { label: 'Estado', value: 'estado', options: estadoOptions.map(s => ({ label: s, value: s })) },
+        ...((requiredTechnical || isAuditorTecnico) ? [{ label: 'Aud. Técnica', value: 'tecStatus', options: ['APROBADO', 'RECHAZADO', 'PENDIENTE'].map(s => ({ label: s, value: s })) }] : [])
     ];
 
     const renderHeader = () => (
@@ -360,7 +363,7 @@ const SuppliersList = () => {
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
                 <Column field="tipoPersona" header="Tipo" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell"></Column>
                 <Column field="servicio" header="Servicio" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell"></Column>
-                {requiredTechnical && (
+                {(requiredTechnical || isAuditorTecnico) && (
                     <Column 
                         header="Auditoría Técnica" 
                         body={(d) => {

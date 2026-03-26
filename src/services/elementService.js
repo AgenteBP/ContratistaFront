@@ -122,6 +122,7 @@ const elementService = {
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || (e.data?.estado === 'ACTIVO' ? 'SIN_REQUISITOS' : 'PENDIENTE'),
+            expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || '',
             detalles_tecnicos: e.data?.detalles_tecnicos || {}
         };
@@ -147,6 +148,7 @@ const elementService = {
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || (e.data?.habilitado !== false ? 'SIN_REQUISITOS' : 'PENDIENTE'),
+            expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || ''
         };
     },
@@ -169,6 +171,7 @@ const elementService = {
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
             docStatus: e.data?.docStatus || (e.data?.estado === 'ACTIVO' ? 'SIN_REQUISITOS' : 'PENDIENTE'),
+            expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || ''
         };
     },
