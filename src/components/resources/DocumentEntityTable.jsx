@@ -17,9 +17,22 @@ import { useSupplier } from '../../hooks/useSupplier';
 import { Dialog } from 'primereact/dialog';
 import { Calendar } from 'primereact/calendar';
 import AuditDocumentModal from '../ui/AuditDocumentModal';
+import ResourceDetailContent from '../ui/ResourceDetailContent';
 import { TbBackhoe } from 'react-icons/tb';
 
-const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete, onTypeChange }) => {
+const computeDocumentStats = (docs, totalElements) => {
+    const total = docs.length;
+    const uploaded = docs.filter(d => ['EN REVISIÓN', 'VIGENTE', 'COMPLETA'].includes(d.estado)).length;
+    const valid = docs.filter(d => ['VIGENTE', 'COMPLETA'].includes(d.estado)).length;
+    const pending = docs.filter(d => ['PENDIENTE', 'INCOMPLETA'].includes(d.estado)).length;
+    const expiring = docs.filter(d => d.isExpiringSoon || d.estado === 'VENCIDO').length;
+    const observed = docs.filter(d => ['CON OBSERVACIÓN', 'OBSERVADO', 'RECHAZADO'].includes(d.estado)).length;
+    const review = docs.filter(d => d.estado === 'EN REVISIÓN').length;
+    const entityCount = totalElements !== undefined && totalElements !== null ? totalElements : new Set(docs.map(d => d.entityId)).size;
+    return { total, uploaded, valid, pending, expiring, observed, review, entityCount };
+};
+
+const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete, onTypeChange, hideCategoryNav, refreshKey = 0, onStatsChange, onLoadingChange }) => {
     const navigate = useNavigate();
     const { user, currentRole, isAuditorLegal, isAdmin } = useAuth();
     const { showError, showWarning } = useNotification();
@@ -46,6 +59,13 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     const [auditingDoc, setAuditingDoc] = useState(null);
     const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
 
+    // Resource Detail Modal
+    const [detailModalVisible, setDetailModalVisible] = useState(false);
+    const [detailElement, setDetailElement] = useState(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
+    const [totalEntities, setTotalEntities] = useState(null);
+
     // Race condition protection
     const lastFetchId = useRef(0);
 
@@ -54,6 +74,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
             global: { value: null, matchMode: 'contains' },
             estado: { value: null, matchMode: 'equals' },
             tipo: { value: null, matchMode: 'equals' },
+            label: { value: null, matchMode: 'equals' },
             entityName: { value: null, matchMode: 'equals' },
             proveedor: { value: null, matchMode: 'equals' }
         });
@@ -62,38 +83,85 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
 
 
-    const getCategoryFromDoc = (typeId, label) => {
-        const id = Number(typeId);
-        const name = String(label || '').toLowerCase();
+    // const getCategoryFromDoc = (typeId, label) => {
+    //     const id = Number(typeId);
+    //     const name = String(label || '').toLowerCase();
 
-        if (id === 1) return 1;
-        if (id === 2) return 2;
-        if (id === 3) return 3;
-        if (id === 5) return 5;
+    //     if (id === 1) return 1;
+    //     if (id === 2) return 2;
+    //     if (id === 3) return 3;
+    //     if (id === 5) return 5;
 
-        if (name.includes('seguro personal') || name.includes('accidentes personales') || name.includes('art')) {
-            return 5; // Force 'Seguro Personal' to Legajo (5)
+    //     if (name.includes('seguro personal') || name.includes('accidentes personales') || name.includes('art')) {
+    //         return 5; // Force 'Seguro Personal' to Legajo (5)
+    //     }
+
+    //     if (name.includes('empleado') || name.includes('personal') || name.includes('recurso')) return 1;
+    //     if (name.includes('vehiculo') || name.includes('unidad') || name.includes('camion')) return 2;
+    //     if (name.includes('maquinaria') || name.includes('equipo') || name.includes('herramienta')) return 3;
+
+    //     return 5; // Default to Legajo
+    // };
+
+    const getElementDisplayName = (el, typeName) => {
+        const d = el.data || {};
+        if (typeName === 'employees') {
+            const fullName = [d.nombre, d.apellido].filter(Boolean).join(' ');
+            return {
+                primary: fullName || el.active?.description || 'Empleado',
+                secondary: d.dni ? `DNI ${d.dni}` : (d.cuil ? `CUIL ${d.cuil}` : (el.active?.description || ''))
+            };
         }
-
-        if (name.includes('empleado') || name.includes('personal') || name.includes('recurso')) return 1;
-        if (name.includes('vehiculo') || name.includes('unidad') || name.includes('camion')) return 2;
-        if (name.includes('maquinaria') || name.includes('equipo') || name.includes('herramienta')) return 3;
-
-        return 5; // Default to Legajo
+        if (typeName === 'vehicles') {
+            const brandModel = [d.marca, d.modelo].filter(Boolean).join(' ');
+            return {
+                primary: d.patente || el.active?.description || 'Vehículo',
+                secondary: brandModel || el.active?.description || ''
+            };
+        }
+        if (typeName === 'machinery') {
+            const brandModel = [d.marca, d.modelo].filter(v => typeof v === 'string' && v.trim()).join(' ');
+            return {
+                primary: el.active?.description || brandModel || 'Maquinaria',
+                secondary: brandModel
+            };
+        }
+        return { primary: el.active?.description || 'Recurso', secondary: '' };
     };
 
     useEffect(() => {
         initFilters();
-        loadData();
-    }, [type, user, currentRole, explicitCuit]);
+        loadData(false);
+        // Usar valores primitivos en lugar de los objetos user/currentRole para evitar
+        // que nuevas referencias del contexto de Auth disparen loadData múltiples veces.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type, user?.id, currentRole?.id || currentRole?.role, explicitCuit]);
+
+    // Re-fetch silencioso al volver al tab: muestra datos cacheados mientras actualiza en background
+    useEffect(() => {
+        if (refreshKey > 0) loadData(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshKey]);
 
     useEffect(() => {
         // Sync category with type when it changes
         if (type === 'suppliers') setActiveCategory(5);
         else if (type === 'employees') setActiveCategory(1);
         else if (type === 'vehicles') setActiveCategory(2);
-        else if (type === 'machinery') setActiveCategory(3);
+        else if (type === 'machinery') setActiveCategory(4);
     }, [type]);
+
+    useEffect(() => {
+        if (onLoadingChange) onLoadingChange(loading);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading]);
+
+    useEffect(() => {
+        if (onStatsChange && !loading) {
+            onStatsChange(computeDocumentStats(allRawDocs, totalEntities));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allRawDocs, loading, totalEntities]);
 
     useEffect(() => {
         const filteredDocs = allRawDocs.filter(doc => {
@@ -116,12 +184,15 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         setData(filteredDocs);
     }, [allRawDocs, activeCategory, filterStatus]);
 
-    const loadData = async () => {
+    const loadData = async (silent = false) => {
         const currentFetchId = ++lastFetchId.current;
-        setLoading(true);
-        // Reset data immediately to avoid showing "ghost" data from previous supplier
-        setData([]);
-        setAllRawDocs([]);
+        if (!silent) {
+            setLoading(true);
+            // Reset data immediately to avoid showing "ghost" data from previous supplier
+            setData([]);
+            setAllRawDocs([]);
+            setTotalEntities(null);
+        }
 
         try {
             let allDocuments = [];
@@ -140,125 +211,56 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 }
 
                 if (type === 'suppliers') {
-                    const idSupplier = response.id_supplier || response.idSupplier || response.id;
-                    const idGroup = response.id_group || response.idGroup;
+                    const idSupplier = response.id_supplier || response.id;
+                    const idGroup = response.id_group;
                     allDocuments = await mapSupplierToDocuments(response, idSupplier, idGroup, categoryId);
+                    setTotalEntities(1);
                 } else {
                     let idSupplier = supplierData?.id_supplier || supplierData?.internalId;
                     if (!idSupplier) {
-                        idSupplier = response.id_supplier || response.idSupplier || response.id;
+                        idSupplier = response.id_supplier || response.id;
                     }
-                    const idGroup = supplierData?.id_group || supplierData?.idGroup || response.id_group || response.idGroup;
+                    const idGroup = supplierData?.idGroup || response.id_group;
 
-                    if (idGroup && idSupplier) {
+                    if (idSupplier) {
                         try {
-                            const groupReqs = await groupService.getSpecific(idSupplier, idGroup, categoryId);
-                            if (groupReqs && groupReqs.length > 0) {
-                                const docMap = new Map();
-                                groupReqs.forEach(req => {
-                                    const listReq = req.list_requirements || req.listRequirements;
-                                    if (!listReq) return;
+                            const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
+                            setTotalEntities(elements ? elements.length : 0);
 
-                                    const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
-                                    const attrs = attrTempl?.attributes;
-                                    const files = listReq.files || [];
-                                    const submittedFile = files.length > 0 ? files[0] : null;
-
-                                    const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
-                                    const key = req.idGroupRequirements || req.id_group_requirements || requirementId;
-
-                                    if (!docMap.has(key)) {
-                                        const label = listReq.description || attrs?.description || 'Documento';
-                                        let finalStatus = 'PENDIENTE';
-                                        const isFile = !!submittedFile;
-                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
-                                        const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
-
-                                        if (isFile) {
-                                            const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
-                                            const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
-
-                                            if (hasAudit && !isForwarded) {
-                                                if (auditStatus === 'APROBADO') finalStatus = 'VIGENTE';
-                                                else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
-                                                else finalStatus = 'EN REVISIÓN';
-                                            } else {
-                                                finalStatus = 'EN REVISIÓN';
-                                                // Check for vencimiento if needed
-                                            }
+                            const perElementDocs = await Promise.all(
+                                (elements || []).map(async (el) => {
+                                    const idActive = el.active?.id_active;
+                                    const idElement = el.id_elements || el.idElements;
+                                    let reqs = [];
+                                    if (idGroup) {
+                                        try {
+                                            reqs = await groupService.getSpecificResource(idSupplier, idGroup, idActive, idElement) || [];
+                                        } catch (e) {
+                                            console.warn("Failed to fetch reqs for element", idElement, e);
                                         }
-
-                                        docMap.set(key, {
-                                            id: key,
-                                            id_group_req: key, // Ensure it's explicitly named for handleSaveUpload
-                                            id_attribute: attrs?.id_attributes || attrs?.idAttributes,
-                                            id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
-                                            entityId: String(idSupplier),
-                                            entityName: response.company_name,
-                                            entityType: 'Proveedor',
-                                            tipo: attrs?.id_attributes || requirementId,
-                                            id_active_type: categoryId,
-                                            label: label.replace(/ obligatorio/i, '').trim(),
-                                            estado: finalStatus,
-                                            fechaVencimiento: submittedFile?.expiration_date || null,
-                                            observacion: isForwarded ? null : (auditInfo?.audit_observations || auditInfo?.auditObservations || null),
-                                            frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
-                                            archivo: submittedFile?.file_name || submittedFile?.fileName || null,
-                                            obligatorio: true
-                                        });
                                     }
-                                });
-                                allDocuments = Array.from(docMap.values());
-                            }
+                                    const elWithSupplier = { ...el, supplier: el.supplier || { company_name: response.company_name } };
+                                    return mapElementsToDocuments([elWithSupplier], reqs, categoryId, type);
+                                })
+                            );
+
+                            allDocuments = perElementDocs.flat();
                         } catch (err) {
-                            console.warn("DocumentEntityTable: Failed to fetch group requirements", err);
+                            console.warn("DocumentEntityTable: Failed to fetch elements for provider", err);
                         }
-                    }
-
-                    if (allDocuments.length === 0 && response.elements) {
-                        // Filter elements that match the current categoryId
-                        allDocuments = response.elements
-                            .filter(el => {
-                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType;
-                                // If we can't determine the type, we might want to include it or not. 
-                                // For suppliers, categoryId is 5.
-                                return !elActiveType || Number(elActiveType) === Number(categoryId);
-                            })
-                            .map(el => {
-                                const activeDesc = el.active?.description || 'DOCUMENTO';
-                                const docTypeStr = el.data?.tipo || activeDesc;
-                                const submittedFile = el.files_submitted?.[0];
-                                let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
-                                const elActiveType = el.active?.id_active_type || el.active?.idActiveType || categoryId;
-
-                                return {
-                                    id: el.id_elements,
-                                    entityId: String(idSupplier),
-                                    entityName: response.company_name,
-                                    entityType: 'Proveedor',
-                                    tipo: docTypeStr,
-                                    id_active_type: Number(elActiveType),
-                                    label: el.active?.description || docTypeStr.replace(/_/g, ' '),
-                                    estado: finalStatus,
-                                    fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
-                                    observacion: submittedFile?.audit_info?.audit_observations || el.data?.observacion || null,
-                                    frecuencia: el.data?.frecuencia || 'Mensual',
-                                    archivo: submittedFile?.id_file_submitted || el.data?.archivo || null,
-                                    obligatorio: true
-                                };
-                            });
                     }
                 }
             } else {
                 // Auditor/Admin Logic - Global view (Multiple Suppliers)
                 if (type === 'suppliers') {
                     let suppliers = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
+                    setTotalEntities(suppliers ? suppliers.length : 0);
 
 
 
                     const docPromises = suppliers.map(async (supplier) => {
-                        const idSupplier = supplier.id_supplier || supplier.idSupplier || supplier.id;
-                        const idGroup = supplier.id_group || supplier.idGroup;
+                        const idSupplier = supplier.id_supplier || supplier.id;
+                        const idGroup = supplier.id_group;
                         // getSupplierDocuments gets full structure needed by mapSupplierToDocuments
                         try {
                             const fullSupplier = await requirementService.getSupplierDocuments(supplier.cuit);
@@ -272,36 +274,26 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     allDocuments = results.flat();
                 } else {
                     let elements = await elementService.getAuthorized(categoryId, user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
+                    setTotalEntities(elements ? elements.length : 0);
 
-
-
-                    // Group elements by supplier
-                    const elementsBySupplier = elements.reduce((acc, el) => {
-                        const sId = el.supplier?.id_supplier || el.supplier?.idSupplier;
-                        if (sId) {
-                            if (!acc[sId]) acc[sId] = { elements: [], idGroup: el.supplier.id_group || el.supplier.idGroup };
-                            acc[sId].elements.push(el);
-                        }
-                        return acc;
-                    }, {});
-
-                    const docPromises = Object.entries(elementsBySupplier).map(async ([idSupplier, data]) => {
-                        let groupReqs = [];
-                        if (data.idGroup) {
-                            try {
-                                groupReqs = await requirementService.getGroupRequirementsDetails({
-                                    idSupplier: Number(idSupplier),
-                                    idGroup: data.idGroup,
-                                    idActiveType: categoryId
-                                });
-                            } catch (e) {
-                                console.warn("Error fetching group requirements for", idSupplier, e);
+                    const perElementDocs = await Promise.all(
+                        (elements || []).map(async (el) => {
+                            const idSupplier = el.supplier?.id_supplier;
+                            const idGroup = el.id_group;
+                            const idActive = el.active?.id_active;
+                            const idElement = el.id_elements;
+                            let reqs = [];
+                            if (idGroup && idSupplier) {
+                                try {
+                                    reqs = await groupService.getSpecificResource(idSupplier, idGroup, idActive, idElement) || [];
+                                } catch (e) {
+                                    console.warn("Failed to fetch reqs for element", idElement, e);
+                                }
                             }
-                        }
-                        return mapElementsToDocuments(data.elements, groupReqs, categoryId, type);
-                    });
-                    const results = await Promise.all(docPromises);
-                    allDocuments = results.flat();
+                            return mapElementsToDocuments([el], reqs, categoryId, type);
+                        })
+                    );
+                    allDocuments = perElementDocs.flat();
                 }
             }
 
@@ -320,7 +312,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         let allDocuments = [];
         if (idGroup && idSupplier) {
             try {
-                const groupReqs = await groupService.getSpecific(idSupplier, idGroup);
+                const groupReqs = await groupService.getSpecific(idSupplier, idGroup, categoryId);
                 if (groupReqs && groupReqs.length > 0) {
                     const docMap = new Map();
                     groupReqs.forEach(req => {
@@ -333,17 +325,17 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                         const submittedFile = files.length > 0 ? files[0] : null;
 
                         const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
-                        const key = req.idGroupRequirements || req.id_group_requirements || requirementId;
+                        const key = req.id_group_requirements || requirementId;
 
                         if (!docMap.has(key)) {
                             const label = listReq.description || attrs?.description || 'Documento';
                             let finalStatus = 'PENDIENTE';
                             const isFile = !!submittedFile;
-                            const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
-                            const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
+                            const auditInfo = submittedFile?.audit_info;
+                            const isForwarded = submittedFile?.flag_forwarded || false;
 
-                            const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
-                            const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
+                            const hasAudit = !!(submittedFile?.has_audits || auditInfo);
+                            const auditStatus = (auditInfo?.audit_status || '')?.toUpperCase();
 
                             const rawVencForStatus = submittedFile?.expiration_date || null;
                             let isExpired = false;
@@ -396,7 +388,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                                 id: `${idSupplier}_${key}`,
                                 id_group_req: key,
                                 id_attribute: attrs?.id_attributes || attrs?.idAttributes,
-                                id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
+                                id_file_submitted: submittedFile?.id_file_submitted || null,
                                 entityId: String(idSupplier),
                                 entityName: response.company_name,
                                 entityType: 'Proveedor',
@@ -405,11 +397,12 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                                 label: label.replace(/ obligatorio/i, '').trim(),
                                 estado: finalStatus,
                                 fechaVencimiento: submittedFile?.expiration_date || null,
-                                observacion: isForwarded ? null : (auditInfo?.audit_observations || auditInfo?.auditObservations || null),
+                                observacion: isForwarded ? null : (auditInfo?.audit_observations || null),
                                 frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez',
                                 archivo: submittedFile?.file_name || submittedFile?.fileName || null,
                                 obligatorio: true,
                                 proveedor: response.company_name,
+                                proveedorCuit: response.cuit,
                                 isExpiringSoon: isExpiringSoon
                             });
                         }
@@ -442,7 +435,8 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     frecuencia: el.data?.frecuencia || 'Mensual',
                     archivo: submittedFile?.id_file_submitted || el.data?.archivo || null,
                     obligatorio: true,
-                    proveedor: response.company_name
+                    proveedor: response.company_name,
+                    proveedorCuit: response.cuit
                 };
             });
         }
@@ -453,113 +447,100 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         const tempDocs = [];
         elements.forEach(el => {
             const proveedor = el.supplier?.company_name || el.supplier?.businessName || el.data?.proveedor || 'Proveedor';
-            
-            if (!groupReqs || groupReqs.length === 0) {
-                const activeDesc = el.active?.description || 'DOCUMENTO';
-                const docTypeStr = el.data?.tipo || activeDesc;
-                const submittedFile = el.files_submitted?.[0];
-                let finalStatus = submittedFile ? 'EN REVISIÓN' : 'PENDIENTE';
 
-                tempDocs.push({
-                    id: `${el.id_elements}_default`,
-                    id_file_submitted: submittedFile?.id_file_submitted || null,
-                    entityId: String(el.id_elements),
-                    entityName: el.active?.description || el.data?.nombre || 'Recurso',
-                    entityType: typeName === 'employees' ? 'Empleado' : typeName === 'vehicles' ? 'Vehículo' : 'Maquinaria',
-                    tipo: docTypeStr.replace(/_/g, ' '),
-                    id_active_type: categoryId,
-                    label: el.active?.description || docTypeStr.replace(/_/g, ' '),
-                    estado: finalStatus,
-                    fechaVencimiento: submittedFile?.expiration_date || el.data?.fechaVencimiento || null,
-                    observacion: submittedFile?.audit_info?.audit_observations || null,
-                    frecuencia: el.data?.frecuencia || 'Mensual',
-                    archivo: submittedFile?.file_name || el.data?.archivo || null,
-                    obligatorio: false,
-                    proveedor: proveedor,
-                    isExpiringSoon: false
-                });
-            } else {
+            if (groupReqs && groupReqs.length > 0) {
                 groupReqs.forEach(req => {
-                    const submittedFile = (el.files_submitted || []).find(fs =>
-                        fs.id_attributes === req.listRequirements?.attribute_template?.attributes?.id_attributes
-                    );
+                    const listReq = req.listRequirements || req.list_requirements;
+                    const attrTempl = listReq?.attribute_template;
 
-                let finalStatus = 'PENDIENTE';
-                const isFile = !!submittedFile;
-                const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
-                const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
+                    // Skip requirements that don't belong to this active type category
+                    if (attrTempl?.id_active_type != null && attrTempl.id_active_type !== categoryId) return;
 
-                const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
-                const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
+                    const attrs = attrTempl?.attributes;
+                    const reqAttrId = attrs?.id_attributes;
 
-                const rawVencForStatus = submittedFile?.expiration_date || null;
-                let isExpired = false;
-                let isExpiringSoon = false;
+                    // listReq.files is pre-filtered per element+attribute by the backend
+                    const submittedFile = (listReq?.files || [])[0] || null;
 
-                if (rawVencForStatus && isFile) {
-                    try {
-                        const dateStr = String(rawVencForStatus);
-                        let expDate;
-                        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                        if (match) {
-                            expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
-                        } else {
-                            expDate = new Date(dateStr);
-                            expDate.setHours(0, 0, 0, 0);
-                        }
+                    let finalStatus = 'PENDIENTE';
+                    const isFile = !!submittedFile;
+                    const auditInfo = submittedFile?.audit_info;
+                    const isForwarded = submittedFile?.flag_forwarded || false;
 
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
+                    const hasAudit = !!(submittedFile?.has_audits || auditInfo);
+                    const auditStatus = (auditInfo?.audit_status || '')?.toUpperCase();
 
-                        const tenDaysFromNow = new Date();
-                        tenDaysFromNow.setHours(0, 0, 0, 0);
-                        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+                    const rawVencForStatus = submittedFile?.expiration_date || null;
+                    let isExpired = false;
+                    let isExpiringSoon = false;
 
-                        if (expDate < today) {
-                            isExpired = true;
-                        } else if (expDate <= tenDaysFromNow) {
-                            isExpiringSoon = true;
-                        }
-                    } catch (e) { }
-                }
+                    if (rawVencForStatus && isFile) {
+                        try {
+                            const dateStr = String(rawVencForStatus);
+                            let expDate;
+                            const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                            if (match) {
+                                expDate = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+                            } else {
+                                expDate = new Date(dateStr);
+                                expDate.setHours(0, 0, 0, 0);
+                            }
 
-                if (hasAudit && !isForwarded) {
-                    if (auditStatus === 'APROBADO') {
-                        if (isExpired) finalStatus = 'VENCIDO';
-                        else finalStatus = 'VIGENTE';
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            const tenDaysFromNow = new Date();
+                            tenDaysFromNow.setHours(0, 0, 0, 0);
+                            tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+
+                            if (expDate < today) {
+                                isExpired = true;
+                            } else if (expDate <= tenDaysFromNow) {
+                                isExpiringSoon = true;
+                            }
+                        } catch (e) { }
                     }
-                    else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
-                    else finalStatus = 'EN REVISIÓN';
-                } else {
-                    if (isFile) {
-                        if (isExpired) finalStatus = 'VENCIDO';
+
+                    if (hasAudit && !isForwarded) {
+                        if (auditStatus === 'APROBADO') {
+                            if (isExpired) finalStatus = 'VENCIDO';
+                            else finalStatus = 'VIGENTE';
+                        }
+                        else if (auditStatus === 'OBSERVADO' || auditStatus === 'RECHAZADO') finalStatus = 'CON OBSERVACIÓN';
                         else finalStatus = 'EN REVISIÓN';
                     } else {
-                        finalStatus = 'PENDIENTE';
+                        if (isFile) {
+                            if (isExpired) finalStatus = 'VENCIDO';
+                            else finalStatus = 'EN REVISIÓN';
+                        } else {
+                            finalStatus = 'PENDIENTE';
+                        }
                     }
-                }
 
-                tempDocs.push({
-                    id: `${el.id_elements}_${req.id_group_requirements || req.idGroupRequirements}`,
-                    id_group_req: req.id_group_requirements || req.idGroupRequirements,
-                    id_attribute: req.listRequirements?.attribute_template?.attributes?.id_attributes,
-                    id_file_submitted: submittedFile?.id_file_submitted || null,
-                    entityId: String(el.id_elements),
-                    entityName: el.active?.description || el.data?.nombre || 'Recurso',
-                    entityType: typeName === 'employees' ? 'Empleado' : typeName === 'vehicles' ? 'Vehículo' : 'Maquinaria',
-                    tipo: req.listRequirements?.attribute_template?.attributes?.description || 'DOCUMENTO',
-                    id_active_type: categoryId,
-                    label: req.listRequirements?.description || 'Documento',
-                    estado: finalStatus,
-                    fechaVencimiento: submittedFile?.expiration_date || null,
-                    observacion: isForwarded ? null : (auditInfo?.audit_observations || null),
-                    frecuencia: req.listRequirements?.attribute_template?.attributes?.periodicity_description || 'Mensual',
-                    archivo: submittedFile?.file_name || null,
-                    obligatorio: true,
-                    proveedor: proveedor,
-                    isExpiringSoon: isExpiringSoon
+                    const display = getElementDisplayName(el, typeName);
+                    tempDocs.push({
+                        id: `${el.id_elements}_${req.id_group_requirements}`,
+                        id_group_req: req.id_group_requirements,
+                        id_attribute: reqAttrId,
+                        id_file_submitted: submittedFile?.id_file_submitted || null,
+                        entityId: String(el.id_elements),
+                        entityName: display.primary,
+                        entitySubLabel: display.secondary,
+                        entityType: typeName === 'employees' ? 'Empleado' : typeName === 'vehicles' ? 'Vehículo' : 'Maquinaria',
+                        tipo: attrs?.description || 'DOCUMENTO',
+                        id_active_type: categoryId,
+                        label: listReq?.description || 'Documento',
+                        estado: finalStatus,
+                        fechaVencimiento: submittedFile?.expiration_date || null,
+                        observacion: isForwarded ? null : (auditInfo?.audit_observations || null),
+                        frecuencia: attrs?.periodicity_description || attrs?.periodicityDescription || 'Mensual',
+                        archivo: submittedFile?.file_name || null,
+                        obligatorio: true,
+                        proveedor: proveedor,
+                        proveedorCuit: el.supplier?.cuit || null,
+                        isExpiringSoon: isExpiringSoon
+                    });
                 });
-            });
             }
         });
         return tempDocs;
@@ -722,9 +703,22 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         }
     };
 
-    // Toggle logic for clicking the header
-    // Toggle logic for clicking the header
     // Toggle logic and RowGroup implementation removed for standard table layout.
+
+    // --- RESOURCE DETAIL MODAL ---
+    const openDetailModal = async (rowData) => {
+        setDetailElement(null);
+        setDetailModalVisible(true);
+        setLoadingDetail(true);
+        try {
+            const el = await elementService.getById(rowData.entityId);
+            setDetailElement({ ...el, proveedorCuit: rowData.proveedorCuit, proveedor: rowData.proveedor });
+        } catch (e) {
+            console.error('Error fetching element detail', e);
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
 
     // --- AUDIT ACTIONS ---
     const openAuditModal = (rowData) => {
@@ -786,6 +780,24 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
         </div>
     );
 
+    const entityNameTemplate = (rowData) => {
+        const canOpen = !!rowData.entityId && type !== 'suppliers';
+        return (
+            <div
+                className={`flex flex-col min-w-0 ${canOpen ? 'cursor-pointer group/entity' : ''}`}
+                onClick={canOpen ? () => openDetailModal(rowData) : undefined}
+                title={canOpen ? `Ver detalle de ${rowData.entityName}` : rowData.entityName}
+            >
+                <span className={`font-semibold text-sm truncate transition-colors ${canOpen ? 'text-primary group-hover/entity:underline' : 'text-secondary-dark'}`}>
+                    {rowData.entityName}
+                </span>
+                {rowData.entitySubLabel && (
+                    <span className="text-[10px] text-secondary truncate">{rowData.entitySubLabel}</span>
+                )}
+            </div>
+        );
+    };
+
     const docTypeTemplate = (rowData) => (
         <div className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${rowData.archivo ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-400'}`}>
@@ -801,7 +813,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
     const statusBodyTemplate = (rowData) => {
         const status = rowData.estado;
         return (
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${status === 'VIGENTE' && rowData.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap inline-flex items-center justify-center ${status === 'VIGENTE' && rowData.isExpiringSoon ? 'bg-warning/10 text-warning border-warning/20' :
                 status === 'VIGENTE' ? 'bg-success/5 text-success border-success/20' :
                     status === 'VENCIDO' ? 'bg-danger/5 text-danger border-danger/20' :
                         status === 'EN REVISIÓN' ? 'bg-info/5 text-info border-info/20' :
@@ -872,13 +884,13 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
 
     return (
         <div className="w-full bg-white border border-secondary/10 rounded-xl shadow-sm overflow-hidden animate-fade-in">
-            {/* Category Navigation (Premium Tabs) */}
-            <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border-b border-secondary/5">
+            {/* Category Navigation — hidden when parent already provides tab navigation (e.g. ProviderDocuments StatCards) */}
+            <div className={`flex flex-wrap items-center gap-2 p-3 bg-slate-50 border-b border-secondary/5 ${hideCategoryNav ? 'hidden' : ''}`}>
                 {[
                     { id: 5, label: 'Legajo', icon: <i className="pi pi-briefcase text-xs"></i> },
                     { id: 1, label: 'Personal', icon: <i className="pi pi-users text-xs"></i> },
                     { id: 2, label: 'Vehículos', icon: <i className="pi pi-car text-xs"></i> },
-                    { id: 3, label: 'Maquinaria', icon: <TbBackhoe className="text-sm" /> }
+                    { id: 4, label: 'Maquinaria', icon: <TbBackhoe className="text-sm" /> }
                 ].map(cat => {
                     const count = allRawDocs.filter(d => Number(d.id_active_type) === cat.id).length;
                     const isActive = activeCategory === cat.id;
@@ -890,7 +902,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                                 setActiveCategory(cat.id);
                                 if (onTypeChange) {
                                     // Map category ID back to type string
-                                    const typeMap = { 5: 'suppliers', 1: 'employees', 2: 'vehicles', 3: 'machinery' };
+                                    const typeMap = { 5: 'suppliers', 1: 'employees', 2: 'vehicles', 4: 'machinery' };
                                     onTypeChange(typeMap[cat.id]);
                                 }
                             }}
@@ -921,7 +933,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 value={data}
                 loading={loading}
                 filters={filters}
-                globalFilterFields={['tipo', 'entityName', 'estado', 'proveedor']}
+                globalFilterFields={['tipo', 'label', 'entityName', 'estado', 'proveedor']}
                 onValueChange={(d) => setFilteredData(d)}
                 emptyMessage="No se encontraron documentos."
                 sortMode="multiple"
@@ -929,20 +941,30 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                 header={renderHeader()}
                 rowClassName={() => 'hover:bg-secondary-light/5 transition-colors border-b border-secondary/5 group'}
             >
+                <Column header="#" body={(_, opts) => opts.rowIndex + 1} className="pl-6 w-10 text-center text-secondary/30 text-xs font-mono select-none" headerClassName="pl-6 text-center text-secondary/40" pt={{ headerContent: { className: 'justify-center' } }} />
                 {isAuditorOrAdmin && !explicitCuit && (
-                    <Column field="proveedor" header="Proveedor" sortable className="font-bold text-secondary-dark w-[20%]"></Column>
+                    <Column field="proveedor" header="Proveedor" sortable className="w-[20%]" headerClassName="" body={(rowData) => (
+                        <button
+                            onClick={() => rowData.proveedorCuit && navigate(`/proveedores/${rowData.proveedorCuit}`)}
+                            disabled={!rowData.proveedorCuit}
+                            className="text-left font-bold text-sm text-primary hover:underline disabled:text-secondary-dark disabled:no-underline disabled:cursor-default transition-colors truncate max-w-full"
+                            title={rowData.proveedorCuit ? `Ver detalle de ${rowData.proveedor}` : rowData.proveedor}
+                        >
+                            {rowData.proveedor}
+                        </button>
+                    )}></Column>
                 )}
                 {type !== 'suppliers' && (
-                    <Column field="entityName" header={getEntityHeader()} sortable className="font-bold text-secondary-dark"></Column>
+                    <Column field="entityName" header={getEntityHeader()} body={entityNameTemplate} sortable className="font-bold text-secondary-dark" headerClassName=""></Column>
                 )}
-                <Column field="tipo" header="Documento" body={docTypeTemplate} sortable className="w-[30%]"></Column>
+                <Column field="tipo" header="Documento" body={docTypeTemplate} sortable className="w-[30%]" headerClassName=""></Column>
                 <Column field="fechaVencimiento" header="Vencimiento" body={(r) => {
                     if (r.frecuencia === 'Única vez' || r.frecuencia === 'UNICA VEZ') return <span className="text-[10px] font-bold text-secondary/30 italic">N/A</span>;
                     if (r.fechaVencimiento) return <span className="font-mono text-xs text-secondary-dark">{r.fechaVencimiento}</span>;
                     return <span className="text-[10px] font-bold text-orange-400">No cargado</span>;
                 }} sortable></Column>
-                <Column field="estado" header={(isAuditorLegal || isAdmin) ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center"></Column>
-                <Column header={(isAuditorLegal || isAdmin) ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="pr-6"></Column>
+                <Column field="estado" header={(isAuditorLegal || isAdmin) ? "Estado Actual" : "Estado"} body={statusBodyTemplate} sortable className="text-center" headerClassName="text-center" pt={{ headerContent: { className: 'justify-center' } }}></Column>
+                <Column header={(isAuditorLegal || isAdmin) ? "Intervención" : "Acción"} body={actionTemplate} className="text-right pr-6" headerClassName="text-right pr-6" pt={{ headerContent: { className: 'justify-end' } }}></Column>
             </AppTable>
 
             <AuditDocumentModal
@@ -958,6 +980,37 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     }
                 }}
             />
+
+            {/* Resource Detail Modal */}
+            <Dialog
+                visible={detailModalVisible}
+                onHide={() => setDetailModalVisible(false)}
+                className="w-[90vw] max-w-[520px]"
+                style={{ maxHeight: '85vh' }}
+                draggable={false}
+                resizable={false}
+                pt={{
+                    mask: { className: 'backdrop-blur-sm' },
+                    header: { className: 'hidden' },
+                    content: { className: 'p-0 rounded-2xl overflow-hidden bg-white' },
+                    footer: { className: 'hidden' }
+                }}
+            >
+                {loadingDetail ? (
+                    <div className="flex items-center justify-center h-48">
+                        <i className="pi pi-spin pi-spinner text-2xl text-primary"></i>
+                    </div>
+                ) : detailElement ? (
+                    <ResourceDetailContent
+                        el={detailElement}
+                        type={type}
+                        isAuditorOrAdmin={isAuditorOrAdmin}
+                        onNavigateSupplier={(cuit) => { setDetailModalVisible(false); navigate(`/proveedores/${cuit}`); }}
+                        onNavigateDocs={() => { setDetailModalVisible(false); navigate(`/recursos/documentacion/${type === 'employees' ? 'empleado' : type === 'vehicles' ? 'vehiculo' : 'maquinaria'}/${detailElement.id_elements}`); }}
+                        onClose={() => setDetailModalVisible(false)}
+                    />
+                ) : null}
+            </Dialog>
 
             <Dialog
                 header={<span className="sr-only">Subir Documento</span>}

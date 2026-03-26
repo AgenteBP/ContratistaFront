@@ -3,6 +3,12 @@ import { Chart as PrimeChart } from 'primereact/chart';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
+import StatCard from '../../components/ui/StatCard';
+import { useAuth } from '../../context/AuthContext';
+import { dashboardService } from '../../services/dashboardService';
+import { supplierService } from '../../services/supplierService';
+import { groupService } from '../../services/groupService';
+import { useResourceStats } from '../../hooks/useResourceStats';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -29,82 +35,383 @@ ChartJS.register(
     Filler
 );
 
-// --- COMPONENTE TARJETA OPTIMIZADO ---
-const StatCard = ({ title, value, icon, type = 'primary', details = [], onClick }) => {
-
-    // Mapeo de estilos (Tipografía de la V1 + Colores Semánticos)
-    const styles = {
-        primary: {
-            iconBg: 'bg-primary-light', iconText: 'text-primary',
-            badgeBg: 'bg-primary-light', badgeText: 'text-primary-active',
-        },
-        success: {
-            iconBg: 'bg-success-light', iconText: 'text-[#84cc16]',
-            badgeBg: 'bg-success-light', badgeText: 'text-[#84cc16]',
-        },
-        warning: {
-            iconBg: 'bg-warning-light', iconText: 'text-[#f59e0b]',
-            badgeBg: 'bg-warning-light', badgeText: 'text-[#f59e0b]',
-        },
-        info: {
-            iconBg: 'bg-info-light', iconText: 'text-info',
-            badgeBg: 'bg-info-light', badgeText: 'text-info-hover',
-        },
-        danger: {
-            iconBg: 'bg-danger-light', iconText: 'text-[#ef4444]',
-            badgeBg: 'bg-danger-light', badgeText: 'text-[#ef4444]',
-        }
-    };
-
-    const style = styles[type] || styles.primary;
-
-    return (
-        <div
-            onClick={onClick}
-            className="bg-white rounded-xl p-6 shadow-sm border border-secondary/10 hover:shadow-md transition-all duration-300 relative overflow-hidden group cursor-pointer"
-        >
-            <div className="flex justify-between items-start z-10 relative mb-4">
-                <div>
-                    <p className="text-secondary text-sm font-medium mb-1 tracking-wide">{title}</p>
-                    <h3 className="text-3xl font-bold text-secondary-dark">{value}</h3>
-                </div>
-
-                <div className={`p-3 rounded-xl ${style.iconBg} ${style.iconText} transition-transform duration-300 group-hover:scale-110`}>
-                    <i className={`pi ${icon} text-xl`}></i>
-                </div>
-            </div>
-
-            <div className="space-y-2 pt-3 border-t border-secondary/5 relative z-10">
-                {details.map((item, index) => (
-                    <div key={index} className="flex items-center justify-between text-xs">
-                        <span className="text-secondary font-medium flex items-center gap-1.5">
-                            <i className={`pi ${item.icon || 'pi-circle-fill'} ${item.iconColor || 'text-secondary'} text-[10px]`}></i>
-                            {item.label}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded font-bold ${item.badgeClass || 'bg-gray-100 text-secondary'}`}>
-                            {item.value}
-                        </span>
-                    </div>
-                ))}
-            </div>
-
-            <i className={`pi ${icon} absolute -bottom-5 -right-5 text-9xl opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 pointer-events-none`}></i>
-        </div>
-    );
-};
+// --- DetailRow para los detalles de las cards ---
+const DetailRow = ({ icon, iconColor, label, value }) => (
+    <div className="flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 text-secondary/70">
+            <i className={`pi ${icon} text-[10px] ${iconColor}`} />
+            {label}
+        </span>
+        <span className="font-bold text-secondary-dark">{value ?? '—'}</span>
+    </div>
+);
 
 const DashboardHome = () => {
     const navigate = useNavigate();
+    const { user, currentRole, isAuditorTecnico } = useAuth();
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [authSuppliers, setAuthSuppliers] = useState([]);
+    const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+    const [groups, setGroups] = useState([]);
+    const { stats: hookStats, loading: hookLoading } = useResourceStats();
 
-    const limeColor = '#84cc16'; // System Success
-    const redColor = '#ef4444'; // System Danger
-    const orangeColor = '#f59e0b'; // System Warning
-
+    // Alertas estáticas (fuera del scope de cambios)
     const alertas = [
         { id: 75, recurso: 'Camioneta Toyota Hilux', empresa: 'Tech Solutions', asunto: 'VTV Vencida', fecha: 'Hoy', estado: 'VENCIDO' },
         { id: 78, recurso: 'Juan Perez (Leg. 104)', empresa: 'Limpieza Express', asunto: 'Cert. de Cobertura', fecha: 'Ayer', estado: 'RECHAZADO' },
         { id: 90, recurso: 'Alen & Dana S.R.L.', empresa: 'Alen & Dana', asunto: 'F931 Incompleto', fecha: '20 Ene', estado: 'FALTANTE' },
     ];
+
+    // Cargar estadísticas del dashboard
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!user?.id || !currentRole?.role) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                setLoading(true);
+                const data = await dashboardService.getStats(
+                    user.id,
+                    currentRole.role,
+                    currentRole.id_entity
+                );
+                setStats(data);
+                // Simular loading por cards
+                            } catch (error) {
+                console.error('Error fetching dashboard stats:', error);
+                setStats(null);
+                            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [user?.id, currentRole?.role, currentRole?.id_entity]);
+
+    // Cargar proveedores autorizados (para EMPRESA, AUDITOR, ADMIN)
+    useEffect(() => {
+        if (!user?.id || !currentRole?.role) return;
+
+        const fetchSuppliers = async () => {
+            setLoadingSuppliers(true);
+            try {
+                const [suppliersData, groupsData] = await Promise.all([
+                    supplierService.getAuthorizedSuppliers(user.id, currentRole.role, currentRole.id_entity),
+                    groupService.getAll()
+                ]);
+                setAuthSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+                setGroups(Array.isArray(groupsData) ? groupsData : []);
+            } catch {
+                setAuthSuppliers([]);
+                setGroups([]);
+            } finally {
+                setLoadingSuppliers(false);
+            }
+        };
+
+        fetchSuppliers();
+    }, [user?.id, currentRole?.role, currentRole?.id_entity]);
+
+    // Función para obtener cards según el rol
+    const getCardsConfig = () => {
+        const role = currentRole?.role;
+        const s = stats;
+
+        // Totales calculados desde el hook (más confiables que la API para algunos roles)
+        const totalEnRevision  = (hookStats?.employees?.enRevision ?? 0) + (hookStats?.vehicles?.enRevision ?? 0) + (hookStats?.machinery?.enRevision ?? 0);
+        const totalVencidos    = (hookStats?.employees?.vencidos ?? 0) + (hookStats?.vehicles?.vencidos ?? 0) + (hookStats?.machinery?.vencidos ?? 0);
+        const totalConObs      = (hookStats?.employees?.conObservacion ?? 0) + (hookStats?.vehicles?.conObservacion ?? 0) + (hookStats?.machinery?.conObservacion ?? 0);
+        const totalPorVencer   = (hookStats?.employees?.expiringSoon ?? 0) + (hookStats?.vehicles?.expiringSoon ?? 0) + (hookStats?.machinery?.expiringSoon ?? 0);
+        const totalProviders     = authSuppliers.length > 0 ? authSuppliers.length : (hookStats?.totalProviders || s?.suppliers?.total || 0);
+        const suppliersApproved  = authSuppliers.filter(sup => sup.is_tec_success === true).length;
+        const suppliersRejected  = authSuppliers.filter(sup => sup.is_tec_success === false).length;
+        const suppliersPending   = authSuppliers.filter(sup => sup.is_tec_success === null || sup.is_tec_success === undefined).length;
+
+        if (role === 'ADMIN') {
+            return [
+                {
+                    title: 'Empresas',
+                    value: s?.companies?.total ?? '—',
+                    icon: 'pi-building',
+                    type: 'primary',
+                    watermark: true,
+                    onClick: () => navigate('/empresas'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Activas" value={s?.companies?.active} />,
+                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Inactivas" value={s?.companies?.total && s?.companies?.active ? s?.companies.total - s?.companies.active : '—'} />
+                    ]
+                },
+                {
+                    title: 'Proveedores',
+                    value: s?.suppliers?.total ?? '—',
+                    icon: 'pi-briefcase',
+                    type: 'success',
+                    watermark: true,
+                    onClick: () => navigate('/proveedores'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados téc." value={s?.suppliers?.tec_approved} />,
+                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pend. téc." value={s?.suppliers?.tec_pending} />
+                    ]
+                },
+                {
+                    title: 'Recursos',
+                    value: (s?.elements?.employees ?? 0) + (s?.elements?.vehicles ?? 0) + (s?.elements?.machinery ?? 0),
+                    icon: 'pi-box',
+                    type: 'info',
+                    watermark: true,
+                    onClick: () => navigate('/recursos'),
+                    children: [
+                        <DetailRow key="1" icon="pi-users" iconColor="text-info" label="Empleados" value={s?.elements?.employees} />,
+                        <DetailRow key="2" icon="pi-car" iconColor="text-info" label="Vehículos" value={s?.elements?.vehicles} />,
+                        <DetailRow key="3" icon="pi-cog" iconColor="text-info" label="Maquinaria" value={s?.elements?.machinery} />
+                    ]
+                },
+                {
+                    title: 'Auditoría Pend.',
+                    value: s?.suppliers?.tec_pending ?? '—',
+                    icon: 'pi-file-excel',
+                    type: 'danger',
+                    watermark: true,
+                    onClick: () => navigate('/auditores/tecnica'),
+                    children: [
+                        <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-[#ef4444]" label="Rechazados téc." value={s?.suppliers?.tec_rejected} />,
+                        <DetailRow key="2" icon="pi-eye" iconColor="text-[#f59e0b]" label="Pendientes téc." value={s?.suppliers?.tec_pending} />
+                    ]
+                }
+            ];
+        } else if (role === 'EMPRESA') {
+            return [
+                {
+                    title: 'Proveedores',
+                    value: totalProviders || '—',
+                    icon: 'pi-briefcase',
+                    type: 'primary',
+                    watermark: true,
+                    onClick: () => navigate('/proveedores'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
+                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={suppliersPending} />
+                    ]
+                },
+                {
+                    title: 'Empleados',
+                    value: hookStats?.employees?.total ?? s?.elements?.employees ?? '—',
+                    icon: 'pi-users',
+                    type: 'info',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/empleados'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitados" value={hookStats?.employees?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitados" value={hookStats?.employees?.docPendiente} />
+                    ]
+                },
+                {
+                    title: 'Vehículos',
+                    value: hookStats?.vehicles?.total ?? s?.elements?.vehicles ?? '—',
+                    icon: 'pi-car',
+                    type: 'warning',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/vehiculos'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitados" value={hookStats?.vehicles?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitados" value={hookStats?.vehicles?.docPendiente} />
+                    ]
+                },
+                {
+                    title: 'Maquinaria',
+                    value: hookStats?.machinery?.total ?? s?.elements?.machinery ?? '—',
+                    icon: 'pi-cog',
+                    type: 'success',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/maquinaria'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitadas" value={hookStats?.machinery?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitadas" value={hookStats?.machinery?.docPendiente} />
+                    ]
+                }
+            ];
+        } else if (role === 'PROVEEDOR') {
+            return [
+                {
+                    title: 'Mi Legajo',
+                    value: s?.docs?.total ?? '—',
+                    icon: 'pi-briefcase',
+                    type: 'primary',
+                    watermark: true,
+                    onClick: () => navigate('/documentos/general'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Vigentes" value={s?.docs?.valid} />,
+                        <DetailRow key="2" icon="pi-eye" iconColor="text-[#3b82f6]" label="En revisión" value={s?.docs?.review} />,
+                        <DetailRow key="3" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={s?.docs?.pending} />
+                    ]
+                },
+                {
+                    title: 'Empleados',
+                    value: s?.elements?.employees ?? '—',
+                    icon: 'pi-users',
+                    type: 'info',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/empleados'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitados" value={hookStats?.employees?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitados" value={hookStats?.employees?.docPendiente} />
+                    ]
+                },
+                {
+                    title: 'Vehículos',
+                    value: s?.elements?.vehicles ?? '—',
+                    icon: 'pi-car',
+                    type: 'warning',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/vehiculos'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitados" value={hookStats?.vehicles?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitados" value={hookStats?.vehicles?.docPendiente} />
+                    ]
+                },
+                {
+                    title: 'Maquinaria',
+                    value: s?.elements?.machinery ?? '—',
+                    icon: 'pi-cog',
+                    type: 'success',
+                    watermark: true,
+                    onClick: () => navigate('/recursos/maquinaria'),
+                    children: [
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitadas" value={hookStats?.machinery?.habilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitadas" value={hookStats?.machinery?.docPendiente} />
+                    ]
+                }
+            ];
+        } else if (role === 'AUDITOR') {
+            // AUDITOR TÉCNICO
+            if (isAuditorTecnico) {
+                const pendientes     = s?.suppliers?.tec_pending  || suppliersPending  || 0;
+                const aprobados      = s?.suppliers?.tec_approved || suppliersApproved || 0;
+                const rechazados     = s?.suppliers?.tec_rejected || suppliersRejected || 0;
+                const totalAsig      = s?.suppliers?.total || totalProviders || 0;
+                const groupBreakdown = Object.entries(
+                    authSuppliers.reduce((acc, sup) => {
+                        const key = sup.id_group ?? '__sin_grupo__';
+                        acc[key] = (acc[key] || 0) + 1;
+                        return acc;
+                    }, {})
+                ).map(([gId, count]) => {
+                    const g = groups.find(gr => String(gr.idGroup ?? gr.id_group ?? gr.id) === String(gId));
+                    const name = gId === '__sin_grupo__' ? 'Sin grupo' : (g?.descripcion || g?.description || g?.name || `Grupo ${gId}`);
+                    return { name, count };
+                }).sort((a, b) => b.count - a.count);
+                return [
+                    {
+                        title: 'Total Asignados',
+                        value: totalAsig || '—',
+                        icon: 'pi-briefcase',
+                        type: 'primary',
+                        watermark: true,
+                        onClick: () => navigate('/proveedores'),
+                        children: groupBreakdown.map((g, i) => (
+                            <DetailRow key={i} icon="pi-sitemap" iconColor="text-primary" label={g.name} value={g.count} />
+                        ))
+                    },
+                    {
+                        title: 'Aprobados',
+                        value: aprobados || '—',
+                        icon: 'pi-check-circle',
+                        type: 'success',
+                        watermark: true,
+                        onClick: () => navigate('/proveedores'),
+                        children: [
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-success" label="Del total" value={totalAsig ? `${Math.round((aprobados / totalAsig) * 100)}%` : '—'} />
+                        ]
+                    },
+                    {
+                        title: 'Pendientes',
+                        value: pendientes || '—',
+                        icon: 'pi-clock',
+                        type: 'warning',
+                        watermark: true,
+                        onClick: () => navigate('/auditores/tecnica'),
+                        children: [
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-warning" label="Del total" value={totalAsig ? `${Math.round((pendientes / totalAsig) * 100)}%` : '—'} />
+                        ]
+                    },
+                    {
+                        title: 'Rechazados',
+                        value: rechazados || '—',
+                        icon: 'pi-ban',
+                        type: 'danger',
+                        watermark: true,
+                        onClick: () => navigate('/auditores/tecnica/historial'),
+                        children: [
+                            <DetailRow key="1" icon="pi-percentage" iconColor="text-danger" label="Del total" value={totalAsig ? `${Math.round((rechazados / totalAsig) * 100)}%` : '—'} />
+                        ]
+                    }
+                ];
+            } else {
+                // AUDITOR LEGAL
+                const docsRevision = s?.pendingAuditFiles || totalEnRevision || 0;
+                return [
+                    {
+                        title: 'Docs en Revisión',
+                        value: docsRevision || '—',
+                        icon: 'pi-file',
+                        type: 'danger',
+                        watermark: true,
+                        onClick: () => navigate('/auditoria-legal/inbox'),
+                        children: [
+                            <DetailRow key="1" icon="pi-file" iconColor="text-[#ef4444]" label="Documentos pendientes" value={docsRevision} />
+                        ]
+                    },
+                    {
+                        title: 'Proveedores',
+                        value: totalProviders || '—',
+                        icon: 'pi-briefcase',
+                        type: 'primary',
+                        watermark: true,
+                        onClick: () => navigate('/proveedores'),
+                        children: [
+                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Con cumplimiento" value={s?.suppliers?.tec_approved || 0} />
+                        ]
+                    },
+                    {
+                        title: 'Vencidos / Por Vencer',
+                        value: (totalVencidos + totalPorVencer) || '—',
+                        icon: 'pi-clock',
+                        type: 'warning',
+                        watermark: true,
+                        onClick: () => navigate('/documentos/por-vencer'),
+                        children: [
+                            <DetailRow key="1" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Vencidos" value={totalVencidos} />,
+                            <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Por vencer" value={totalPorVencer} />
+                        ]
+                    },
+                    {
+                        title: 'Observados',
+                        value: totalConObs || '—',
+                        icon: 'pi-exclamation-circle',
+                        type: 'info',
+                        watermark: true,
+                        onClick: () => navigate('/documentos/observados'),
+                        children: [
+                            <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-info" label="Con observaciones" value={totalConObs} />
+                        ]
+                    }
+                ];
+            }
+        }
+
+        // Fallback: 4 cards genéricas mientras carga o si el rol no coincide
+        return [
+            { title: 'Proveedores', value: s?.suppliers?.total ?? '—', icon: 'pi-briefcase', type: 'primary', watermark: true, onClick: () => navigate('/proveedores'), children: [] },
+            { title: 'Empleados',   value: s?.elements?.employees ?? '—', icon: 'pi-users',    type: 'info',    watermark: true, onClick: () => navigate('/recursos/empleados'), children: [] },
+            { title: 'Vehículos',   value: s?.elements?.vehicles ?? '—',  icon: 'pi-car',      type: 'warning', watermark: true, onClick: () => navigate('/recursos/vehiculos'), children: [] },
+            { title: 'Maquinaria',  value: s?.elements?.machinery ?? '—', icon: 'pi-cog',      type: 'success', watermark: true, onClick: () => navigate('/recursos/maquinaria'), children: [] },
+        ];
+    };
+
+    const cards = getCardsConfig();
 
     const estadoTemplate = (rowData) => {
         const colors = {
@@ -142,53 +449,22 @@ const DashboardHome = () => {
 
             {/* --- KPIs VISUALES --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    title="Empresas"
-                    value="41"
-                    icon="pi-briefcase"
-                    type="primary"
-                    onClick={() => navigate('/empresas?filter=active')}
-                    details={[
-                        { label: 'Documentación al día', value: '29', icon: 'pi-check-circle', iconColor: 'text-[#84cc16]', badgeClass: 'bg-[#84cc16]/10 text-[#84cc16]' },
-                        { label: 'Con pendientes', value: '12', icon: 'pi-info-circle', iconColor: 'text-[#f59e0b]', badgeClass: 'bg-[#f59e0b]/10 text-[#f59e0b]' }
-                    ]}
-                />
-
-                <StatCard
-                    title="Recursos Humanos"
-                    value="279"
-                    icon="pi-users"
-                    type="success"
-                    onClick={() => navigate('/empleados')}
-                    details={[
-                        { label: 'Habilitados ingreso', value: '265', icon: 'pi-check-circle', iconColor: 'text-[#84cc16]', badgeClass: 'bg-[#84cc16]/10 text-[#84cc16]' },
-                        { label: 'Sin cobertura ART', value: '14', icon: 'pi-ban', iconColor: 'text-[#ef4444]', badgeClass: 'bg-[#ef4444]/10 text-[#ef4444]' }
-                    ]}
-                />
-
-                <StatCard
-                    title="Flota Vehicular"
-                    value="226"
-                    icon="pi-car"
-                    type="info"
-                    onClick={() => navigate('/flota')}
-                    details={[
-                        { label: 'Vehículos/Máquinas', value: '151/75', icon: 'pi-truck', iconColor: 'text-info', badgeClass: 'bg-info-light text-info-hover' },
-                        { label: 'Vencimientos prox.', value: '8', icon: 'pi-clock', iconColor: 'text-[#f59e0b]', badgeClass: 'bg-[#f59e0b]/10 text-[#f59e0b]' }
-                    ]}
-                />
-
-                <StatCard
-                    title="Auditoría"
-                    value="22"
-                    icon="pi-file-excel"
-                    type="danger"
-                    onClick={() => navigate('/auditoria/bandeja-entrada')}
-                    details={[
-                        { label: 'Rechazo Legal', value: '15', icon: 'pi-briefcase', iconColor: 'text-[#ef4444]', badgeClass: 'bg-[#ef4444]/10 text-[#ef4444]' },
-                        { label: 'Rechazo Técnico', value: '7', icon: 'pi-cog', iconColor: 'text-[#ef4444]', badgeClass: 'bg-[#ef4444]/10 text-[#ef4444]' }
-                    ]}
-                />
+                {cards.map((config, idx) => (
+                    <StatCard
+                        key={idx}
+                        title={config.title}
+                        value={config.value}
+                        icon={config.icon}
+                        type={config.type}
+                        loading={loading || hookLoading || loadingSuppliers}
+                        watermark={config.watermark}
+                        onClick={config.onClick}
+                    >
+                        <div className="space-y-2">
+                            {config.children}
+                        </div>
+                    </StatCard>
+                ))}
             </div>
 
             {/* --- SECCIÓN VISUALIZACIONES --- */}
@@ -235,12 +511,12 @@ const DashboardHome = () => {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 scales: {
-                                    x: { 
+                                    x: {
                                         stacked: true,
                                         grid: { display: false },
                                         ticks: { font: { size: 10, weight: 'bold' }, color: '#64748b' }
                                     },
-                                    y: { 
+                                    y: {
                                         stacked: true,
                                         grid: { color: 'rgba(148, 163, 184, 0.05)' },
                                         ticks: { font: { size: 10 }, color: '#94a3b8' }
@@ -269,7 +545,7 @@ const DashboardHome = () => {
                     </div>
 
                     <div className="h-[200px] w-full pt-4">
-                        <Line 
+                        <Line
                             data={{
                                 labels: ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN'],
                                 datasets: [{
@@ -288,9 +564,9 @@ const DashboardHome = () => {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 plugins: { legend: { display: false } },
-                                scales: { 
-                                    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } }, 
-                                    y: { min: 0, max: 100, ticks: { display: false }, grid: { display: false } } 
+                                scales: {
+                                    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+                                    y: { min: 0, max: 100, ticks: { display: false }, grid: { display: false } }
                                 }
                             }}
                         />

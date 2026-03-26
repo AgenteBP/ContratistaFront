@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
 
-import { base64ToBlobUrl, fileToBase64 } from '../utils/fileUtils';
+import { fileToBase64 } from '../utils/fileUtils';
 
 
 import { DOC_TYPE_LABELS, PERIODICITY_MAP } from '../data/documentConstants';
@@ -14,7 +14,7 @@ import { DOC_TYPE_LABELS, PERIODICITY_MAP } from '../data/documentConstants';
 
 export const useSupplier = (explicitCuit = null) => {
     const { user, currentRole } = useAuth();
-    const { showSuccess, showError } = useNotification();
+    const { showError } = useNotification();
     const [supplierData, setSupplierData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -110,7 +110,7 @@ export const useSupplier = (explicitCuit = null) => {
                                     if (!listReq) return;
 
                                     // Handle attribute_template (snake_case) and attributeTemplate (camelCase)
-                                    const attrTempl = listReq.attribute_template || listReq.attributeTemplate;
+                                    const attrTempl = listReq.attribute_template;
                                     const attrs = attrTempl?.attributes;
 
                                     // Handle folder_metadata (snake_case) and folderMetadata (camelCase)
@@ -119,8 +119,8 @@ export const useSupplier = (explicitCuit = null) => {
                                     const submittedFile = files.length > 0 ? files[0] : null;
 
                                     // Handle id_list_requirements (snake_case) and idListRequirements (camelCase)
-                                    const requirementId = listReq.id_list_requirements || listReq.idListRequirements;
-                                    const key = req.idGroupRequirements || req.id_group_requirements || requirementId;
+                                    const requirementId = listReq.id_list_requirements;
+                                    const key = req.id_group_requirements || requirementId;
 
                                     if (!docMap.has(key)) {
                                         const label = listReq.description || attrs?.description || 'Documento';
@@ -148,11 +148,11 @@ export const useSupplier = (explicitCuit = null) => {
                                         let finalStatus = 'PENDIENTE';
 
                                         // Support both snake_case (JsonProperty) and camelCase (default)
-                                        const auditInfo = submittedFile?.audit_info || submittedFile?.auditInfo;
-                                        const isForwarded = submittedFile?.flag_forwarded || submittedFile?.flagForwarded || false;
+                                        const auditInfo = submittedFile?.audit_info;
+                                        const isForwarded = submittedFile?.flag_forwarded || false;
 
-                                        const hasAudit = !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo);
-                                        const auditStatus = (auditInfo?.audit_status || auditInfo?.auditStatus || '')?.toUpperCase();
+                                        const hasAudit = !!(submittedFile?.has_audits || auditInfo);
+                                        const auditStatus = (auditInfo?.audit_status || '')?.toUpperCase();
 
                                         const rawVencForStatus = submittedFile?.expiration_date || folderMeta?.fechaVencimiento || null;
                                         let isExpired = false;
@@ -204,8 +204,8 @@ export const useSupplier = (explicitCuit = null) => {
                                         }
 
                                         const finalFileName = directFileName || fileData?.file_name || fileData?.fileName || folderMeta?.archivo || null;
-                                        const finalObs = (hasAudit && !isForwarded) ? (auditInfo?.audit_observations || auditInfo?.auditObservations || null) : ((!isForwarded && (folderMeta?.observacion || submittedFile?.observacion)) || null);
-                                        const docFrequency = attrs?.periodicity_description || attrs?.periodicityDescription || 'Única vez';
+                                        const finalObs = (hasAudit && !isForwarded) ? (auditInfo?.audit_observations || null) : ((!isForwarded && (folderMeta?.observacion || submittedFile?.observacion)) || null);
+                                        const docFrequency = attrs?.periodicity_description || 'Única vez';
 
                                         // Do not fallback to date_submitted for 'UNICA VEZ'
                                         const isUnicaVez = docFrequency.toUpperCase() === 'ÚNICA VEZ' || docFrequency.toUpperCase() === 'UNICA VEZ';
@@ -217,12 +217,12 @@ export const useSupplier = (explicitCuit = null) => {
 
                                         docMap.set(key, {
                                             id: key,
-                                            id_group_req: req.id_group_requirements || req.idGroupRequirements,
-                                            id_list_req: listReq.id_list_requirements || listReq.idListRequirements,
-                                            id_attribute: attrs?.id_attributes || attrs?.idAttributes,
-                                            id_file_submitted: submittedFile?.id_file_submitted || submittedFile?.idFileSubmitted || null,
-                                            id_elements: (listReq.folder_metadata || listReq.folderMetadata)?.id_elements,
-                                            id_active: attrTempl?.id_active || attrTempl?.idActive,
+                                            id_group_req: req.id_group_requirements,
+                                            id_list_req: listReq.id_list_requirements,
+                                            id_attribute: attrs?.id_attributes,
+                                            id_file_submitted: submittedFile?.id_file_submitted || null,
+                                            id_elements: listReq.folder_metadata?.id_elements,
+                                            id_active: attrTempl?.id_active,
                                             tipo: docKey,
                                             label: cleanLabel,
                                             frecuencia: docFrequency,
@@ -232,7 +232,7 @@ export const useSupplier = (explicitCuit = null) => {
                                             observacion: finalObs,
                                             fechaVencimiento: finalVenc,
                                             fileUrl: directFileUrl || fileData?.url || null, // Blob URL generation happens on demand now
-                                            hasAudits: !!(submittedFile?.has_audits || submittedFile?.hasAudits || auditInfo),
+                                            hasAudits: !!(submittedFile?.has_audits || auditInfo),
                                             modified: false
                                         });
                                     }

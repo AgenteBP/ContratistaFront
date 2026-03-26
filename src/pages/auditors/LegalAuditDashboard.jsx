@@ -23,6 +23,8 @@ const LegalAuditDashboard = () => {
     const [selectedSupplierCuit, setSelectedSupplierCuit] = useState(null);
     const [selectedSupplierName, setSelectedSupplierName] = useState('');
     const [activeModalType, setActiveModalType] = useState('suppliers');
+    const [mountedSidebarTypes, setMountedSidebarTypes] = useState(new Set(['suppliers']));
+    const [sidebarRefreshKeys, setSidebarRefreshKeys] = useState({ suppliers: 0, employees: 0, vehicles: 0, machinery: 0 });
     const [viewMode, setViewMode] = useState('operative'); // 'operative' or 'monthly'
     const [evolutionPerspective, setEvolutionPerspective] = useState('upload'); // 'upload' or 'compliance'
 
@@ -339,12 +341,26 @@ const LegalAuditDashboard = () => {
         </div>
     );
 
+    const resetSidebarTabs = () => {
+        setActiveModalType('suppliers');
+        setMountedSidebarTypes(new Set(['suppliers']));
+        setSidebarRefreshKeys({ suppliers: 0, employees: 0, vehicles: 0, machinery: 0 });
+    };
+
+    const handleSidebarTypeChange = (newType) => {
+        if (mountedSidebarTypes.has(newType)) {
+            setSidebarRefreshKeys(prev => ({ ...prev, [newType]: prev[newType] + 1 }));
+        }
+        setActiveModalType(newType);
+        setMountedSidebarTypes(prev => new Set([...prev, newType]));
+    };
+
     const actionTemplate = (rowData) => (
         <button
             onClick={() => {
                 setSelectedSupplierCuit(rowData.cuit || rowData.id_supplier || rowData.id);
                 setSelectedSupplierName(rowData.company_name || rowData.name || 'Proveedor');
-                setActiveModalType('suppliers');
+                resetSidebarTabs();
                 setSidebarVisible(true);
             }}
             className="text-primary hover:text-white hover:bg-primary border border-primary/20 bg-primary/5 px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2"
@@ -492,6 +508,7 @@ const LegalAuditDashboard = () => {
         const nextSupplier = suppliers[nextIndex];
         setSelectedSupplierCuit(nextSupplier.cuit);
         setSelectedSupplierName(nextSupplier.company_name || nextSupplier.razonSocial || nextSupplier.name);
+        resetSidebarTabs();
         console.log("LegalAuditDashboard: Navigating to", nextSupplier.cuit);
     };
 
@@ -687,20 +704,23 @@ const LegalAuditDashboard = () => {
                 </div>
 
                 <div className="px-2 pb-6 w-full pl-4">
-                    {selectedSupplierCuit && (
-                        <DocumentEntityTable
-                            type={activeModalType}
-                            filterStatus="general"
-                            explicitCuit={selectedSupplierCuit}
-                            onTypeChange={(newType) => setActiveModalType(newType)}
-                            onAuditComplete={async () => {
-                                console.log("LegalAuditDashboard: Audit recorded, waiting for refresh...");
-                                setTimeout(() => {
-                                    loadData();
-                                }, 800);
-                            }}
-                        />
-                    )}
+                    {selectedSupplierCuit && ['suppliers', 'employees', 'vehicles', 'machinery'].map(typeKey => (
+                        <div key={typeKey} className={activeModalType === typeKey ? 'block' : 'hidden'}>
+                            {mountedSidebarTypes.has(typeKey) && (
+                                <DocumentEntityTable
+                                    type={typeKey}
+                                    filterStatus="general"
+                                    explicitCuit={selectedSupplierCuit}
+                                    onTypeChange={handleSidebarTypeChange}
+                                    refreshKey={sidebarRefreshKeys[typeKey]}
+                                    onAuditComplete={async () => {
+                                        console.log("LegalAuditDashboard: Audit recorded, waiting for refresh...");
+                                        setTimeout(() => loadData(), 800);
+                                    }}
+                                />
+                            )}
+                        </div>
+                    ))}
                 </div>
             </Sidebar>
         </div>
