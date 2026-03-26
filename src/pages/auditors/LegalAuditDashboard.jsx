@@ -203,18 +203,39 @@ const LegalAuditDashboard = () => {
                     });
                 }
 
+                // Prefer backend-calculated compliance values when available.
+                // The backend computes these from GroupRequirements + FileSubmitted
+                // directly in the DB, which is more accurate than client-side parsing
+                // of the elements array (which is sent empty from getAuthorizedSuppliers).
+                const bc = s.compliance;
+
+                const finalUploadLegajo    = bc?.carga_legajo         ?? uLegajo;
+                const finalUploadEmpleados = bc?.carga_personal        ?? uEmpleados;
+                const finalUploadVehiculos = bc?.carga_vehiculos       ?? uVehiculos;
+                const finalUploadMaquinaria= bc?.carga_maquinaria      ?? uMaquinaria;
+                const finalCumpLegajo      = bc?.cumplimiento_legajo   ?? cLegajo;
+                const finalCumpEmpleados   = bc?.cumplimiento_personal ?? cEmpleados;
+                const finalCumpVehiculos   = bc?.cumplimiento_vehiculos?? cVehiculos;
+                const finalCumpMaquinaria  = bc?.cumplimiento_maquinaria??cMaquinaria;
+
+                // Recalculate global averages from available (non-null) category values
+                const uploadVals = [finalUploadLegajo, finalUploadEmpleados, finalUploadVehiculos, finalUploadMaquinaria].filter(v => v !== null && v !== undefined);
+                const cumpVals   = [finalCumpLegajo, finalCumpEmpleados, finalCumpVehiculos, finalCumpMaquinaria].filter(v => v !== null && v !== undefined);
+                const finalGlobalUpload = uploadVals.length > 0 ? Math.floor(uploadVals.reduce((a, b) => a + b, 0) / uploadVals.length) : globalUpload;
+                const finalGlobal       = cumpVals.length > 0   ? Math.floor(cumpVals.reduce((a, b) => a + b, 0)   / cumpVals.length)   : globalScore;
+
                 return {
                     ...s,
-                    complianceLegajo: cLegajo,
-                    complianceEmpleados: cEmpleados,
-                    complianceVehiculos: cVehiculos,
-                    complianceMaquinaria: cMaquinaria,
-                    uploadLegajo: uLegajo,
-                    uploadEmpleados: uEmpleados,
-                    uploadVehiculos: uVehiculos,
-                    uploadMaquinaria: uMaquinaria,
-                    global: globalScore,
-                    globalUpload: globalUpload,
+                    complianceLegajo:     finalCumpLegajo,
+                    complianceEmpleados:  finalCumpEmpleados,
+                    complianceVehiculos:  finalCumpVehiculos,
+                    complianceMaquinaria: finalCumpMaquinaria,
+                    uploadLegajo:         finalUploadLegajo,
+                    uploadEmpleados:      finalUploadEmpleados,
+                    uploadVehiculos:      finalUploadVehiculos,
+                    uploadMaquinaria:     finalUploadMaquinaria,
+                    global:               finalGlobal,
+                    globalUpload:         finalGlobalUpload,
                     hasDebts,
                     pendingDocuments: results.pendingAuditDocs
                 };

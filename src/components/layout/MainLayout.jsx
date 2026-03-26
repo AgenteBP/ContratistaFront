@@ -21,7 +21,7 @@ const MainLayout = () => {
       />
 
       {/* Main Content Margin Adjustment */}
-      <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-out overflow-x-hidden w-full ${isSidebarPinned ? 'md:ml-64' : 'md:ml-20'}`}>
+      <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-out overflow-x-clip w-full ${isSidebarPinned ? 'md:ml-64' : 'md:ml-20'}`}>
         <Navbar onToggleSidebar={toggleSidebar} />
 
         <div className="p-4 md:p-6 fade-in">
