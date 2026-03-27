@@ -227,24 +227,23 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                             const elements = await elementService.getBySupplierAndActiveType(idSupplier, categoryId);
                             setTotalEntities(elements ? elements.length : 0);
 
-                            const perElementDocs = await Promise.all(
-                                (elements || []).map(async (el) => {
-                                    const idActive = el.active?.id_active;
-                                    const idElement = el.id_elements || el.idElements;
-                                    let reqs = [];
-                                    if (idGroup) {
-                                        try {
-                                            reqs = await groupService.getSpecificResource(idSupplier, idGroup, idActive, idElement) || [];
-                                        } catch (e) {
-                                            console.warn("Failed to fetch reqs for element", idElement, e);
-                                        }
-                                    }
-                                    const elWithSupplier = { ...el, supplier: el.supplier || { company_name: response.company_name } };
-                                    return mapElementsToDocuments([elWithSupplier], reqs, categoryId, type);
-                                })
-                            );
+                            // Optimizacion: una sola llamada batch en lugar de N llamadas getSpecificResource
+                            let reqsByElement = {};
+                            if (idGroup && elements?.length > 0) {
+                                const elementIds = elements.map(el => el.id_elements || el.idElements).filter(Boolean);
+                                try {
+                                    reqsByElement = await groupService.getSpecificResourceBatch(idSupplier, idGroup, null, elementIds) || {};
+                                } catch (e) {
+                                    console.warn("Failed batch fetch reqs for elements", e);
+                                }
+                            }
 
-                            allDocuments = perElementDocs.flat();
+                            allDocuments = (elements || []).flatMap(el => {
+                                const idElement = el.id_elements || el.idElements;
+                                const reqs = reqsByElement[idElement] || [];
+                                const elWithSupplier = { ...el, supplier: el.supplier || { company_name: response.company_name } };
+                                return mapElementsToDocuments([elWithSupplier], reqs, categoryId, type);
+                            });
                         } catch (err) {
                             console.warn("DocumentEntityTable: Failed to fetch elements for provider", err);
                         }
@@ -256,17 +255,15 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     let suppliers = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
                     setTotalEntities(suppliers ? suppliers.length : 0);
 
-
-
-                    const docPromises = suppliers.map(async (supplier) => {
+                    // Optimizacion: usar los datos ya obtenidos de getAuthorizedSuppliers directamente
+                    // evita N llamadas a getSupplierDocuments (una por proveedor)
+                    const docPromises = (suppliers || []).map(async (supplier) => {
                         const idSupplier = supplier.id_supplier || supplier.id;
                         const idGroup = supplier.id_group;
-                        // getSupplierDocuments gets full structure needed by mapSupplierToDocuments
                         try {
-                            const fullSupplier = await requirementService.getSupplierDocuments(supplier.cuit);
-                            return await mapSupplierToDocuments(fullSupplier, idSupplier, idGroup, categoryId);
+                            return await mapSupplierToDocuments(supplier, idSupplier, idGroup, categoryId);
                         } catch (e) {
-                            console.warn("Error fetching documents for supplier", supplier.cuit, e);
+                            console.warn("Error mapping documents for supplier", supplier.cuit, e);
                             return [];
                         }
                     });
@@ -276,24 +273,35 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
                     let elements = await elementService.getAuthorized(categoryId, user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
                     setTotalEntities(elements ? elements.length : 0);
 
-                    const perElementDocs = await Promise.all(
-                        (elements || []).map(async (el) => {
-                            const idSupplier = el.supplier?.id_supplier;
-                            const idGroup = el.id_group;
-                            const idActive = el.active?.id_active;
-                            const idElement = el.id_elements;
-                            let reqs = [];
-                            if (idGroup && idSupplier) {
-                                try {
-                                    reqs = await groupService.getSpecificResource(idSupplier, idGroup, idActive, idElement) || [];
-                                } catch (e) {
-                                    console.warn("Failed to fetch reqs for element", idElement, e);
-                                }
+                    // Optimizacion: agrupar elementos por (idSupplier, idGroup) y hacer una llamada batch por grupo
+                    // en lugar de N llamadas getSpecificResource (una por elemento)
+                    const groupMap = {};
+                    (elements || []).forEach(el => {
+                        const idSupplier = el.supplier?.id_supplier;
+                        const idGroup = el.id_group;
+                        if (idSupplier && idGroup) {
+                            const key = `${idSupplier}_${idGroup}`;
+                            if (!groupMap[key]) groupMap[key] = { idSupplier, idGroup, elements: [] };
+                            groupMap[key].elements.push(el);
+                        }
+                    });
+
+                    const batchResults = await Promise.all(
+                        Object.values(groupMap).map(async ({ idSupplier, idGroup, elements: groupElements }) => {
+                            const elementIds = groupElements.map(el => el.id_elements).filter(Boolean);
+                            let reqsByElement = {};
+                            try {
+                                reqsByElement = await groupService.getSpecificResourceBatch(idSupplier, idGroup, null, elementIds) || {};
+                            } catch (e) {
+                                console.warn("Failed batch fetch reqs for supplier group", idSupplier, idGroup, e);
                             }
-                            return mapElementsToDocuments([el], reqs, categoryId, type);
+                            return groupElements.flatMap(el => {
+                                const reqs = reqsByElement[el.id_elements] || [];
+                                return mapElementsToDocuments([el], reqs, categoryId, type);
+                            });
                         })
                     );
-                    allDocuments = perElementDocs.flat();
+                    allDocuments = batchResults.flat();
                 }
             }
 

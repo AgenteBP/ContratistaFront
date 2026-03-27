@@ -38,26 +38,41 @@ export const useSupplier = (explicitCuit = null) => {
         }
 
         try {
-            // 1. Fetch Actives for Legajo Proveedor (Type 5)
-            console.log("Fetching actives for Type 5...");
-            const actives = await elementService.getActivesByType(5);
-            console.log("Actives fetched:", actives?.length || 0);
-            setLegajoActives(actives);
-
             // 2. Identify the active CUIT based on currentRole or Fallback
             // Prioritize explicitCuit (Admin View) over Role-based CUIT (Supplier View)
             const activeCuit = explicitCuit || currentRole?.entityCuit || currentRole?.cuit || user?.suppliers?.[0]?.cuit;
 
             console.log("Active CUIT identified:", activeCuit);
 
+            // Optimizacion: actives y data son independientes, se lanzan en paralelo
+            console.log("Fetching actives (Type 5) and supplier data in parallel...");
+            const [actives, data] = await Promise.all([
+                elementService.getActivesByType(5),
+                (activeCuit && activeCuit !== 'undefined' && activeCuit !== 'null')
+                    ? supplierService.getWithDocuments(activeCuit)
+                    : Promise.resolve(null)
+            ]);
+            console.log("Actives fetched:", actives?.length || 0);
+            setLegajoActives(actives);
+
             if (activeCuit && activeCuit !== 'undefined' && activeCuit !== 'null') {
                 console.log("Requesting data for CUIT:", activeCuit);
-                const data = await supplierService.getWithDocuments(activeCuit);
                 if (data) {
-                    
+
                     try {
-                        console.log("Fetching associations (Grupo y Empresas) para CUIT", activeCuit);
-                        const assocData = await supplierService.getAssociations(activeCuit);
+                        // Optimizacion: assocData y allGroups son independientes, se lanzan en paralelo
+                        console.log("Fetching associations and groups in parallel for CUIT", activeCuit);
+                        const [assocData, allGroups] = await Promise.all([
+                            supplierService.getAssociations(activeCuit).catch(e => {
+                                console.warn("No se pudieron obtener asociaciones de grupo y empresa para vista", e);
+                                return null;
+                            }),
+                            groupService.getAll().catch(e => {
+                                console.warn("Fallo al obtener iconos de grupos para associationsMap", e);
+                                return [];
+                            })
+                        ]);
+
                         if (assocData && assocData.associations) {
                              const groupNames = Object.keys(assocData.associations);
                              data.associationsMap = assocData.associations; // Guardar mapa completo
@@ -66,31 +81,26 @@ export const useSupplier = (explicitCuit = null) => {
                                   data.empresas = assocData.associations[groupNames[0]] || [];
                              }
                         }
-                        
-                        // Obtener todos los grupos para armar un mapa de íconos por nombre de grupo
-                        try {
-                            const allGroups = await groupService.getAll();
-                            const iconsMap = {};
-                            allGroups.forEach(g => {
-                                const groupName = (g.description || g.name || '').trim().toUpperCase();
-                                if (groupName) {
-                                    iconsMap[groupName] = g.icon || 'pi pi-sitemap';
-                                }
-                            });
-                            data.groupIconsMap = iconsMap;
-                            
-                            // Retrocompatibilidad con grupoIcon singular
-                            if (data.idGroup) {
-                                 const matchedGroup = allGroups.find(g => String(g.idGroup || g.id_group || g.id) === String(data.idGroup));
-                                 if (matchedGroup && matchedGroup.icon) {
-                                     data.grupoIcon = matchedGroup.icon;
-                                 }
+
+                        // Armar mapa de íconos por nombre de grupo
+                        const iconsMap = {};
+                        (allGroups || []).forEach(g => {
+                            const groupName = (g.description || g.name || '').trim().toUpperCase();
+                            if (groupName) {
+                                iconsMap[groupName] = g.icon || 'pi pi-sitemap';
                             }
-                        } catch (groupError) {
-                            console.warn("Fallo al obtener iconos de grupos para associationsMap", groupError);
+                        });
+                        data.groupIconsMap = iconsMap;
+
+                        // Retrocompatibilidad con grupoIcon singular
+                        if (data.idGroup) {
+                             const matchedGroup = (allGroups || []).find(g => String(g.idGroup || g.id_group || g.id) === String(data.idGroup));
+                             if (matchedGroup && matchedGroup.icon) {
+                                 data.grupoIcon = matchedGroup.icon;
+                             }
                         }
                     } catch (assocErr) {
-                        console.warn("No se pudieron obtener asociaciones de grupo y empresa para vista", assocErr);
+                        console.warn("No se pudieron obtener asociaciones o grupos", assocErr);
                     }
 
                     // 3. If Group ID is present, fetch specific group requirements (DYNAMIC FLOW)
