@@ -42,7 +42,7 @@ const AuditorDetail = () => {
 
     const handleAssign = async (company) => {
         try {
-            await auditorService.assignCompany(id, company.idCompany);
+            await auditorService.assignCompany(id, company.id_company || company.idCompany);
             showSuccess('Empresa Asignada', `Se ha asignado ${company.description} al auditor.`);
             // Recargar datos para ver el cambio
             const updatedAuditor = await auditorService.getById(id);
@@ -54,7 +54,7 @@ const AuditorDetail = () => {
 
     const handleRemove = async (company) => {
         try {
-            await auditorService.removeCompany(id, company.idCompany);
+            await auditorService.removeCompany(id, company.id_company || company.idCompany);
             showSuccess('Empresa Desasignada', `Se ha quitado ${company.description} del auditor.`);
             // Recargar datos para ver el cambio
             const updatedAuditor = await auditorService.getById(id);
