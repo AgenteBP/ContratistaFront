@@ -46,7 +46,7 @@ export const supplierService = {
             telefono: response.phone,
             empleadorAFIP: response.is_an_afip_employer,
             esTemporal: response.is_temporary_hiring,
-            estado: response.active === 0 ? 'ACTIVO' : 'INACTIVO',
+            estado: response.active === 0 ? 'ACTIVO' : (response.active === 1 ? 'INACTIVO' : 'SUSPENDIDO'),
             isTecSuccess: response.is_tec_success, // New field from technical audits
             pais: response.country,
             provincia: response.province,

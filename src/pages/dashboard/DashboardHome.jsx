@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Chart as PrimeChart } from 'primereact/chart';
+import { useState, useEffect } from 'react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
@@ -152,8 +151,9 @@ const DashboardHome = () => {
                     watermark: true,
                     onClick: () => navigate('/proveedores'),
                     children: [
-                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados téc." value={s?.suppliers?.tec_approved} />,
-                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pend. téc." value={s?.suppliers?.tec_pending} />
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Rechazados" value={suppliersRejected} />,
+                        <DetailRow key="3" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={suppliersPending} />
                     ]
                 },
                 {
@@ -170,19 +170,22 @@ const DashboardHome = () => {
                     ]
                 },
                 {
-                    title: 'Auditoría Pend.',
-                    value: s?.suppliers?.tec_pending ?? '—',
+                    title: 'Auditorías Pend.',
+                    value: s != null ? (s?.suppliers?.tec_pending ?? 0) + (s?.pending_audit_files ?? 0) : '—',
                     icon: 'pi-file-excel',
                     type: 'danger',
                     watermark: true,
                     onClick: () => navigate('/auditores/tecnica'),
                     children: [
-                        <DetailRow key="1" icon="pi-exclamation-circle" iconColor="text-[#ef4444]" label="Rechazados téc." value={s?.suppliers?.tec_rejected} />,
-                        <DetailRow key="2" icon="pi-eye" iconColor="text-[#f59e0b]" label="Pendientes téc." value={s?.suppliers?.tec_pending} />
+                        <DetailRow key="1" icon="pi-wrench" iconColor="text-[#ef4444]" label="Pend. técnica" value={s?.suppliers?.tec_pending ?? '—'} />,
+                        <DetailRow key="2" icon="pi-book" iconColor="text-[#f59e0b]" label="Pend. legal" value={s?.pending_audit_files ?? 0} />
                     ]
                 }
             ];
         } else if (role === 'EMPRESA') {
+            const suppActivos    = authSuppliers.filter(sup => sup.active === 0).length;
+            const suppInactivos  = authSuppliers.filter(sup => sup.active === 1).length;
+            const suppSuspendidos = authSuppliers.filter(sup => sup.active === 2).length;
             return [
                 {
                     title: 'Proveedores',
@@ -192,8 +195,9 @@ const DashboardHome = () => {
                     watermark: true,
                     onClick: () => navigate('/proveedores'),
                     children: [
-                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
-                        <DetailRow key="2" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={suppliersPending} />
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Activos" value={suppActivos} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Doc./auditoría pend." value={suppInactivos} />,
+                        <DetailRow key="3" icon="pi-ban" iconColor="text-[#f59e0b]" label="Suspendidos" value={suppSuspendidos} />
                     ]
                 },
                 {
@@ -250,7 +254,7 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Empleados',
-                    value: s?.elements?.employees ?? '—',
+                    value: hookStats?.employees?.total ?? s?.elements?.employees ?? '—',
                     icon: 'pi-users',
                     type: 'info',
                     watermark: true,
@@ -262,7 +266,7 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Vehículos',
-                    value: s?.elements?.vehicles ?? '—',
+                    value: hookStats?.vehicles?.total ?? s?.elements?.vehicles ?? '—',
                     icon: 'pi-car',
                     type: 'warning',
                     watermark: true,
@@ -274,7 +278,7 @@ const DashboardHome = () => {
                 },
                 {
                     title: 'Maquinaria',
-                    value: s?.elements?.machinery ?? '—',
+                    value: hookStats?.machinery?.total ?? s?.elements?.machinery ?? '—',
                     icon: 'pi-cog',
                     type: 'success',
                     watermark: true,
@@ -351,33 +355,34 @@ const DashboardHome = () => {
                 ];
             } else {
                 // AUDITOR LEGAL
-                const docsRevision = s?.pendingAuditFiles || totalEnRevision || 0;
+                const docsRevision = s?.pending_audit_files ?? totalEnRevision;
                 return [
                     {
                         title: 'Docs en Revisión',
-                        value: docsRevision || '—',
+                        value: s != null ? (docsRevision ?? 0) : '—',
                         icon: 'pi-file',
                         type: 'danger',
                         watermark: true,
                         onClick: () => navigate('/auditoria-legal/inbox'),
                         children: [
-                            <DetailRow key="1" icon="pi-file" iconColor="text-[#ef4444]" label="Documentos pendientes" value={docsRevision} />
+                            <DetailRow key="1" icon="pi-file" iconColor="text-[#ef4444]" label="Documentos pendientes" value={docsRevision ?? 0} />
                         ]
                     },
                     {
                         title: 'Proveedores',
-                        value: totalProviders || '—',
+                        value: s != null ? totalProviders : '—',
                         icon: 'pi-briefcase',
                         type: 'primary',
                         watermark: true,
                         onClick: () => navigate('/proveedores'),
                         children: [
-                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Con cumplimiento" value={s?.suppliers?.tec_approved || 0} />
+                            <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
+                            <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Rechazados" value={suppliersRejected} />
                         ]
                     },
                     {
                         title: 'Vencidos / Por Vencer',
-                        value: (totalVencidos + totalPorVencer) || '—',
+                        value: s != null ? totalVencidos + totalPorVencer : '—',
                         icon: 'pi-clock',
                         type: 'warning',
                         watermark: true,
@@ -389,7 +394,7 @@ const DashboardHome = () => {
                     },
                     {
                         title: 'Observados',
-                        value: totalConObs || '—',
+                        value: s != null ? totalConObs : '—',
                         icon: 'pi-exclamation-circle',
                         type: 'info',
                         watermark: true,

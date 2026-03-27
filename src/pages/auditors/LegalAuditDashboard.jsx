@@ -27,6 +27,7 @@ const LegalAuditDashboard = () => {
     const [sidebarRefreshKeys, setSidebarRefreshKeys] = useState({ suppliers: 0, employees: 0, vehicles: 0, machinery: 0 });
     const [viewMode, setViewMode] = useState('operative'); // 'operative' or 'monthly'
     const [evolutionPerspective, setEvolutionPerspective] = useState('upload'); // 'upload' or 'compliance'
+    const [pendingFilesCount, setPendingFilesCount] = useState(0);
 
     // --- State for resizeable sidebar ---
     const [sidebarWidth, setSidebarWidth] = useState(null);
@@ -59,13 +60,16 @@ const LegalAuditDashboard = () => {
 
     useEffect(() => {
         loadData();
+        auditorService.getPendingFiles()
+            .then(data => setPendingFilesCount(Array.isArray(data) ? data.length : 0))
+            .catch(() => setPendingFilesCount(0));
     }, []);
 
     const loadData = async (isRetry = false) => {
         console.log("LegalAuditDashboard: Loading data...", isRetry ? "(Retry)" : "");
         setLoading(true);
         try {
-            const data = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name);
+            const data = await supplierService.getAuthorizedSuppliers(user.id, currentRole?.role || currentRole?.name, currentRole?.id_entity);
             console.log("LegalAuditDashboard: Raw data from API:", data?.length, "suppliers");
             if (data?.length > 0) {
                 console.log("LegalAuditDashboard: First supplier raw structure:", JSON.stringify(data[0], null, 2).substring(0, 1000));
@@ -524,7 +528,7 @@ const LegalAuditDashboard = () => {
                     >
                         <i className="pi pi-inbox"></i>
                         <span>Inbox Global</span>
-                        <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full">{stats.pending}</span>
+                        <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full">{pendingFilesCount}</span>
                     </button>
                 }
             />
@@ -715,7 +719,12 @@ const LegalAuditDashboard = () => {
                                     refreshKey={sidebarRefreshKeys[typeKey]}
                                     onAuditComplete={async () => {
                                         console.log("LegalAuditDashboard: Audit recorded, waiting for refresh...");
-                                        setTimeout(() => loadData(), 800);
+                                        setTimeout(() => {
+                                            loadData();
+                                            auditorService.getPendingFiles()
+                                                .then(data => setPendingFilesCount(Array.isArray(data) ? data.length : 0))
+                                                .catch(() => {});
+                                        }, 800);
                                     }}
                                 />
                             )}
