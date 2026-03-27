@@ -607,7 +607,7 @@ const SupplierStepDocuments = ({
                                     >
                                         <option value="" disabled className="text-gray-400">Seleccione el Activo (Obligatorio)</option>
                                         {(uniqueActives || []).map(active => (
-                                            <option key={active.id} value={active.id} className="text-secondary-dark">{active.description}</option>
+                                            <option key={active.id_active} value={active.id_active} className="text-secondary-dark">{active.description}</option>
                                         ))}
                                     </select>
                                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-secondary">

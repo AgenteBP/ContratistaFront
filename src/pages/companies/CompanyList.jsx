@@ -217,9 +217,6 @@ const CompanyList = () => {
                 {/* CUIT: Hidden sm:table-cell -> sm:hidden */}
                 <div className="sm:hidden"><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{data.cuit}</span></div>
 
-                {/* Rubro: Hidden lg:table-cell -> lg:hidden */}
-                <div className="lg:hidden"><span className="block text-[10px] text-secondary">Rubro</span>{textDataTemplate(data, 'rubro')}</div>
-
                 {/* Grupo: Hidden xl:table-cell -> xl:hidden */}
                 <div className="xl:hidden"><span className="block text-[10px] text-secondary">Grupo</span>{textDataTemplate(data, 'grupo')}</div>
             </div>
@@ -248,7 +245,7 @@ const CompanyList = () => {
                 loading={loading}
                 header={header}
                 filters={filters}
-                globalFilterFields={['razonSocial', 'cuit', 'rubro', 'grupo', 'estado']}
+                globalFilterFields={['razonSocial', 'cuit', 'grupo', 'estado']}
                 onValueChange={(data) => setFilteredCompanies(data)}
                 emptyMessage="No se encontraron datos."
                 sortMode="multiple"
@@ -264,7 +261,6 @@ const CompanyList = () => {
 
                 <Column field="razonSocial" header="Razón Social" sortable className="font-bold text-secondary-dark pl-6" headerClassName="pl-6"></Column>
                 <Column field="cuit" header="CUIT" sortable className="font-mono text-sm hidden sm:table-cell" headerClassName="hidden sm:table-cell"></Column>
-                <Column field="rubro" header="Rubro" sortable className="hidden lg:table-cell" headerClassName="hidden lg:table-cell" body={(d) => textDataTemplate(d, 'rubro')}></Column>
                 <Column field="grupo" header="Grupo" sortable className="hidden xl:table-cell" headerClassName="hidden xl:table-cell" body={(d) => textDataTemplate(d, 'grupo')}></Column>
                 <Column field="estado" header="Estado" sortable body={(d) => <StatusBadge status={d.estado} />}></Column>
                 <Column header="Acciones" body={actionTemplate} className="pr-6" headerClassName="pr-6" style={{ width: '50px', textAlign: 'center' }}></Column>

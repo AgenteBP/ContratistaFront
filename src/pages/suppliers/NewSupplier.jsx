@@ -327,7 +327,7 @@ const NewSupplier = () => {
             registration_number: supplierFormData.matricula,
             type_auditor: auditorType,
             // Extracts the first company ID if any selected in AuditorForm
-            id_company: supplierFormData.empresas?.[0]?.idCompany || supplierFormData.empresas?.[0]?.id || null
+            id_company: supplierFormData.empresas?.[0]?.id_company || supplierFormData.empresas?.[0]?.idCompany || null
           };
         }
 
@@ -341,10 +341,10 @@ const NewSupplier = () => {
         if (supplierMode === 'NEW' && supplierFormData) {
           // 1. Create the Company with Group (using new unified service method implicitly via controller)
           const response = await companyService.create(supplierFormData);
-          companyId = response.idCompany;
+          companyId = response.id_company || response.idCompany;
         } else if (selectedExistingSupplier) {
           // Use ID from existing selection
-          companyId = selectedExistingSupplier.idCompany || selectedExistingSupplier.id;
+          companyId = selectedExistingSupplier.id_company || selectedExistingSupplier.idCompany || selectedExistingSupplier.id;
         }
 
         if (companyId) {
