@@ -45,9 +45,19 @@ export const groupService = {
             .finally(() => _inFlight.delete(key));
         _inFlight.set(key, promise);
         return promise;
-    }
+    },
 
-    // TODO (optimización futura): implementar getSpecificResourceBatch para reducir N llamadas a 1.
-    // Ver plan en .claude/plans/calm-napping-hanrahan.md — sección "Batch endpoint".
-    // Requiere nuevo endpoint en backend: GET /group_requirements/specificResourceBatch?idElements=1,2,3
+    // Reemplaza N llamadas a getSpecificResource (una por elemento) con una sola llamada al backend.
+    // Retorna un objeto { [idElement]: List<GroupRequirementsSpecificDTO> } para todos los elementos pedidos.
+    getSpecificResourceBatch: async (idSupplier, idGroup, idActive, idElements) => {
+        if (!idElements || idElements.length === 0) return {};
+        // Spring acepta List<Integer> como multiples params: ?idElements=1&idElements=2&idElements=3
+        const params = new URLSearchParams();
+        params.append('idSupplier', idSupplier);
+        params.append('idGroup', idGroup);
+        if (idActive != null) params.append('idActive', idActive);
+        idElements.forEach(id => params.append('idElements', id));
+        const response = await api.get('/group_requirements/specificResourceBatch', { params });
+        return response.data; // Map<Integer, List<GroupRequirementsSpecificDTO>>
+    }
 };
