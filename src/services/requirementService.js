@@ -32,8 +32,14 @@ export const requirementService = {
     },
 
     /**
-     * Fetch assigned requirements details for a supplier and group
+     * Fetch assigned requirements details for a supplier and group.
+     * Used in DocumentationConfig to display already-saved requirements grouped by sub-activo.
+     * Returns GroupRequirementsFullDTO[] — each item includes listRequirements.attributeTemplate
+     * with id_active / active_description for grouping, and attributes.periodicity_description.
      * @param {Object} params
+     * @param {number} params.idSupplier
+     * @param {number} params.idGroup
+     * @param {number} [params.idActiveType]
      */
     getGroupRequirementsDetails: async (params) => {
         try {

@@ -336,7 +336,9 @@ const ResourceDocumentationView = () => {
                             const grpReqId = req.id_group_requirements || req.idGroupRequirements;
                             const fileId = req.submittedFile?.id_file_submitted || req.submittedFile?.idFileSubmitted;
                             const idAttribute = req.attributeId;
-                            const autoFrecuencia = req.list_requirements?.attribute_template?.attributes?.periodicity_description || req.list_requirements?.attributeTemplate?.attributes?.periodicity_description || 'Anual';
+                            // list_requirements → listRequirements (camelCase, sin @JsonProperty en GroupRequirementsSpecificDTO)
+                            const _lr = req.listRequirements || req.list_requirements;
+                            const autoFrecuencia = _lr?.attribute_template?.attributes?.periodicity_description || _lr?.attributeTemplate?.attributes?.periodicity_description || '';
                             const fileStatus = req.submittedFile?.audit_info?.audit_status || req.submittedFile?.auditInfo?.auditStatus;
                             const isAuditedStatus = fileStatus === 'OBSERVADO' || fileStatus === 'CON OBSERVACIÓN' || fileStatus === 'APROBADO' || fileStatus === 'VIGENTE';
 
@@ -388,7 +390,8 @@ const ResourceDocumentationView = () => {
                                         'bg-secondary/5 text-secondary border-secondary/20';
                                     const formatDate = (d) => { if (!d) return '-'; const p = String(d).split('T')[0].split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d; };
                                     
-                                    const periodicityStr = req.list_requirements?.attribute_template?.attributes?.periodicity_description || 'N/A';
+                                    const _lrList = req.listRequirements || req.list_requirements;
+                                    const periodicityStr = _lrList?.attribute_template?.attributes?.periodicity_description || _lrList?.attributeTemplate?.attributes?.periodicity_description || '';
                                     const isUnicaVezList = periodicityStr.toUpperCase() === 'ÚNICA VEZ' || periodicityStr.toUpperCase() === 'UNICA VEZ';
 
                                     return (
@@ -400,7 +403,7 @@ const ResourceDocumentationView = () => {
                                                     </div>
                                                     <div>
                                                         <p className="font-bold text-secondary-dark text-xs">{label}</p>
-                                                        <p className="text-[10px] text-secondary/60">{req.list_requirements?.attribute_template?.attributes?.periodicity_description || 'N/A'}</p>
+                                                        <p className="text-[10px] text-secondary/60">{periodicityStr || '—'}</p>
                                                     </div>
                                                 </div>
                                             </td>

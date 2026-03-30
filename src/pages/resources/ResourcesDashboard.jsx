@@ -39,7 +39,16 @@ const ResourcesDashboard = () => {
     const [activeIndex, setActiveIndex] = useState(0);
     const { currentRole, isAuditorLegal } = useAuth();
 
-    const [selectedSupplier, setSelectedSupplier] = useState(null);
+    const SUPPLIER_FILTER_KEY = 'resources_supplier_filter';
+
+    const [selectedSupplier, setSelectedSupplier] = useState(() => {
+        try {
+            const stored = sessionStorage.getItem(SUPPLIER_FILTER_KEY);
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
     const [modalVisible, setModalVisible] = useState(false);
 
     useEffect(() => {
@@ -47,6 +56,16 @@ const ResourcesDashboard = () => {
             setModalVisible(true);
         }
     }, [currentRole, selectedSupplier]);
+
+    const handleSupplierConfirm = (supp) => {
+        setSelectedSupplier(supp);
+        try {
+            sessionStorage.setItem(SUPPLIER_FILTER_KEY, JSON.stringify(supp));
+        } catch {
+            // sessionStorage not available
+        }
+        setModalVisible(false);
+    };
 
     const explicitIdSupplier = selectedSupplier?.supplier?.value || selectedSupplier?.supplier?.id || null;
     const { stats, loading } = useResourceStats(explicitIdSupplier);
@@ -251,10 +270,7 @@ const ResourcesDashboard = () => {
 
             <AdminSupplierFilterModal
                 visible={modalVisible}
-                onConfirm={(supp) => {
-                    setSelectedSupplier(supp);
-                    setModalVisible(false);
-                }}
+                onConfirm={handleSupplierConfirm}
                 onCancel={() => {
                     setModalVisible(false);
                     navigate('/dashboard');
