@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ProgressSpinner } from 'primereact/progressspinner';
 
 /**
@@ -6,12 +7,21 @@ import { ProgressSpinner } from 'primereact/progressspinner';
  * Designed to show a clear, non-intrusive loading state or success confirmation.
  */
 const LoadingOverlay = ({ isVisible, status = 'loading', message }) => {
+    useEffect(() => {
+        if (isVisible) {
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isVisible]);
+
     if (!isVisible) return null;
 
     const displayMessage = message || (status === 'success' ? '¡Cambios guardados!' : 'Guardando cambios...');
 
-    return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-secondary/20 backdrop-blur-[2px] animate-fade-in pl-0 lg:pl-[280px]">
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-secondary/20 backdrop-blur-[2px] animate-fade-in">
             <div className="bg-white p-8 rounded-2xl shadow-2xl border border-secondary/10 flex flex-col items-center gap-4 max-w-xs w-full mx-4 transform animate-scale-in">
                 {status === 'loading' ? (
                     <ProgressSpinner
@@ -38,7 +48,8 @@ const LoadingOverlay = ({ isVisible, status = 'loading', message }) => {
                     </p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

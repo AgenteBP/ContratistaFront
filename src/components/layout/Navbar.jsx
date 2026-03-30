@@ -129,7 +129,6 @@ const Navbar = ({ onToggleSidebar }) => {
         'auditores': 'Auditores',
         'empresas': 'Empresas',
         'nuevo': 'Nuevo Registro',
-        'auditorias': 'Auditorías',
         'usuarios': 'Usuarios',
         'configuracion': 'Configuración',
         'recursos': 'Recursos',
@@ -137,9 +136,10 @@ const Navbar = ({ onToggleSidebar }) => {
         'vehiculos': 'Vehículos',
         'maquinaria': 'Maquinaria',
         'tecnica': 'Técnica',
-
-        'auditoria': 'Auditoría',
     };
+
+    // Segmentos intermedios sin ruta propia: se omiten del breadcrumb junto al segmento siguiente
+    const skippedSegments = new Set(['editar', 'documentacion']);
 
     // Helper para formato Título (Camel Case visual)
     const toTitleCase = (str) => {
@@ -175,8 +175,14 @@ const Navbar = ({ onToggleSidebar }) => {
         // Usamos el mapa, o formateamos el valor si no existe
         const lastDisplayName = lastIsId ? `Detalle #${lastValue}` : (breadcrumbNameMap[lastValue] || toTitleCase(lastValue));
 
-        // Generar lista de padres (excluyendo el actual)
+        // Generar lista de padres (excluyendo el actual), omitiendo segmentos sin ruta
         const parentPaths = pathnames.slice(0, -1);
+        let skipNext = false;
+        const visibleParentPaths = parentPaths.filter((value) => {
+            if (skippedSegments.has(value)) { skipNext = true; return false; }
+            if (skipNext) { skipNext = false; return false; }
+            return true;
+        });
 
         return (
             <div className="flex items-center text-sm">
@@ -206,8 +212,8 @@ const Navbar = ({ onToggleSidebar }) => {
                     <OverlayPanel ref={menuRef} my="left top" at="left bottom" className="shadow-xl border border-gray-100 bg-white rounded-xl p-0" style={{ maxWidth: '220px' }}>
                         <div className="flex flex-col items-center gap-2 p-3">
                             {/* Renderizamos padres en orden INVERSO */}
-                            {parentPaths.length > 0 ? (
-                                [...parentPaths].reverse().map((value, index) => {
+                            {visibleParentPaths.length > 0 ? (
+                                [...visibleParentPaths].reverse().map((value, index) => {
                                     const realIndex = pathnames.indexOf(value);
                                     const to = `/${pathnames.slice(0, realIndex + 1).join('/')}`;
                                     const name = breadcrumbNameMap[value] || toTitleCase(value);
@@ -221,7 +227,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                                 {name}
                                             </span>
                                             {/* Flecha hacia arriba indica "nivel superior" */}
-                                            {index < parentPaths.length - 1 && (
+                                            {index < visibleParentPaths.length - 1 && (
                                                 <i className="pi pi-angle-up text-[10px] text-gray-300 mt-0.5"></i>
                                             )}
                                         </div>
@@ -236,7 +242,7 @@ const Navbar = ({ onToggleSidebar }) => {
                                 </span>
                             )}
                             {/* Siempre agregar 'Inicio' si no estaba en la lista y no estamos en Dashboard */}
-                            {parentPaths.length > 0 && pathnames[0] !== 'dashboard' && (
+                            {visibleParentPaths.length > 0 && pathnames[0] !== 'dashboard' && (
                                 <div className="contents">
                                     <i className="pi pi-angle-up text-[10px] text-gray-300 mt-0.5"></i>
                                     <span onClick={(e) => { navigate('/dashboard'); }} className="text-xs font-semibold text-gray-500 hover:text-primary cursor-pointer tracking-wide capitalize transition-colors hover:scale-105 transform duration-200">Inicio</span>
@@ -252,25 +258,35 @@ const Navbar = ({ onToggleSidebar }) => {
                         <i className="pi pi-home mr-1"></i>Inicio
                     </Link>
 
-                    {pathnames.map((value, index) => {
-                        if (value === 'dashboard') return null;
+                    {(() => {
+                        const skippedIndices = new Set();
+                        let skipNxt = false;
+                        pathnames.forEach((value, index) => {
+                            if (skippedSegments.has(value)) { skippedIndices.add(index); skipNxt = true; }
+                            else if (skipNxt) { skippedIndices.add(index); skipNxt = false; }
+                        });
+                        const visiblePathnames = pathnames.filter((_, i) => !skippedIndices.has(i));
 
-                        const to = `/${pathnames.slice(0, index + 1).join('/')}`;
-                        const isLast = index === pathnames.length - 1;
-                        const isId = !isNaN(value);
-                        let displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || toTitleCase(value));
+                        return visiblePathnames.map((value, visibleIndex) => {
+                            if (value === 'dashboard') return null;
+                            const originalIndex = pathnames.indexOf(value);
+                            const to = `/${pathnames.slice(0, originalIndex + 1).join('/')}`;
+                            const isLast = visibleIndex === visiblePathnames.length - 1;
+                            const isId = !isNaN(value);
+                            const displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || toTitleCase(value));
 
-                        return (
-                            <React.Fragment key={to}>
-                                {separator}
-                                {isLast ? (
-                                    <span className={activeClass}>{displayName}</span>
-                                ) : (
-                                    <Link to={to} className={linkClass}>{displayName}</Link>
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
+                            return (
+                                <React.Fragment key={to}>
+                                    {separator}
+                                    {isLast ? (
+                                        <span className={activeClass}>{displayName}</span>
+                                    ) : (
+                                        <Link to={to} className={linkClass}>{displayName}</Link>
+                                    )}
+                                </React.Fragment>
+                            );
+                        });
+                    })()}
                 </div>
             </div>
         );
