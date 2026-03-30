@@ -321,8 +321,11 @@ export const useSupplier = (explicitCuit = null) => {
                         const base64Data = await fileToBase64(doc.fileObject);
                         const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
 
+                        // VIGENTE/VENCIDO: force null to INSERT a new record (preserve history, fresh audit cycle)
+                        // CON OBSERVACIÓN: send existing id so backend overwrites via flag_forwarded
+                        const shouldCreateNew = doc.estado === 'VIGENTE' || doc.estado === 'VENCIDO';
                         fileDto = {
-                            id_file_submitted: doc.id_file_submitted || null,
+                            id_file_submitted: shouldCreateNew ? null : (doc.id_file_submitted || null),
                             id_attribute: doc.id_attribute || 1,
                             period: doc.period || new Date().getFullYear().toString(),
                             file_name: doc.archivo,
@@ -404,7 +407,7 @@ export const useSupplier = (explicitCuit = null) => {
             },
             document_supplier: {
                 list: (mergedData.documentacion || [])
-                    .filter(d => d.modified === true || String(d.id).startsWith('CUSTOM_'))
+                    .filter(d => (d.modified === true || String(d.id).startsWith('CUSTOM_')) && !d.fileObject)
                     .map(d => ({
                     id: String(d.id).startsWith('req-') ? null : d.id, // Don't send string IDs if backend expects integers
                     tipo: d.tipo,

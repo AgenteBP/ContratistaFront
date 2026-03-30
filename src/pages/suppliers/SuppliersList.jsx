@@ -41,7 +41,7 @@ const SuppliersList = () => {
     const [requiredTechnical, setRequiredTechnical] = useState(false);
 
     const servicios = ['ALQUILER DE VEHÍCULOS', 'BAREMO', 'CALLCENTER', 'INVERSION Y MANTENIMIENTO', 'LIMPIEZA DE OFICINAS', 'MANTENIMIENTO', 'VIGILANCIA', 'MOVILES Y EQUIPOS'];
-    const estadoOptions = ['ACTIVO', 'DADO DE BAJA', 'SIN COMPLETAR', 'SUSPENDIDO'];
+    const estadoOptions = ['ACTIVO', 'INACTIVO', 'SUSPENDIDO'];
 
     const loadSuppliers = useCallback(async () => {
         if (!user?.id || !currentRole?.role) {
@@ -76,7 +76,7 @@ const SuppliersList = () => {
                 telefono: s.phone || '-',
                 empleadorAFIP: !!s.is_an_afip_employer,
                 esTemporal: !!s.is_temporary_hiring,
-                estado: s.active === 0 ? 'ACTIVO' : (s.active === 1 ? 'DADO DE BAJA' : 'INACTIVO'),
+                estado: s.active === 0 ? 'ACTIVO' : (s.active === 1 ? 'INACTIVO' : 'SUSPENDIDO'),
                 provincia: s.province || '-',
                 localidad: s.city || '-',
                 motivo: s.document_supplier?.observaciones || null,

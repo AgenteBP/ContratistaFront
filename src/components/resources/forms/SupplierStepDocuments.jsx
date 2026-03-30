@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import StepHeader from '../../suppliers/StepHeader';
 import { Calendar } from 'primereact/calendar';
 
@@ -39,6 +39,8 @@ const SupplierStepDocuments = ({
     const [docToDelete, setDocToDelete] = useState(null);
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [auditedDeleteWarning, setAuditedDeleteWarning] = useState(false);
+    const [auditedReplaceDoc, setAuditedReplaceDoc] = useState(null); // { id, label }
+    const replaceFileInputRef = useRef(null);
 
     const toggleObservation = (id) => {
         setExpandedObservations(prev => ({
@@ -411,6 +413,7 @@ const SupplierStepDocuments = ({
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     if (docData?.hasAudits && status !== 'PENDIENTE' && !docData?.modified) {
+                                                                        setAuditedReplaceDoc({ id: doc.id, label: doc.label });
                                                                         setAuditedDeleteWarning(true);
                                                                     } else {
                                                                         setDocToDelete(doc.id);
@@ -830,14 +833,33 @@ const SupplierStepDocuments = ({
                                 <span className="text-[10px] font-bold text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-0.5 rounded border border-amber-200">No se puede eliminar</span>
                             </div>
                         </div>
-                        <div className="bg-gray-50 border border-secondary/10 p-4 rounded-lg mb-6">
-                            <p className="text-sm text-secondary-dark leading-relaxed italic">Este documento ya fue auditado por el equipo legal y no puede eliminarse. Debe reemplazarlo subiendo un nuevo archivo.</p>
+                        <div className="bg-gray-50 border border-secondary/10 p-4 rounded-lg mb-4">
+                            <p className="text-sm text-secondary-dark leading-relaxed italic">Este documento ya fue auditado por el equipo legal y no puede eliminarse. Puede reemplazarlo subiendo un nuevo archivo, que iniciará un nuevo ciclo de auditoría.</p>
                         </div>
+                        <input
+                            ref={replaceFileInputRef}
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => {
+                                if (auditedReplaceDoc) {
+                                    handleFileUpload(e, auditedReplaceDoc.id, auditedReplaceDoc.label);
+                                }
+                                setAuditedDeleteWarning(false);
+                                setAuditedReplaceDoc(null);
+                            }}
+                        />
+                        <button
+                            onClick={() => replaceFileInputRef.current?.click()}
+                            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-2.5 rounded-lg transition-colors mb-2"
+                        >
+                            <i className="pi pi-upload mr-2"></i>
+                            Reemplazar archivo
+                        </button>
                         <button
                             onClick={() => setAuditedDeleteWarning(false)}
                             className="w-full bg-secondary-light hover:bg-secondary/20 text-secondary-dark font-bold py-2.5 rounded-lg transition-colors"
                         >
-                            Entendido
+                            Cancelar
                         </button>
                     </div>
                 </div>

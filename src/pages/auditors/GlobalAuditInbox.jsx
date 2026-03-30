@@ -70,7 +70,7 @@ const GlobalAuditInbox = () => {
                     <Column field="provider" header="Proveedor" sortable className="font-bold text-secondary-dark"></Column>
                     <Column field="resource" header="Recursos/Ámbito" sortable className="text-secondary"></Column>
                     <Column field="doc" header="Documento" sortable></Column>
-                    <Column field="waitTime" sortField="waitTimeRaw" header="Tiempo de Espera" body={(r) => (
+                    <Column field="waitTime" sortField="waitTimeRaw" header="Antigüedad" body={(r) => (
                         <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-100 italic">
                             {r.waitTime}
                         </span>
