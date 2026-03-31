@@ -204,7 +204,7 @@ const Sidebar = ({ isOpen, isPinned, togglePin, closeMobile }) => {
             label: 'Documentos',
             items: [
                 { label: 'General', to: '/documentos/general', icon: 'pi-th-large' },
-                { label: 'Pendientes', to: '/documentos/pendientes', icon: 'pi-upload' },
+                { label: 'Pendientes/Vencidos', to: '/documentos/pendientes', icon: 'pi-upload' },
                 { label: 'Por Vencer', to: '/documentos/por-vencer', icon: 'pi-clock' },
                 { label: 'Observados', to: '/documentos/observados', icon: 'pi-exclamation-circle' },
                 { label: 'En Revisión', to: '/documentos/en-revision', icon: 'pi-eye' },

@@ -172,7 +172,7 @@ const DocumentEntityTable = ({ type, filterStatus, explicitCuit, onAuditComplete
             const s = doc.estado || 'PENDIENTE';
             switch (filterStatus) {
                 case 'pending_upload': return s === 'PENDIENTE' || s === 'INCOMPLETA' || s === 'VENCIDO';
-                case 'expiring': return doc.isExpiringSoon || s === 'VENCIDO';
+                case 'expiring': return doc.isExpiringSoon;
                 case 'observed': return s === 'CON OBSERVACIÓN' || s === 'RECHAZADO' || s === 'OBSERVADO';
                 case 'in_review': return s === 'EN REVISIÓN';
                 case 'valid': return s === 'VIGENTE' || s === 'COMPLETA';
