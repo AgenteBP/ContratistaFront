@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { auditorService } from '../../services/auditorService';
+import { supplierService } from '../../services/supplierService';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/ui/PageHeader';
 import SelectionToggle from '../../components/ui/SelectionToggle';
@@ -64,13 +65,6 @@ const TechnicalAudit = () => {
     });
     const [paramsLoading, setParamsLoading] = useState(true);
     const [providers, setProviders] = useState([]);
-    const [expandedProviders, setExpandedProviders] = useState(new Set());
-
-    const toggleExpand = (id) => setExpandedProviders(prev => {
-        const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
-        return next;
-    });
 
     // Auditorías (Simulando Backend)
     const [audits, setAudits] = useState(() => {
@@ -106,23 +100,30 @@ const TechnicalAudit = () => {
     const loadConfig = useCallback(async () => {
         setParamsLoading(true);
         try {
-            const [workingDay, dailyAffect, costScale, suppliersRaw] = await Promise.all([
+            const [workingDay, dailyAffect, costScale, suppliersRaw, allSuppliers] = await Promise.all([
                 auditorService.getTypicalWorkingDay(),
                 auditorService.getDailyAffect(),
                 auditorService.getCostScale(),
                 auditorService.getWithAuditTecReq(),
+                supplierService.getAll().catch(() => []),
             ]);
             setParams({
                 jornada: workingDay,
                 afectacion: dailyAffect,
                 baremos: costScale,
             });
+            const cuitMap = {};
+            (allSuppliers || []).forEach(s => {
+                if (s.id_supplier || s.idSupplier) {
+                    cuitMap[(s.id_supplier || s.idSupplier)] = s.cuit;
+                }
+            });
             setProviders(suppliersRaw.map(s => ({
                 id: s.id_supplier,
                 name: s.fantasy_name || s.company_name,
                 // Ficha fields
                 companyName: s.company_name,
-                cuit: s.cuit,
+                cuit: s.cuit || cuitMap[s.id_supplier],
                 tipoPersona: s.type_person,
                 clasificacionAFIP: s.classification_afip,
                 servicio: s.category_service,
@@ -468,7 +469,7 @@ const TechnicalAudit = () => {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Datos Personales</h6>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Nombre Completo</span><span className="text-sm font-medium text-secondary-dark">{`${item.data?.nombre || ''} ${item.data?.apellido || ''}`.trim() || 'N/A'}</span></div>
@@ -478,13 +479,13 @@ const TechnicalAudit = () => {
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
                                                                 <div className="flex flex-col gap-2.5 pt-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Estado Adm:</span>
                                                                         <StatusBadge status={estado} />
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
-                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Documentación:</span>
+                                                                        <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
                                                                             <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
                                                                             <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
                                                                         </div>
@@ -496,14 +497,6 @@ const TechnicalAudit = () => {
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Área Operativa</span><span className="text-sm font-medium text-secondary-dark">{item.data?.area || 'N/A'}</span></div>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Teléfono</span><span className="text-sm font-medium text-secondary-dark">{item.data?.telefono || 'N/A'}</span></div>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">¿Es Chofer?</span><span className="text-sm font-medium text-secondary-dark">{item.data?.esChofer ? 'SÍ' : 'NO'}</span></div>
-                                                            </div>
-                                                            <div className="flex flex-col justify-end gap-2">
-                                                                <button
-                                                                    onClick={() => navigate(`/recursos/documentacion/empleado/${item.id_elements}`)}
-                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
-                                                                >
-                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
-                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -521,7 +514,7 @@ const TechnicalAudit = () => {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Identificación Técnica</h6>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Descripción</span><span className="text-sm font-medium text-secondary-dark">{item.data?.nombre || item.active?.description || 'N/A'}</span></div>
@@ -531,13 +524,13 @@ const TechnicalAudit = () => {
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
                                                                 <div className="flex flex-col gap-2.5 pt-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Estado Adm:</span>
                                                                         <StatusBadge status={estado} />
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
-                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Documentación:</span>
+                                                                        <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
                                                                             <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
                                                                             <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
                                                                         </div>
@@ -548,14 +541,6 @@ const TechnicalAudit = () => {
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Pertenencia</h6>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de Equipo</span><span className="text-sm font-medium text-secondary-dark">{item.active?.description || 'N/A'}</span></div>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">MAQ-{String(item.id_elements).padStart(4, '0')}</span></div>
-                                                            </div>
-                                                            <div className="flex flex-col justify-end gap-2">
-                                                                <button
-                                                                    onClick={() => navigate(`/recursos/documentacion/maquinaria/${item.id_elements}`)}
-                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
-                                                                >
-                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
-                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -573,7 +558,7 @@ const TechnicalAudit = () => {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Especificaciones</h6>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{item.data?.marca || 'N/A'} {item.data?.modelo || ''}</span></div>
@@ -587,13 +572,13 @@ const TechnicalAudit = () => {
                                                             <div className="space-y-3">
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
                                                                 <div className="flex flex-col gap-2.5 pt-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Estado Adm:</span>
                                                                         <StatusBadge status={estado} />
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
-                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                    <div>
+                                                                        <span className="block text-[10px] text-secondary font-bold uppercase mb-1">Documentación:</span>
+                                                                        <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
                                                                             <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
                                                                             <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
                                                                         </div>
@@ -604,14 +589,6 @@ const TechnicalAudit = () => {
                                                                 <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Aplicación</h6>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Servicio</span><span className="text-sm font-medium text-secondary-dark uppercase">{item.data?.servicio || 'N/A'}</span></div>
                                                                 <div><span className="block text-[10px] text-secondary font-bold uppercase">Chofer Asignado</span><span className="text-sm font-medium text-secondary-dark">{item.data?.choferAsignado?.nombre || 'S/A'}</span></div>
-                                                            </div>
-                                                            <div className="flex flex-col justify-end gap-2">
-                                                                <button
-                                                                    onClick={() => navigate(`/recursos/documentacion/vehiculo/${item.id_elements}`)}
-                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
-                                                                >
-                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
-                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1029,7 +1006,7 @@ const TechnicalAudit = () => {
                                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td
                                             className="px-6 py-3 font-bold text-primary hover:underline cursor-pointer text-sm"
-                                            onClick={() => navigate(`/proveedores/${p.id}`)}
+                                            onClick={() => navigate(`/proveedores/${p.cuit}`)}
                                         >
                                             {p.name}
                                         </td>
@@ -1173,25 +1150,16 @@ const TechnicalAudit = () => {
                                     viewMode === 'Mensual' ? p.subTotalMensual :
                                         p.subTotalDiario;
 
-                                const isExpanded = expandedProviders.has(p.id);
                                 return (
                                     <React.Fragment key={p.id}>
                                     <tr className="hover:bg-slate-50 transition-colors group">
                                         <td
                                             className="px-3 py-3 font-bold sticky left-0 bg-white group-hover:bg-slate-50 transition-colors z-20 border-r border-secondary/5 text-sm whitespace-normal leading-snug shadow-[2px_0_5px_rgba(0,0,0,0.05)]"
                                         >
-                                            <div className="flex items-center gap-1.5">
-                                                <button
-                                                    onClick={() => toggleExpand(p.id)}
-                                                    className="w-5 h-5 flex items-center justify-center rounded text-secondary/40 hover:text-primary hover:bg-primary/5 transition-all shrink-0"
-                                                >
-                                                    <i className={`pi pi-chevron-right text-[9px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}></i>
-                                                </button>
-                                                <span
-                                                    className="text-primary hover:underline cursor-pointer"
-                                                    onClick={() => navigate(`/proveedores/${p.id}`)}
-                                                >{p.name}</span>
-                                            </div>
+                                            <span
+                                                className="text-primary hover:underline cursor-pointer"
+                                                onClick={() => navigate(`/proveedores/${p.cuit}`)}
+                                            >{p.name}</span>
                                         </td>
                                         <td className="px-1.5 py-3 text-right text-secondary/70 text-xs tabular-nums">{formatCurrency(p.itemDailyCosts.personal * scaleFactor)}</td>
                                         <td className="px-1.5 py-3 text-right text-secondary/70 text-xs tabular-nums">{formatCurrency(p.itemDailyCosts.vehiculo * scaleFactor)}</td>
@@ -1215,55 +1183,6 @@ const TechnicalAudit = () => {
                                             </div>
                                         </td>
                                     </tr>
-                                    {isExpanded && (
-                                        <tr>
-                                            <td colSpan="8" className="p-0 border-b border-secondary/10">
-                                                <div className="bg-secondary-light/40 px-6 py-4 animate-fade-in text-sm">
-                                                    <div className="flex items-center gap-2 mb-3">
-                                                        <i className="pi pi-id-card text-primary text-lg"></i>
-                                                        <h5 className="font-bold text-secondary-dark text-sm">Ficha del Proveedor</h5>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                                        <div className="space-y-2">
-                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Datos Comerciales</h6>
-                                                            {p.name && <div><span className="block text-[10px] text-secondary">Nombre Fantasía</span><span className="font-medium text-secondary-dark">{p.name}</span></div>}
-                                                            <div><span className="block text-[10px] text-secondary">Condición AFIP</span><span className="font-medium text-secondary-dark">{p.clasificacionAFIP || 'N/A'}</span></div>
-                                                            <div><span className="block text-[10px] text-secondary">Servicio</span><span className="font-medium text-secondary-dark">{p.servicio || 'N/A'}</span></div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado y Ubicación</h6>
-                                                            <div><span className="block text-[10px] text-secondary">Ubicación</span><span className="font-medium text-secondary-dark">{p.localidad ? `${p.localidad}, ${p.provincia}` : (p.provincia || 'N/A')}</span></div>
-                                                            <div className="flex flex-wrap gap-3 items-center">
-                                                                <div className="flex flex-col items-start gap-1">
-                                                                    <span className="text-[10px] text-secondary">Temporal</span>
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-flex items-center gap-1 ${p.esTemporal ? 'bg-warning-light text-warning-hover border-warning/30' : 'bg-success-light text-success-hover border-success/30'}`}>
-                                                                        {p.esTemporal ? <><i className="pi pi-clock text-[8px]"></i> SÍ</> : 'NO'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Identificación</h6>
-                                                            <div><span className="block text-[10px] text-secondary">Razón Social</span><span className="font-medium text-secondary-dark">{p.companyName || 'N/A'}</span></div>
-                                                            <div><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{p.cuit || 'N/A'}</span></div>
-                                                            <div><span className="block text-[10px] text-secondary">Tipo Persona</span><span className="font-medium text-secondary-dark">{p.tipoPersona || 'N/A'}</span></div>
-                                                            <div><span className="block text-[10px] text-secondary">Estado</span><span className={`font-bold text-[10px] ${p.estado === 'ACTIVO' ? 'text-success' : p.estado === 'SUSPENDIDO' ? 'text-danger' : 'text-warning'}`}>{p.estado || 'N/A'}</span></div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Contacto</h6>
-                                                            {p.email && <div className="truncate"><span className="block text-[10px] text-secondary">Email</span><a href={`mailto:${p.email}`} className="font-medium text-primary hover:underline truncate block" title={p.email}>{p.email}</a></div>}
-                                                            {p.telefono && <div><span className="block text-[10px] text-secondary">Teléfono</span><span className="font-mono text-secondary-dark">{p.telefono}</span></div>}
-                                                            <div><span className="block text-[10px] text-secondary">Empleador AFIP</span>
-                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-flex items-center gap-1 mt-0.5 ${p.empleadorAFIP ? 'bg-success-light text-success-hover border-success/30' : 'bg-slate-100 text-secondary border-secondary/20'}`}>
-                                                                    {p.empleadorAFIP ? 'SÍ' : 'NO'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
                                     </React.Fragment>
                                 );
                             })}
