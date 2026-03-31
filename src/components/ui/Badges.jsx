@@ -28,6 +28,7 @@ export const StatusBadge = ({ status }) => {
             case 'BLOQUEADO':
             case 'RECHAZADO':
             case 'VENCIDO':
+            case 'NO HABILITADO':
                 // Danger: Red
                 return 'bg-danger-light text-danger-hover border-danger/30';
 

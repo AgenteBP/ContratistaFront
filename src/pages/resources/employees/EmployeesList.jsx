@@ -69,15 +69,6 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
                             <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
                             <StatusBadge status={data.estado} />
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
-                            <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
-                                <span className={`w-1.5 h-1.5 rounded-full ${data.docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
-                                <span className={`text-[10px] font-bold ${data.docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>
-                                    {data.docStatus || 'NO HABILITADO'}
-                                </span>
-                            </div>
-                        </div>
                     </div>
                     {data.motivo && (
                         <div className="mt-2 bg-white/60 p-2 rounded border border-secondary/10 italic">
@@ -116,7 +107,7 @@ const EmployeesList = ({ isEmbedded = false, showProvider = false, explicitIdSup
 
     const filterConfig = [
         { label: 'Habilitación', value: 'habilitado', options: [{ label: 'Habilitado', value: true }, { label: 'No Habilitado', value: false }] },
-        { label: 'Estado', value: 'estado', options: ['ACTIVO', 'VENCIDO', 'EN REVISIÓN', 'SUSPENDIDO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
+        { label: 'Estado', value: 'estado', options: ['HABILITADO', 'NO HABILITADO', 'DADO DE BAJA'].map(s => ({ label: s, value: s })) }
     ];
 
     if (displayProvider) {

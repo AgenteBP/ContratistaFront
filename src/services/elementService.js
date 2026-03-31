@@ -1,5 +1,13 @@
 import api from '../api/axiosConfig';
 
+const HABILITADO_DOC_STATUSES = ['HABILITADO', 'SIN_REQUISITOS'];
+
+function computeResourceEstado(rawEstado, docStatus) {
+    if (rawEstado === 'DADO DE BAJA') return 'DADO DE BAJA';
+    const effective = docStatus || 'SIN_REQUISITOS';
+    return HABILITADO_DOC_STATUSES.includes(effective) ? 'HABILITADO' : 'NO HABILITADO';
+}
+
 const elementService = {
     /**
      * Fetch all elements associated with a supplier
@@ -115,13 +123,13 @@ const elementService = {
             categoria: e.data?.categoriaVehiculo || 'N/A',
             capacidadCarga: e.data?.capacidadCarga || null,
             cantidadAsientos: e.data?.cantidadAsientos || null,
-            estado: e.data?.estado || 'ACTIVO',
+            docStatus: e.data?.docStatus || 'SIN_REQUISITOS',
+            estado: computeResourceEstado(e.data?.estado, e.data?.docStatus || 'SIN_REQUISITOS'),
             servicio: e.data?.servicio || 'MANTENIMIENTO', // Add default or mapped value
             chofer: e.data?.choferAsignado?.nombre || 'S/A',
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
-            docStatus: e.data?.docStatus || (e.data?.estado === 'ACTIVO' ? 'SIN_REQUISITOS' : 'PENDIENTE'),
             expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || '',
             detalles_tecnicos: e.data?.detalles_tecnicos || {}
@@ -142,12 +150,12 @@ const elementService = {
             area: e.data?.area || 'N/A',
             telefono: e.data?.telefono || 'N/A',
             esChofer: e.data?.esChofer || false,
-            estado: e.data?.estado || 'ACTIVO',
             habilitado: e.data?.habilitado ?? true,
+            docStatus: e.data?.docStatus || 'SIN_REQUISITOS',
+            estado: computeResourceEstado(e.data?.estado, e.data?.docStatus || 'SIN_REQUISITOS'),
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
-            docStatus: e.data?.docStatus || (e.data?.habilitado !== false ? 'SIN_REQUISITOS' : 'PENDIENTE'),
             expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || ''
         };
@@ -166,11 +174,11 @@ const elementService = {
             anio: e.data?.anio || 'N/A',
             serie: e.data?.serie || 'N/A',
             tipo: e.active?.description || 'N/A',
-            estado: e.data?.estado || 'ACTIVO',
+            docStatus: e.data?.docStatus || 'SIN_REQUISITOS',
+            estado: computeResourceEstado(e.data?.estado, e.data?.docStatus || 'SIN_REQUISITOS'),
             proveedor: currentRole?.role === 'PROVEEDOR'
                 ? currentRole.entity_name
                 : (e.supplier?.companyName || e.supplier?.company_name || e.supplier?.businessName || suppliers?.find(s => s.id_supplier === idSupplier)?.company_name || 'N/A'),
-            docStatus: e.data?.docStatus || (e.data?.estado === 'ACTIVO' ? 'SIN_REQUISITOS' : 'PENDIENTE'),
             expirationDate: e.data?.expiration_date || e.data?.fechaVencimiento || null,
             motivo: e.data?.motivo || ''
         };
