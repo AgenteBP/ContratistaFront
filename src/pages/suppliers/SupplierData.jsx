@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import SupplierForm from './SupplierForm';
 import { useSupplier } from '../../hooks/useSupplier';
 import { formatCUIT } from '../../utils/formatUtils';
 import { useNotification } from '../../context/NotificationContext';
 import LoadingOverlay from '../../components/ui/LoadingOverlay';
+import { useBreadcrumb } from '../../context/BreadcrumbContext';
 
 /**
  * SupplierData Component - Refactored version
@@ -14,6 +16,15 @@ const SupplierData = () => {
     const [overlayStatus, setOverlayStatus] = useState('loading'); // 'loading' | 'success'
     const [showOverlay, setShowOverlay] = useState(false);
     const { showSuccess } = useNotification();
+    const location = useLocation();
+    const { setLabel, clearLabel } = useBreadcrumb();
+
+    useEffect(() => {
+        if (supplierData?.razonSocial) {
+            setLabel(location.pathname, supplierData.razonSocial);
+        }
+        return () => clearLabel(location.pathname);
+    }, [supplierData?.razonSocial, location.pathname]);
 
     const handleSubmit = async (data) => {
         setOverlayStatus('loading');

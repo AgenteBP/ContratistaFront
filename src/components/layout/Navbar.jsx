@@ -2,6 +2,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import { useAuth } from '../../context/AuthContext';
+import { useBreadcrumb } from '../../context/BreadcrumbContext';
 
 const Navbar = ({ onToggleSidebar }) => {
     const location = useLocation();
@@ -11,6 +12,7 @@ const Navbar = ({ onToggleSidebar }) => {
     const userMenuRef = useRef(null);
     const switcherRef = useRef(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const { labels: breadcrumbLabels } = useBreadcrumb();
 
     // --- Dynamic User Info ---
     // Mapeo de códigos de rol a etiquetas amigables
@@ -132,6 +134,7 @@ const Navbar = ({ onToggleSidebar }) => {
         'usuarios': 'Usuarios',
         'configuracion': 'Configuración',
         'recursos': 'Recursos',
+        'proveedor': 'Mis Datos',
         'empleados': 'Empleados',
         'vehiculos': 'Vehículos',
         'maquinaria': 'Maquinaria',
@@ -173,7 +176,7 @@ const Navbar = ({ onToggleSidebar }) => {
         const lastValue = pathnames[pathnames.length - 1];
         const lastIsId = !isNaN(lastValue);
         // Usamos el mapa, o formateamos el valor si no existe
-        const lastDisplayName = lastIsId ? `Detalle #${lastValue}` : (breadcrumbNameMap[lastValue] || toTitleCase(lastValue));
+        const lastDisplayName = breadcrumbLabels[location.pathname] || (lastIsId ? `Detalle #${lastValue}` : (breadcrumbNameMap[lastValue] || toTitleCase(lastValue)));
 
         // Generar lista de padres (excluyendo el actual), omitiendo segmentos sin ruta
         const parentPaths = pathnames.slice(0, -1);
@@ -273,7 +276,7 @@ const Navbar = ({ onToggleSidebar }) => {
                             const to = `/${pathnames.slice(0, originalIndex + 1).join('/')}`;
                             const isLast = visibleIndex === visiblePathnames.length - 1;
                             const isId = !isNaN(value);
-                            const displayName = isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || toTitleCase(value));
+                            const displayName = (isLast && breadcrumbLabels[location.pathname]) || (isId ? `Detalle #${value}` : (breadcrumbNameMap[value] || toTitleCase(value)));
 
                             return (
                                 <React.Fragment key={to}>

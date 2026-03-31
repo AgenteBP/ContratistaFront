@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
+import { auditorService } from '../../services/auditorService';
+import { useAuth } from '../../context/AuthContext';
 import { Dialog } from 'primereact/dialog';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Dropdown } from 'primereact/dropdown';
@@ -9,100 +11,88 @@ const AUDIT_VALIDITY_DAYS = 30;
 
 const AuditHistory = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
 
-    // Auditorías (Simulando Backend)
-    const [audits, setAudits] = useState(() => {
-        const saved = localStorage.getItem('technical_audits_v1');
-        return saved ? JSON.parse(saved) : {};
-    });
-
+    const [providers, setProviders] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('TODOS');
 
     // Modal de Auditoría
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [auditForm, setAuditForm] = useState({ status: 'APROBADO', observations: '' });
+    const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        localStorage.setItem('technical_audits_v1', JSON.stringify(audits));
-    }, [audits]);
+    const loadProviders = useCallback(async () => {
+        setLoading(true);
+        try {
+            const raw = await auditorService.getWithAuditTecReq();
+            setProviders(raw.map(s => ({
+                id: s.id_supplier,
+                name: s.fantasy_name || s.company_name,
+                lastAudit: s.date_history_tec ? {
+                    date: s.date_history_tec,
+                    techniqueSurpassed: s.technique_surpassed,
+                    commentary: s.commentary,
+                } : null,
+            })));
+        } catch (err) {
+            console.error('AuditHistory: error loading providers', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { loadProviders(); }, [loadProviders]);
+
+    const getAuditStatus = (provider) => {
+        const backend = provider.lastAudit;
+        if (!backend) return { label: 'PENDIENTE', icon: 'pi-circle', color: 'text-secondary/40', date: null, observations: null };
+
+        const daysSince = (new Date() - new Date(backend.date)) / (1000 * 60 * 60 * 24);
+        const status = backend.techniqueSurpassed ? 'APROBADO' : 'OBSERVADO';
+
+        if (daysSince > AUDIT_VALIDITY_DAYS) return { label: 'VENCIDO', icon: 'pi-clock', color: 'text-warning', date: backend.date, observations: backend.commentary };
+        if (status === 'OBSERVADO') return { label: 'OBSERVADO', icon: 'pi-exclamation-triangle', color: 'text-warning', date: backend.date, observations: backend.commentary };
+        return { label: 'APROBADO', icon: 'pi-check-circle', color: 'text-success', date: backend.date, observations: backend.commentary };
+    };
 
     const handleOpenAudit = (provider) => {
         setSelectedProvider(provider);
-        const existingAudit = audits[provider.id];
-        if (existingAudit) {
-            setAuditForm({
-                status: existingAudit.status,
-                observations: existingAudit.observations || ''
-            });
-        } else {
-            setAuditForm({ status: 'APROBADO', observations: '' });
-        }
+        const auditStatus = getAuditStatus(provider);
+        setAuditForm({
+            status: auditStatus.label === 'APROBADO' ? 'APROBADO' : 'OBSERVADO',
+            observations: auditStatus.observations || '',
+        });
         setIsAuditModalOpen(true);
     };
 
-    const saveAuditToBackend = async (providerId, auditData) => {
-        setAudits(prev => ({
-            ...prev,
-            [providerId]: {
-                ...auditData,
-                date: new Date().toISOString()
-            }
-        }));
+    const handleSaveAudit = async () => {
+        setSaving(true);
+        try {
+            await auditorService.saveAuditTechnique({
+                idCompany: null,
+                idSupplier: selectedProvider.id,
+                idAuditor: user?.auditors?.[0]?.id_auditor,
+                techniqueSurpassed: auditForm.status === 'APROBADO',
+                commentary: auditForm.observations,
+                dateHistoryTec: new Date().toISOString(),
+            });
+            setIsAuditModalOpen(false);
+            await loadProviders();
+        } catch (err) {
+            console.error('AuditHistory: error saving audit', err);
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleSaveAudit = () => {
-        saveAuditToBackend(selectedProvider.id, auditForm);
-        setIsAuditModalOpen(false);
-    };
-
-    const getAuditStatus = (providerId) => {
-        const audit = audits[providerId];
-        if (!audit) return { label: 'PENDIENTE', icon: 'pi-circle', color: 'text-secondary/40' };
-
-        const auditDate = new Date(audit.date);
-        const daysSince = (new Date() - auditDate) / (1000 * 60 * 60 * 24);
-
-        if (daysSince > AUDIT_VALIDITY_DAYS) {
-            return { label: 'VENCIDO', icon: 'pi-clock', color: 'text-warning' };
-        }
-
-        if (audit.status === 'OBSERVADO') {
-            return { label: 'OBSERVADO', icon: 'pi-exclamation-triangle', color: 'text-warning' };
-        }
-
-        return { label: 'APROBADO', icon: 'pi-check-circle', color: 'text-success' };
-    };
-
-    const baseProviders = [
-        { id: 1, name: 'Prana' },
-        { id: 2, name: 'Ingelmec' },
-        { id: 3, name: 'Proton' },
-        { id: 4, name: 'Origen' },
-        { id: 5, name: 'AV Avance' },
-        { id: 6, name: 'Paven' },
-        { id: 7, name: 'Toto' },
-        { id: 8, name: 'Fenix' },
-        { id: 9, name: 'Ohm SRL' },
-        { id: 10, name: 'Ohm SAS' },
-    ];
-
-    const filteredProviders = useMemo(() => {
-        let list = baseProviders.map(p => ({
-            ...p,
-            audit: getAuditStatus(p.id)
-        }));
-
-        if (statusFilter !== 'TODOS') {
-            list = list.filter(d => d.audit.label === statusFilter);
-        }
-
-        return list;
-    }, [audits, statusFilter]);
+    const enriched = providers.map(p => ({ ...p, audit: getAuditStatus(p) }));
+    const filtered = statusFilter === 'TODOS' ? enriched : enriched.filter(p => p.audit.label === statusFilter);
 
     return (
         <div className="p-4 md:p-8 space-y-8 animate-fade-in bg-slate-50 min-h-screen">
-            {/* MODAL DE AUDITORÍA (SOBER REDESIGN) */}
+            {/* MODAL */}
             <Dialog
                 visible={isAuditModalOpen}
                 onHide={() => setIsAuditModalOpen(false)}
@@ -165,10 +155,10 @@ const AuditHistory = () => {
                             />
                         </div>
 
-                        {selectedProvider && audits[selectedProvider.id] && (
+                        {selectedProvider?.lastAudit && (
                             <div className="text-[10px] text-secondary/50 font-medium px-1 flex items-center gap-2">
                                 <i className="pi pi-info-circle"></i>
-                                Última auditoría realizada el {new Date(audits[selectedProvider.id].date).toLocaleDateString()}
+                                Última auditoría realizada el {new Date(selectedProvider.lastAudit.date).toLocaleDateString('es-AR')}
                             </div>
                         )}
                     </div>
@@ -182,9 +172,10 @@ const AuditHistory = () => {
                         </button>
                         <button
                             onClick={handleSaveAudit}
-                            className="flex-[1.5] py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                            disabled={saving}
+                            className="flex-[1.5] py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary/10 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-60"
                         >
-                            <i className="pi pi-save"></i>
+                            {saving ? <i className="pi pi-spin pi-spinner"></i> : <i className="pi pi-save"></i>}
                             Confirmar
                         </button>
                     </div>
@@ -208,6 +199,7 @@ const AuditHistory = () => {
                                 { id: 'PENDIENTE', label: 'Pendientes', icon: 'pi-circle' },
                                 { id: 'APROBADO', label: 'Aprobados', icon: 'pi-check-circle' },
                                 { id: 'OBSERVADO', label: 'Observados', icon: 'pi-exclamation-triangle' },
+                                { id: 'VENCIDO', label: 'Vencidos', icon: 'pi-clock' },
                             ].map(stat => (
                                 <button
                                     key={stat.id}
@@ -228,10 +220,11 @@ const AuditHistory = () => {
                             <Dropdown
                                 value={statusFilter}
                                 options={[
-                                    { id: 'TODOS', label: 'Todos los registros', icon: 'pi-filter-slash' },
-                                    { id: 'PENDIENTE', label: 'Pendientes', icon: 'pi-circle' },
-                                    { id: 'APROBADO', label: 'Aprobados', icon: 'pi-check-circle' },
-                                    { id: 'OBSERVADO', label: 'Observados', icon: 'pi-exclamation-triangle' },
+                                    { id: 'TODOS', label: 'Todos los registros' },
+                                    { id: 'PENDIENTE', label: 'Pendientes' },
+                                    { id: 'APROBADO', label: 'Aprobados' },
+                                    { id: 'OBSERVADO', label: 'Observados' },
+                                    { id: 'VENCIDO', label: 'Vencidos' },
                                 ]}
                                 onChange={(e) => setStatusFilter(e.value)}
                                 optionLabel="label"
@@ -241,21 +234,6 @@ const AuditHistory = () => {
                                     root: { className: 'h-full flex items-center px-3 border-none shadow-none focus-within:ring-0 outline-none' },
                                     label: { className: 'text-secondary-dark font-bold text-[9px] p-0 uppercase' },
                                     trigger: { className: 'text-primary' },
-                                    input: { className: 'outline-none border-none border-0' }
-                                }}
-                                valueTemplate={(option) => {
-                                    const selected = [
-                                        { id: 'TODOS', label: 'Todos', icon: 'pi-filter-slash' },
-                                        { id: 'PENDIENTE', label: 'Pendientes', icon: 'pi-circle' },
-                                        { id: 'APROBADO', label: 'Aprobados', icon: 'pi-check-circle' },
-                                        { id: 'OBSERVADO', label: 'Observados', icon: 'pi-exclamation-triangle' },
-                                    ].find(o => o.id === statusFilter);
-                                    return (
-                                        <div className="flex items-center gap-2">
-                                            <i className={`pi ${selected?.icon || 'pi-filter'} text-[10px] text-primary`}></i>
-                                            <span className="text-secondary-dark text-[9px] font-bold uppercase">{selected?.label || 'Todos'}</span>
-                                        </div>
-                                    );
                                 }}
                             />
                         </div>
@@ -274,49 +252,52 @@ const AuditHistory = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-secondary/5 font-medium">
-                            {filteredProviders.length === 0 ? (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-12 text-center text-secondary/40 text-xs">
+                                        <i className="pi pi-spin pi-spinner mr-2"></i>Cargando historial...
+                                    </td>
+                                </tr>
+                            ) : filtered.length === 0 ? (
                                 <tr>
                                     <td colSpan="5" className="px-6 py-12 text-center text-secondary">
                                         No se encontraron auditorías con este estado.
                                     </td>
                                 </tr>
-                            ) : filteredProviders.map(p => {
-                                const adt = audits[p.id];
-                                return (
-                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
-                                        <td
-                                            className="px-6 py-4 font-bold text-primary hover:underline cursor-pointer transition-colors text-sm whitespace-normal"
-                                            onClick={() => navigate(`/proveedores/${p.id}`)}
+                            ) : filtered.map(p => (
+                                <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                                    <td
+                                        className="px-6 py-4 font-bold text-primary hover:underline cursor-pointer transition-colors text-sm whitespace-normal"
+                                        onClick={() => navigate(`/proveedores/${p.id}`)}
+                                    >
+                                        {p.name}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <i className={`pi ${p.audit.icon} ${p.audit.color}`}></i>
+                                            <span className={`text-xs font-bold uppercase ${p.audit.color}`}>{p.audit.label}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-secondary text-xs">
+                                        {p.audit.date ? new Date(p.audit.date).toLocaleDateString('es-AR') : 'Nunca'}
+                                    </td>
+                                    <td className="px-6 py-4 text-secondary text-xs italic opacity-80">
+                                        {p.audit.observations ? (
+                                            <span className="line-clamp-2">{p.audit.observations}</span>
+                                        ) : (
+                                            <span className="text-secondary/40">Sin observaciones</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <button
+                                            className="px-4 py-2 bg-white border border-secondary/20 hover:border-primary/50 hover:bg-slate-50 rounded-lg text-primary text-xs font-bold transition-all shadow-sm"
+                                            onClick={() => handleOpenAudit(p)}
                                         >
-                                            {p.name}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <i className={`pi ${p.audit.icon} ${p.audit.color}`}></i>
-                                                <span className={`text-xs font-bold uppercase ${p.audit.color}`}>{p.audit.label}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-secondary text-xs">
-                                            {adt ? new Date(adt.date).toLocaleDateString() : 'Nunca'}
-                                        </td>
-                                        <td className="px-6 py-4 text-secondary text-xs italic opacity-80">
-                                            {adt && adt.observations ? (
-                                                <span className="line-clamp-2">{adt.observations}</span>
-                                            ) : (
-                                                <span className="text-secondary/40">Sin observaciones</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <button
-                                                className="px-4 py-2 bg-white border border-secondary/20 hover:border-primary/50 hover:bg-slate-50 rounded-lg text-primary text-xs font-bold transition-all shadow-sm"
-                                                onClick={() => handleOpenAudit(p)}
-                                            >
-                                                Auditar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                                            Auditar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
