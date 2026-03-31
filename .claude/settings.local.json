@@ -4,7 +4,26 @@
       "Bash(ls c:/Users/lmorandini/Documents/GitHub/ContratistaBack/src/main/java/com/edesal/Contratista/Services/*.java)",
       "Bash(ls c:/Users/lmorandini/Documents/GitHub/ContratistaBack/src/main/java/com/edesal/Contratista/DTO/*.java)",
       "Bash(grep -i \"DTO.java$\")",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(ls c:/Users/lmorandini/Documents/GitHub/ContratistaFront/*.md)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.\\(java\\)$\")",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" log --oneline -20)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" show 5c9bb0c --stat)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" log --oneline -50)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" show eac08e6 --stat)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" show a1af04f --stat)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" diff HEAD~6 HEAD -- src/services/elementService.js src/services/supplierService.js)",
+      "Bash(git -C \"c:/Users/lmorandini/Documents/GitHub/ContratistaFront\" show a1af04f -- src/context/BreadcrumbContext.jsx)",
+      "Bash(pandoc --version)",
+      "Bash(node -e \"require\\(''marked''\\)\")",
+      "Bash(node -e \"require\\(''puppeteer''\\)\")",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(md-to-pdf HANDOVER.md)",
+      "Bash(node handover-generate.mjs)",
+      "Bash(rm handover-generate.mjs handover-style.css)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
