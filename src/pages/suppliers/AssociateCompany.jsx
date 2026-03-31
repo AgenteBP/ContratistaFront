@@ -38,7 +38,7 @@ const AssociateCompany = () => {
                         ...supplierData,
                         razonSocial: supplierData.company_name,
                         cuit: supplierData.cuit,
-                        estado: supplierData.active === 0 ? 'ACTIVO' : (supplierData.active === 1 ? 'INACTIVO' : 'SUSPENDIDO')
+                        estado: supplierData.active === 0 ? 'HABILITADO' : (supplierData.active === 1 ? 'NO HABILITADO' : 'SUSPENDIDO')
                     });
                 }
 

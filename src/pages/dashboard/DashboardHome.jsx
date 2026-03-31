@@ -79,10 +79,10 @@ const DashboardHome = () => {
                 );
                 setStats(data);
                 // Simular loading por cards
-                            } catch (error) {
+            } catch (error) {
                 console.error('Error fetching dashboard stats:', error);
                 setStats(null);
-                            } finally {
+            } finally {
                 setLoading(false);
             }
         };
@@ -120,14 +120,17 @@ const DashboardHome = () => {
         const s = stats;
 
         // Totales calculados desde el hook (más confiables que la API para algunos roles)
-        const totalEnRevision  = (hookStats?.employees?.enRevision ?? 0) + (hookStats?.vehicles?.enRevision ?? 0) + (hookStats?.machinery?.enRevision ?? 0);
-        const totalVencidos    = (hookStats?.employees?.vencidos ?? 0) + (hookStats?.vehicles?.vencidos ?? 0) + (hookStats?.machinery?.vencidos ?? 0);
-        const totalConObs      = (hookStats?.employees?.conObservacion ?? 0) + (hookStats?.vehicles?.conObservacion ?? 0) + (hookStats?.machinery?.conObservacion ?? 0);
-        const totalPorVencer   = (hookStats?.employees?.expiringSoon ?? 0) + (hookStats?.vehicles?.expiringSoon ?? 0) + (hookStats?.machinery?.expiringSoon ?? 0);
-        const totalProviders     = authSuppliers.length > 0 ? authSuppliers.length : (hookStats?.totalProviders || s?.suppliers?.total || 0);
-        const suppliersApproved  = authSuppliers.filter(sup => sup.is_tec_success === true).length;
-        const suppliersRejected  = authSuppliers.filter(sup => sup.is_tec_success === false).length;
-        const suppliersPending   = authSuppliers.filter(sup => sup.is_tec_success === null || sup.is_tec_success === undefined).length;
+        const totalEnRevision = (hookStats?.employees?.enRevision ?? 0) + (hookStats?.vehicles?.enRevision ?? 0) + (hookStats?.machinery?.enRevision ?? 0);
+        const totalVencidos = (hookStats?.employees?.vencidos ?? 0) + (hookStats?.vehicles?.vencidos ?? 0) + (hookStats?.machinery?.vencidos ?? 0);
+        const totalConObs = (hookStats?.employees?.conObservacion ?? 0) + (hookStats?.vehicles?.conObservacion ?? 0) + (hookStats?.machinery?.conObservacion ?? 0);
+        const totalPorVencer = (hookStats?.employees?.expiringSoon ?? 0) + (hookStats?.vehicles?.expiringSoon ?? 0) + (hookStats?.machinery?.expiringSoon ?? 0);
+        const totalProviders = authSuppliers.length > 0 ? authSuppliers.length : (hookStats?.totalProviders || s?.suppliers?.total || 0);
+        const suppliersApproved = authSuppliers.filter(sup => sup.is_tec_success === true).length;
+        const suppliersRejected = authSuppliers.filter(sup => sup.is_tec_success === false).length;
+        const suppliersPending = authSuppliers.filter(sup => sup.is_tec_success === null || sup.is_tec_success === undefined).length;
+        // Para ADMIN: habilitado depende solo de active
+        const suppliersHabilitados = authSuppliers.filter(sup => sup.active === 0).length;
+        const suppliersNoHabilitados = authSuppliers.filter(sup => sup.active !== 0).length;
 
         if (role === 'ADMIN') {
             return [
@@ -151,9 +154,8 @@ const DashboardHome = () => {
                     watermark: true,
                     onClick: () => navigate('/proveedores'),
                     children: [
-                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Aprobados" value={suppliersApproved} />,
-                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="Rechazados" value={suppliersRejected} />,
-                        <DetailRow key="3" icon="pi-clock" iconColor="text-[#f59e0b]" label="Pendientes" value={suppliersPending} />
+                        <DetailRow key="1" icon="pi-check-circle" iconColor="text-[#84cc16]" label="Habilitados" value={suppliersHabilitados} />,
+                        <DetailRow key="2" icon="pi-times-circle" iconColor="text-[#ef4444]" label="No Habilitados" value={suppliersNoHabilitados} />
                     ]
                 },
                 {
@@ -183,8 +185,8 @@ const DashboardHome = () => {
                 }
             ];
         } else if (role === 'EMPRESA') {
-            const suppActivos    = authSuppliers.filter(sup => sup.active === 0).length;
-            const suppInactivos  = authSuppliers.filter(sup => sup.active === 1).length;
+            const suppActivos = authSuppliers.filter(sup => sup.active === 0).length;
+            const suppInactivos = authSuppliers.filter(sup => sup.active === 1).length;
             const suppSuspendidos = authSuppliers.filter(sup => sup.active === 2).length;
             return [
                 {
@@ -292,10 +294,10 @@ const DashboardHome = () => {
         } else if (role === 'AUDITOR') {
             // AUDITOR TÉCNICO
             if (isAuditorTecnico) {
-                const pendientes     = s?.suppliers?.tec_pending  || suppliersPending  || 0;
-                const aprobados      = s?.suppliers?.tec_approved || suppliersApproved || 0;
-                const rechazados     = s?.suppliers?.tec_rejected || suppliersRejected || 0;
-                const totalAsig      = s?.suppliers?.total || totalProviders || 0;
+                const pendientes = s?.suppliers?.tec_pending || suppliersPending || 0;
+                const aprobados = s?.suppliers?.tec_approved || suppliersApproved || 0;
+                const rechazados = s?.suppliers?.tec_rejected || suppliersRejected || 0;
+                const totalAsig = s?.suppliers?.total || totalProviders || 0;
                 const groupBreakdown = Object.entries(
                     authSuppliers.reduce((acc, sup) => {
                         const key = sup.id_group ?? '__sin_grupo__';
@@ -410,9 +412,9 @@ const DashboardHome = () => {
         // Fallback: 4 cards genéricas mientras carga o si el rol no coincide
         return [
             { title: 'Proveedores', value: s?.suppliers?.total ?? '—', icon: 'pi-briefcase', type: 'primary', watermark: true, onClick: () => navigate('/proveedores'), children: [] },
-            { title: 'Empleados',   value: s?.elements?.employees ?? '—', icon: 'pi-users',    type: 'info',    watermark: true, onClick: () => navigate('/recursos/empleados'), children: [] },
-            { title: 'Vehículos',   value: s?.elements?.vehicles ?? '—',  icon: 'pi-car',      type: 'warning', watermark: true, onClick: () => navigate('/recursos/vehiculos'), children: [] },
-            { title: 'Maquinaria',  value: s?.elements?.machinery ?? '—', icon: 'pi-cog',      type: 'success', watermark: true, onClick: () => navigate('/recursos/maquinaria'), children: [] },
+            { title: 'Empleados', value: s?.elements?.employees ?? '—', icon: 'pi-users', type: 'info', watermark: true, onClick: () => navigate('/recursos/empleados'), children: [] },
+            { title: 'Vehículos', value: s?.elements?.vehicles ?? '—', icon: 'pi-car', type: 'warning', watermark: true, onClick: () => navigate('/recursos/vehiculos'), children: [] },
+            { title: 'Maquinaria', value: s?.elements?.machinery ?? '—', icon: 'pi-cog', type: 'success', watermark: true, onClick: () => navigate('/recursos/maquinaria'), children: [] },
         ];
     };
 
@@ -445,11 +447,6 @@ const DashboardHome = () => {
                     <h1 className="text-2xl font-extrabold text-secondary-dark tracking-tight">Tablero de Control</h1>
                     <p className="text-secondary text-sm mt-1">Estado de cumplimiento documental.</p>
                 </div>
-                <div className="flex gap-3">
-                    <button className="bg-secondary-dark text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-lg hover:bg-black transition-colors flex items-center gap-2">
-                        <i className="pi pi-file-pdf"></i> Reporte
-                    </button>
-                </div>
             </div>
 
             {/* --- KPIs VISUALES --- */}
@@ -478,7 +475,7 @@ const DashboardHome = () => {
                 <div className="lg:col-span-2 bg-white p-7 rounded-2xl border border-secondary/10 shadow-sm space-y-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="font-bold text-secondary-dark text-lg">Estatus por Recursos</h3>
+                            <h3 className="font-bold text-secondary-dark text-lg">Estatus por Recursos (MOCK)</h3>
                             <p className="text-secondary text-sm">Distribución de documentos cargados vs. pendientes por módulo.</p>
                         </div>
                         <div className="flex items-center gap-6">
@@ -545,7 +542,7 @@ const DashboardHome = () => {
                 {/* Gráfico 2: Cumplimiento Global (Trend Line) */}
                 <div className="bg-white p-7 rounded-2xl border border-secondary/10 shadow-sm flex flex-col justify-between">
                     <div className="space-y-1">
-                        <h3 className="font-bold text-secondary-dark text-lg">Cumplimiento Global</h3>
+                        <h3 className="font-bold text-secondary-dark text-lg">Cumplimiento Global (MOCK)</h3>
                         <p className="text-secondary text-sm">Tendencia histórica de cumplimiento.</p>
                     </div>
 
@@ -593,7 +590,7 @@ const DashboardHome = () => {
             <div className="bg-white p-0 rounded-2xl border border-secondary/10 shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-shadow">
                 <div className="p-6 border-b border-secondary/5 bg-slate-50/50 flex justify-between items-center">
                     <div>
-                        <h3 className="font-bold text-secondary-dark text-lg">Alertas Recientes</h3>
+                        <h3 className="font-bold text-secondary-dark text-lg">Alertas Recientes (MOCK)</h3>
                         <p className="text-secondary text-sm">Inconsistencias y vencimientos detectados automáticamente.</p>
                     </div>
                     <span className="text-xs bg-[#ef4444]/10 text-[#ef4444] px-3 py-1 rounded-full font-bold border border-[#ef4444]/20">3 Pendientes</span>
