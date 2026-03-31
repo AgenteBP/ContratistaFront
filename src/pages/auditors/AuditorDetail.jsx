@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { StatusBadge } from '../../components/ui/Badges';
 import AuditorForm from './AuditorForm';
 import { formatCUIT } from '../../utils/formatUtils';
 import { auditorService } from '../../services/auditorService';
 import { companyService } from '../../services/companyService';
 import { useNotification } from '../../context/NotificationContext';
+import { useBreadcrumb } from '../../context/BreadcrumbContext';
 
 const AuditorDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { showSuccess, showError } = useNotification();
+    const { setLabel, clearLabel } = useBreadcrumb();
     const [activeIndex, setActiveIndex] = useState(0);
 
     const [auditor, setAuditor] = useState(null);
@@ -67,12 +70,24 @@ const AuditorDetail = () => {
     // Filtrar empresas disponibles (que no estén ya asignadas)
     const availableCompanies = useMemo(() => {
         if (!allCompanies || !auditor) return [];
-        const assignedIds = auditor.assignedCompanies?.map(c => c.idCompany) || [];
-        return allCompanies.filter(c =>
-            !assignedIds.includes(c.idCompany) &&
-            (c.description.toLowerCase().includes(searchTerm.toLowerCase()) || c.cuit?.includes(searchTerm))
-        );
+        const assignedIds = auditor.assignedCompanies?.map(c => c.id_company || c.idCompany).filter(Boolean) || [];
+        return allCompanies.filter(c => {
+            const companyId = c.id_company || c.idCompany;
+            return !assignedIds.includes(companyId) &&
+                (c.description.toLowerCase().includes(searchTerm.toLowerCase()) || c.cuit?.includes(searchTerm));
+        });
     }, [allCompanies, auditor, searchTerm]);
+
+    const fullName = auditor
+        ? `${auditor.user?.firstName || ''} ${auditor.user?.lastName || ''}`.trim() || 'Auditor'
+        : null;
+
+    useEffect(() => {
+        if (fullName && fullName !== 'Auditor') {
+            setLabel(location.pathname, `${fullName}`);
+        }
+        return () => clearLabel(location.pathname);
+    }, [fullName, location.pathname]);
 
     if (loading) {
         return (
@@ -98,8 +113,6 @@ const AuditorDetail = () => {
         );
     }
 
-    const fullName = `${auditor.user?.firstName || ''} ${auditor.user?.lastName || ''}`.trim() || 'Auditor';
-
     return (
         <div className="animate-fade-in w-full max-w-6xl mx-auto p-4 md:p-8">
             {/* ENCABEZADO */}
@@ -115,7 +128,6 @@ const AuditorDetail = () => {
                             </h1>
                             <div className="flex items-center gap-2 mt-1">
                                 <StatusBadge status={auditor.user?.active ? "ACTIVO" : "INACTIVO"} />
-                                <span className="text-xs text-secondary bg-secondary-light px-2 py-0.5 rounded-full font-mono">ID: {auditor.id_auditor}</span>
                                 <span className="text-xs font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-full border border-primary/20">
                                     {auditor.type_auditor === 'LEGAL' ? 'AUDITOR LEGAL' : 'AUDITOR TÉCNICO'}
                                 </span>

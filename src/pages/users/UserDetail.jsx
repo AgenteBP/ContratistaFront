@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useBreadcrumb } from '../../context/BreadcrumbContext';
 import { userService } from '../../services/userService';
 import { Dropdown } from 'primereact/dropdown';
 import { DataTable } from 'primereact/datatable';
@@ -11,6 +12,8 @@ import { formatCUIT } from '../../utils/formatUtils';
 const UserDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const { setLabel, clearLabel } = useBreadcrumb();
     const [user, setUser] = useState(null);
     const [selectedRole, setSelectedRole] = useState(null);
     const [filteredEntities, setFilteredEntities] = useState([]);
@@ -169,6 +172,16 @@ const UserDetail = () => {
             }
         }
     }, [user, selectedRole]);
+
+    useEffect(() => {
+        const fullName = user
+            ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username
+            : null;
+        if (fullName) {
+            setLabel(location.pathname, fullName);
+        }
+        return () => clearLabel(location.pathname);
+    }, [user?.firstName, user?.lastName, user?.username, location.pathname]);
 
     const viewSupplierDetail = (supplierId) => {
         navigate(`/proveedores/${supplierId}`);

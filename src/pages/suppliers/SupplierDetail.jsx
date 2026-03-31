@@ -9,6 +9,7 @@ import { getDocLabel, getDocFrequency } from '../../data/documentConstants';
 import { useAuth } from '../../context/AuthContext';
 import { companyService } from '../../services/companyService';
 import { Tag } from 'primereact/tag';
+import { useBreadcrumb } from '../../context/BreadcrumbContext';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -22,6 +23,14 @@ const SupplierDetail = () => {
   const isEmpresa = currentRole?.role === 'EMPRESA';
   const [isEditing, setIsEditing] = useState(initialEditMode && !isEmpresa);
   const [requiredTechnical, setRequiredTechnical] = useState(false);
+  const { setLabel, clearLabel } = useBreadcrumb();
+
+  useEffect(() => {
+    if (supplierData?.razonSocial) {
+      setLabel(location.pathname, supplierData.razonSocial);
+    }
+    return () => clearLabel(location.pathname);
+  }, [supplierData?.razonSocial, location.pathname]);
 
   useEffect(() => {
     const checkRequired = async () => {

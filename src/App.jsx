@@ -33,6 +33,7 @@ import CompanySettings from './pages/companies/CompanySettings';
 // 0. Context Providers
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { BreadcrumbProvider } from './context/BreadcrumbContext';
 
 // 4. Recursos
 import ResourcesDashboard from './pages/resources/ResourcesDashboard';
@@ -121,7 +122,9 @@ function App() {
     return (
         <NotificationProvider>
             <AuthProvider>
-                <RouterProvider router={router} />
+                <BreadcrumbProvider>
+                    <RouterProvider router={router} />
+                </BreadcrumbProvider>
             </AuthProvider>
         </NotificationProvider>
     );

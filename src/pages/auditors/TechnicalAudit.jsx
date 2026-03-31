@@ -9,6 +9,7 @@ import { Dialog } from 'primereact/dialog';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Dropdown } from 'primereact/dropdown';
 import { StatusBadge } from '../../components/ui/Badges';
+import { TbBackhoe } from 'react-icons/tb';
 
 const AUDIT_VALIDITY_DAYS = 30;
 
@@ -63,6 +64,13 @@ const TechnicalAudit = () => {
     });
     const [paramsLoading, setParamsLoading] = useState(true);
     const [providers, setProviders] = useState([]);
+    const [expandedProviders, setExpandedProviders] = useState(new Set());
+
+    const toggleExpand = (id) => setExpandedProviders(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
 
     // Auditorías (Simulando Backend)
     const [audits, setAudits] = useState(() => {
@@ -87,6 +95,13 @@ const TechnicalAudit = () => {
     const [supplierResources, setSupplierResources] = useState(null);
     const [supplierResourcesLoading, setSupplierResourcesLoading] = useState(false);
     const [isLastAuditOpen, setIsLastAuditOpen] = useState(false);
+    const [expandedModalItems, setExpandedModalItems] = useState(new Set());
+
+    const toggleModalItem = (id) => setExpandedModalItems(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
 
     const loadConfig = useCallback(async () => {
         setParamsLoading(true);
@@ -104,7 +119,20 @@ const TechnicalAudit = () => {
             });
             setProviders(suppliersRaw.map(s => ({
                 id: s.id_supplier,
-                name: s.fantasy_name,
+                name: s.fantasy_name || s.company_name,
+                // Ficha fields
+                companyName: s.company_name,
+                cuit: s.cuit,
+                tipoPersona: s.type_person,
+                clasificacionAFIP: s.classification_afip,
+                servicio: s.category_service,
+                email: s.email_corporate,
+                telefono: s.phone,
+                empleadorAFIP: !!s.is_an_afip_employer,
+                esTemporal: !!s.is_temporary_hiring,
+                estado: s.active === 0 ? 'ACTIVO' : (s.active === 1 ? 'INACTIVO' : 'SUSPENDIDO'),
+                provincia: s.province,
+                localidad: s.city,
                 resources: {
                     personal: s.amount_employees || 0,
                     vehiculo: s.amount_vehicles_no_trucks || 0,
@@ -144,6 +172,7 @@ const TechnicalAudit = () => {
         setModalTab('personal');
         setIsResourceTableOpen(true);
         setIsLastAuditOpen(false);
+        setExpandedModalItems(new Set());
         setIsAuditModalOpen(true);
 
         setSupplierResources(null);
@@ -417,12 +446,186 @@ const TechnicalAudit = () => {
                                                 );
                                             }
                                             const isPersonal = modalTab === 'personal';
-                                            return items.map((item) => {
+                                            const isMachinery = modalTab === 'grua25' || modalTab === 'gruaMas25';
+                                            return items.flatMap((item) => {
                                                 const badge = getDocStatusBadge(item.data?.docStatus);
-                                                return (
+                                                const isItemExpanded = expandedModalItems.has(item.id_elements);
+                                                const docStatus = item.data?.docStatus;
+                                                const estado = item.data?.estado || 'ACTIVO';
+
+                                                // Ficha panel — rendered per resource type
+                                                const fichaPanel = isPersonal ? (
+                                                    // ---- EMPLEADO ----
+                                                    <div className="bg-secondary-light/30 border-t border-secondary/10 p-5 shadow-inner animate-fade-in">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-secondary/10 text-primary">
+                                                                <i className="pi pi-user text-xl"></i>
+                                                            </div>
+                                                            <div>
+                                                                <h5 className="font-bold text-secondary-dark text-sm">Ficha de Legajo</h5>
+                                                                <p className="text-[10px] text-secondary uppercase tracking-wider font-medium">
+                                                                    {`${item.data?.nombre || ''} ${item.data?.apellido || ''}`.trim()} | Legajo {item.data?.legajo || 'N/A'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Datos Personales</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Nombre Completo</span><span className="text-sm font-medium text-secondary-dark">{`${item.data?.nombre || ''} ${item.data?.apellido || ''}`.trim() || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">DNI</span><span className="text-sm font-mono text-secondary-dark">{item.data?.dni || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Puesto</span><span className="text-sm font-medium text-secondary-dark">{item.data?.servicio || item.data?.puesto || item.active?.description || 'N/A'}</span></div>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
+                                                                <div className="flex flex-col gap-2.5 pt-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                        <StatusBadge status={estado} />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
+                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                            <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
+                                                                            <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Vinculación</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Área Operativa</span><span className="text-sm font-medium text-secondary-dark">{item.data?.area || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Teléfono</span><span className="text-sm font-medium text-secondary-dark">{item.data?.telefono || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">¿Es Chofer?</span><span className="text-sm font-medium text-secondary-dark">{item.data?.esChofer ? 'SÍ' : 'NO'}</span></div>
+                                                            </div>
+                                                            <div className="flex flex-col justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => navigate(`/recursos/documentacion/empleado/${item.id_elements}`)}
+                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                                                                >
+                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : isMachinery ? (
+                                                    // ---- MAQUINARIA / GRÚA ----
+                                                    <div className="bg-secondary-light/30 border-t border-secondary/10 p-5 shadow-inner animate-fade-in">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm border border-secondary/10 text-primary">
+                                                                <TbBackhoe className="text-4xl" />
+                                                            </div>
+                                                            <div>
+                                                                <h5 className="font-bold text-secondary-dark text-sm">Ficha Técnica de Maquinaria</h5>
+                                                                <p className="text-[10px] text-secondary uppercase tracking-wider font-medium">
+                                                                    {item.data?.nombre || item.active?.description} | Serie {item.data?.serie || 'N/A'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Identificación Técnica</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Descripción</span><span className="text-sm font-medium text-secondary-dark">{item.data?.nombre || item.active?.description || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{item.data?.marca || 'N/A'} {item.data?.modelo || ''}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Nº Serie</span><span className="text-sm font-mono text-secondary-dark">{item.data?.serie || 'N/A'}</span></div>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
+                                                                <div className="flex flex-col gap-2.5 pt-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                        <StatusBadge status={estado} />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
+                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                            <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
+                                                                            <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Pertenencia</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de Equipo</span><span className="text-sm font-medium text-secondary-dark">{item.active?.description || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">ID Interno</span><span className="text-xs font-mono text-secondary-dark bg-white px-1.5 py-0.5 rounded border border-secondary/10">MAQ-{String(item.id_elements).padStart(4, '0')}</span></div>
+                                                            </div>
+                                                            <div className="flex flex-col justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => navigate(`/recursos/documentacion/maquinaria/${item.id_elements}`)}
+                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                                                                >
+                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    // ---- VEHÍCULO / CAMIÓN ----
+                                                    <div className="bg-secondary-light/30 border-t border-secondary/10 p-5 shadow-inner animate-fade-in">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-secondary/10 text-primary">
+                                                                <i className="pi pi-car text-xl"></i>
+                                                            </div>
+                                                            <div>
+                                                                <h5 className="font-bold text-secondary-dark text-sm">Ficha Técnica del Vehículo</h5>
+                                                                <p className="text-[10px] text-secondary uppercase tracking-wider font-medium">
+                                                                    Patente {item.data?.patente || 'N/A'} | {item.data?.marca || ''} {item.data?.modelo || ''}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Especificaciones</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Marca / Modelo</span><span className="text-sm font-medium text-secondary-dark">{item.data?.marca || 'N/A'} {item.data?.modelo || ''}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Año fabricación</span><span className="text-sm font-medium text-secondary-dark">{item.data?.anio || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Tipo de unidad</span><span className="text-sm font-medium text-secondary-dark">{item.active?.description || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Combustible</span><span className="text-sm font-medium text-secondary-dark">{item.data?.tipoCombustible || 'N/A'}</span></div>
+                                                                {item.data?.categoriaVehiculo && <div><span className="block text-[10px] text-secondary font-bold uppercase">Categoría</span><span className="text-sm font-medium text-secondary-dark">{item.data.categoriaVehiculo}</span></div>}
+                                                                {item.data?.capacidadCarga && <div><span className="block text-[10px] text-secondary font-bold uppercase">Capacidad de Carga</span><span className="text-sm font-medium text-secondary-dark">{item.data.capacidadCarga}</span></div>}
+                                                                {item.data?.cantidadAsientos && <div><span className="block text-[10px] text-secondary font-bold uppercase">Cant. Asientos</span><span className="text-sm font-medium text-secondary-dark">{item.data.cantidadAsientos}</span></div>}
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Estado de Control</h6>
+                                                                <div className="flex flex-col gap-2.5 pt-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Estado Adm:</span>
+                                                                        <StatusBadge status={estado} />
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[10px] text-secondary font-bold uppercase w-28">Documentación:</span>
+                                                                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white border border-secondary/10">
+                                                                            <span className={`w-1.5 h-1.5 rounded-full ${docStatus === 'HABILITADO' ? 'bg-success shadow-[0_0_5px_rgba(34,197,94,0.4)]' : 'bg-danger'}`}></span>
+                                                                            <span className={`text-[10px] font-bold ${docStatus === 'HABILITADO' ? 'text-success' : 'text-danger'}`}>{docStatus || 'NO HABILITADO'}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-3">
+                                                                <h6 className="text-[10px] font-bold text-secondary-dark/40 uppercase tracking-widest border-b border-secondary/10 pb-1">Aplicación</h6>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Servicio</span><span className="text-sm font-medium text-secondary-dark uppercase">{item.data?.servicio || 'N/A'}</span></div>
+                                                                <div><span className="block text-[10px] text-secondary font-bold uppercase">Chofer Asignado</span><span className="text-sm font-medium text-secondary-dark">{item.data?.choferAsignado?.nombre || 'S/A'}</span></div>
+                                                            </div>
+                                                            <div className="flex flex-col justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => navigate(`/recursos/documentacion/vehiculo/${item.id_elements}`)}
+                                                                    className="w-full text-primary bg-primary/10 hover:bg-primary/20 font-bold rounded-lg text-[11px] py-2 transition-all border border-primary/20 flex items-center justify-center gap-2"
+                                                                >
+                                                                    <i className="pi pi-file-pdf"></i> Ver Documentación
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+
+                                                return [
                                                     <tr key={item.id_elements} className="hover:bg-slate-50 transition-colors group">
                                                         <td className="px-6 py-3 flex items-center gap-3">
-                                                            <i className="pi pi-angle-right text-secondary/30 group-hover:text-primary transition-colors text-xs"></i>
+                                                            <button
+                                                                onClick={() => toggleModalItem(item.id_elements)}
+                                                                className="w-4 h-4 flex items-center justify-center text-secondary/30 hover:text-primary transition-colors shrink-0"
+                                                            >
+                                                                <i className={`pi pi-chevron-right text-[9px] transition-transform duration-200 ${isItemExpanded ? 'rotate-90' : ''}`}></i>
+                                                            </button>
                                                             <span className="font-bold text-secondary-dark text-sm">
                                                                 {isPersonal ? item.data?.dni : item.data?.patente}
                                                             </span>
@@ -443,8 +646,15 @@ const TechnicalAudit = () => {
                                                                 {badge.label}
                                                             </span>
                                                         </td>
-                                                    </tr>
-                                                );
+                                                    </tr>,
+                                                    isItemExpanded && (
+                                                        <tr key={`${item.id_elements}_detail`}>
+                                                            <td colSpan="5" className="p-0">
+                                                                {fichaPanel}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                ].filter(Boolean);
                                             });
                                         })()}
                                     </tbody>
@@ -963,13 +1173,25 @@ const TechnicalAudit = () => {
                                     viewMode === 'Mensual' ? p.subTotalMensual :
                                         p.subTotalDiario;
 
+                                const isExpanded = expandedProviders.has(p.id);
                                 return (
-                                    <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                                    <React.Fragment key={p.id}>
+                                    <tr className="hover:bg-slate-50 transition-colors group">
                                         <td
-                                            className="px-3 py-3 font-bold text-primary hover:underline cursor-pointer sticky left-0 bg-white group-hover:bg-slate-50 transition-colors z-20 border-r border-secondary/5 text-sm whitespace-normal leading-snug shadow-[2px_0_5px_rgba(0,0,0,0.05)]"
-                                            onClick={() => navigate(`/proveedores/${p.id}`)}
+                                            className="px-3 py-3 font-bold sticky left-0 bg-white group-hover:bg-slate-50 transition-colors z-20 border-r border-secondary/5 text-sm whitespace-normal leading-snug shadow-[2px_0_5px_rgba(0,0,0,0.05)]"
                                         >
-                                            {p.name}
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => toggleExpand(p.id)}
+                                                    className="w-5 h-5 flex items-center justify-center rounded text-secondary/40 hover:text-primary hover:bg-primary/5 transition-all shrink-0"
+                                                >
+                                                    <i className={`pi pi-chevron-right text-[9px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}></i>
+                                                </button>
+                                                <span
+                                                    className="text-primary hover:underline cursor-pointer"
+                                                    onClick={() => navigate(`/proveedores/${p.id}`)}
+                                                >{p.name}</span>
+                                            </div>
                                         </td>
                                         <td className="px-1.5 py-3 text-right text-secondary/70 text-xs tabular-nums">{formatCurrency(p.itemDailyCosts.personal * scaleFactor)}</td>
                                         <td className="px-1.5 py-3 text-right text-secondary/70 text-xs tabular-nums">{formatCurrency(p.itemDailyCosts.vehiculo * scaleFactor)}</td>
@@ -993,6 +1215,56 @@ const TechnicalAudit = () => {
                                             </div>
                                         </td>
                                     </tr>
+                                    {isExpanded && (
+                                        <tr>
+                                            <td colSpan="8" className="p-0 border-b border-secondary/10">
+                                                <div className="bg-secondary-light/40 px-6 py-4 animate-fade-in text-sm">
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <i className="pi pi-id-card text-primary text-lg"></i>
+                                                        <h5 className="font-bold text-secondary-dark text-sm">Ficha del Proveedor</h5>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                        <div className="space-y-2">
+                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Datos Comerciales</h6>
+                                                            {p.name && <div><span className="block text-[10px] text-secondary">Nombre Fantasía</span><span className="font-medium text-secondary-dark">{p.name}</span></div>}
+                                                            <div><span className="block text-[10px] text-secondary">Condición AFIP</span><span className="font-medium text-secondary-dark">{p.clasificacionAFIP || 'N/A'}</span></div>
+                                                            <div><span className="block text-[10px] text-secondary">Servicio</span><span className="font-medium text-secondary-dark">{p.servicio || 'N/A'}</span></div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Estado y Ubicación</h6>
+                                                            <div><span className="block text-[10px] text-secondary">Ubicación</span><span className="font-medium text-secondary-dark">{p.localidad ? `${p.localidad}, ${p.provincia}` : (p.provincia || 'N/A')}</span></div>
+                                                            <div className="flex flex-wrap gap-3 items-center">
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <span className="text-[10px] text-secondary">Temporal</span>
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-flex items-center gap-1 ${p.esTemporal ? 'bg-warning-light text-warning-hover border-warning/30' : 'bg-success-light text-success-hover border-success/30'}`}>
+                                                                        {p.esTemporal ? <><i className="pi pi-clock text-[8px]"></i> SÍ</> : 'NO'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Identificación</h6>
+                                                            <div><span className="block text-[10px] text-secondary">Razón Social</span><span className="font-medium text-secondary-dark">{p.companyName || 'N/A'}</span></div>
+                                                            <div><span className="block text-[10px] text-secondary">CUIT</span><span className="font-mono text-secondary-dark">{p.cuit || 'N/A'}</span></div>
+                                                            <div><span className="block text-[10px] text-secondary">Tipo Persona</span><span className="font-medium text-secondary-dark">{p.tipoPersona || 'N/A'}</span></div>
+                                                            <div><span className="block text-[10px] text-secondary">Estado</span><span className={`font-bold text-[10px] ${p.estado === 'ACTIVO' ? 'text-success' : p.estado === 'SUSPENDIDO' ? 'text-danger' : 'text-warning'}`}>{p.estado || 'N/A'}</span></div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <h6 className="text-[10px] font-bold text-secondary uppercase tracking-wider">Contacto</h6>
+                                                            {p.email && <div className="truncate"><span className="block text-[10px] text-secondary">Email</span><a href={`mailto:${p.email}`} className="font-medium text-primary hover:underline truncate block" title={p.email}>{p.email}</a></div>}
+                                                            {p.telefono && <div><span className="block text-[10px] text-secondary">Teléfono</span><span className="font-mono text-secondary-dark">{p.telefono}</span></div>}
+                                                            <div><span className="block text-[10px] text-secondary">Empleador AFIP</span>
+                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-flex items-center gap-1 mt-0.5 ${p.empleadorAFIP ? 'bg-success-light text-success-hover border-success/30' : 'bg-slate-100 text-secondary border-secondary/20'}`}>
+                                                                    {p.empleadorAFIP ? 'SÍ' : 'NO'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </React.Fragment>
                                 );
                             })}
                         </tbody>
